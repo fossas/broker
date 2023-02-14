@@ -1,0 +1,16 @@
+name: test
+on: push
+
+jobs:
+  all:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v2
+    - uses: actions-rs/toolchain@v1
+      with:
+        profile: minimal
+        toolchain: stable
+    - uses: Swatinem/rust-cache@v1.3.0
+    - uses: taiki-e/install-action@nextest
+    - run: cargo nextest run
