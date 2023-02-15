@@ -7,7 +7,6 @@ readme = "README.md"
 homepage = "https://github.com/fossas/broker"
 repository = "https://github.com/fossas/broker"
 license = "Apache-2.0"
-license-file = "LICENSE"
 exclude = [ "docs", ".github" ]
 publish = false # rather than publishing this to crates.io, we'll provide releases here on GitHub.
 
