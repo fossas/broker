@@ -18,14 +18,7 @@ For more information, see the [User Manual](./docs/README.md).
 
 ## Supported Projects
 
-DevOps hosts are services which host many repositories, for example GitHub or GitLab.
-Broker supports the following DevOps hosts:
-
-| Host          | Supported | Details                                           |
-|---------------|-----------|---------------------------------------------------|
-| _coming soon_ | ⌛️        | We're working on DevOps host support, stay tuned! |
-
-Additionally, Broker supports arbitrary project URLs:
+Broker supports arbitrary project URLs:
 
 | Kind  | Supported | Details                               |
 |-------|-----------|---------------------------------------|
