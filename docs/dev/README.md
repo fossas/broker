@@ -39,6 +39,14 @@ cargo dist     # https://github.com/axodotdev/cargo-dist
 cargo release  # https://github.com/crate-ci/cargo-release
 ```
 
+Our release process is generated with `cargo dist`.
+To regenerate it, run:
+```
+cargo dist generate-ci github \
+  --installer github-powershell \
+  --installer github-shell
+```
+
 ## style guide
 
 Make your code look like the code around it. Consistency is the name of the game.
