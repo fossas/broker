@@ -68,7 +68,7 @@ jobs:
         profile: minimal
         toolchain: stable
     - uses: Swatinem/rust-cache@v2
-    - uses: taiki-e/install-action@v2.4.2
+    - uses: taiki-e/install-action@v2
       with:
         tool: cargo-upgrades,cargo-edit
     - run: cargo upgrade
