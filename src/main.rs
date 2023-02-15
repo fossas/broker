@@ -4,7 +4,7 @@ fn main() {
 }
 
 fn hello_text() -> String {
-    "Hello, world!".to_string()
+    "Hello from Broker!".to_string()
 }
 
 #[cfg(test)]
@@ -13,6 +13,6 @@ mod tests {
 
     #[test]
     fn hello_world_text() {
-        assert_eq!(hello_text(), "Hello, world!".to_string());
+        assert_eq!(hello_text(), "Hello from Broker!".to_string());
     }
 }
