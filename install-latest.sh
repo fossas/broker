@@ -1,1 +1,0 @@
-echo 'Hello bash installer 0.0.1'

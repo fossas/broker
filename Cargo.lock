@@ -20,7 +20,6 @@ version = "0.0.1"
 dependencies = [
  "clap",
  "error-stack",
- "semver",
  "thiserror",
 ]
 
