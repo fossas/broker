@@ -1,0 +1,1 @@
+echo 'Hello powershell installer 0.0.1'

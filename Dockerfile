@@ -1,0 +1,1 @@
+echo 'Hello docker 0.0.1'

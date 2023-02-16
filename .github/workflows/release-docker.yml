@@ -1,0 +1,19 @@
+name: Release Docker
+
+# Runs this workflow when the following workflows "complete".
+#
+# Note that "complete" doesn't imply success:
+# https://github.com/orgs/community/discussions/26238
+# TL;DR: Gate jobs on `if: ${{ github.event.workflow_run.conclusion == 'success' }}`.
+on:
+  workflow_run:
+    workflows: ["Release"]
+    branches: [main]
+    types: 
+      - completed
+
+jobs:
+  release-docker:
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    runs-on: ubuntu-latest
+    steps:
