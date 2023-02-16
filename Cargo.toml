@@ -13,7 +13,9 @@ publish = false # rather than publishing this to crates.io, we'll provide releas
 [dependencies]
 clap = { version = "4.1.6", features = ["derive", "cargo", "env"] }
 error-stack = { version = "0.3.1", features = ["spantrace", "hooks"] }
+nutype = { git = "https://github.com/greyblake/nutype", branch = "master" } # using prerelease 0.2.0
 thiserror = "1.0.38"
+url = "2.3.1"
 
 [build-dependencies]
 error-stack = { version = "0.3", features = ["hooks"] }
