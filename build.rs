@@ -5,8 +5,6 @@ use std::fs;
 use std::path::Path;
 use std::path::PathBuf;
 
-const INSTALLER_BASH: &str = "install-latest.sh";
-const INSTALLER_PWRSH: &str = "install-latest.ps1";
 const DOCKERFILE: &str = "Dockerfile";
 
 #[derive(Debug, thiserror::Error)]
@@ -22,13 +20,15 @@ fn main() -> Result<(), Error> {
     Report::set_color_mode(error_stack::fmt::ColorMode::Color);
     Report::install_debug_hook(Help::debug_hook);
 
+    // TODO: Use `version` to generate installers.
     let version = env_var("CARGO_PKG_VERSION")?;
     let root = PathBuf::from(env_var("CARGO_MANIFEST_DIR")?);
 
-    write_file(&root, INSTALLER_BASH, generate_installer_bash(&version))?;
-    write_file(&root, INSTALLER_PWRSH, generate_installer_pwrsh(&version))?;
+    // TODO: Generate installers, e.g. `install-latest.sh` and `install-latest.ps1`.
     write_file(&root, DOCKERFILE, generate_dockerfile(&version))?;
 
+    // Only need to re-generate this if the manifest changes,
+    // because the only thing this script depends on is the version.
     println!("cargo:rerun-if-changed=Cargo.toml");
     Ok(())
 }
@@ -50,19 +50,25 @@ fn write_file<F: FnOnce() -> String>(root: &Path, name: &str, generator: F) -> R
         ))
 }
 
-fn generate_installer_bash(version: &str) -> impl FnOnce() -> String {
-    let version = version.to_owned();
-    move || format!("echo 'Hello bash installer {version}'")
-}
+fn generate_dockerfile(_: &str) -> impl FnOnce() -> String {
+    move || {
+        String::from(
+            r#"
+FROM rust:slim-bullseye as builder
 
-fn generate_installer_pwrsh(version: &str) -> impl FnOnce() -> String {
-    let version = version.to_owned();
-    move || format!("echo 'Hello powershell installer {version}'")
-}
+WORKDIR /build
+COPY . .
+RUN cargo build --release
 
-fn generate_dockerfile(version: &str) -> impl FnOnce() -> String {
-    let version = version.to_owned();
-    move || format!("echo 'Hello docker {version}'")
+FROM debian:bullseye-slim AS runtime
+
+WORKDIR /broker
+COPY --from=builder /build/target/release/broker /usr/local/bin
+
+ENTRYPOINT ["/usr/local/bin/broker"]
+"#,
+        )
+    }
 }
 
 /// Provide help text for a given error.

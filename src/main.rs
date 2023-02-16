@@ -1,5 +1,3 @@
-mod error_ext;
-
 fn main() {
     let hello = hello_text();
     println!("{hello}");
