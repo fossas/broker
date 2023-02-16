@@ -1,6 +1,6 @@
 # User Manual
 
-_TODO: Fill this out_
+_TODO: Fill this out as we add functionality_
 
 ## Subcommands
 

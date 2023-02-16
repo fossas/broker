@@ -57,3 +57,19 @@ jobs:
         toolchain: stable
     - uses: Swatinem/rust-cache@v2
     - run: cargo build
+
+  # Ensure dependencies are up to date
+  updated:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v3
+    - uses: actions-rs/toolchain@v1
+      with:
+        profile: minimal
+        toolchain: stable
+    - uses: Swatinem/rust-cache@v2
+    - uses: taiki-e/install-action@v2
+      with:
+        tool: cargo-upgrades,cargo-edit
+    - run: cargo upgrade
+    - run: git diff --exit-code
