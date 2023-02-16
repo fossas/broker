@@ -50,8 +50,11 @@ fn write_file<F: FnOnce() -> String>(root: &Path, name: &str, generator: F) -> R
         ))
 }
 
-fn generate_dockerfile(_: &str) -> impl FnOnce() -> String {
+fn generate_dockerfile(_version: &str) -> impl FnOnce() -> String {
     move || {
+        // TODO: In the future, we should download the already-built binaries from the release
+        //       instead of rebuilding them here.
+        //       The currently unused version specifier will be useful for this.
         String::from(
             r#"
 FROM rust:slim-bullseye as builder
