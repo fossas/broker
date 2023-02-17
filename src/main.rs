@@ -5,38 +5,28 @@
 #![deny(missing_docs)]
 #![warn(rust_2018_idioms)]
 
-use broker::api::fossa::ApiKey;
+use broker::{config, ext::error_stack::ErrorHelper};
 use clap::Parser;
-use url::Url;
+use error_stack::{fmt::ColorMode, Report, Result, ResultExt};
 
-#[derive(Debug, Parser)]
-#[command(version, about)]
-struct BaseArgs {
-    /// URL of FOSSA instance with which Broker should communicate.
-    #[arg(short = 'e', long, default_value = "https://app.fossa.com")]
-    endpoint: Url,
+#[derive(Debug, thiserror::Error)]
+enum Error {
+    #[error("validate arguments")]
+    ValidateArgs,
 
-    /// The API key to use when communicating with FOSSA.
-    #[arg(short = 'k', long = "fossa-api-key", env = "FOSSA_API_KEY")]
-    api_key: ApiKey,
+    #[error("a fatal error occurred at runtime")]
+    _Runtime,
 }
 
-fn main() {
-    let _ = BaseArgs::parse();
-    let hello = hello_text();
-    println!("{hello}");
-}
+fn main() -> Result<(), Error> {
+    Report::set_color_mode(ColorMode::Color);
 
-fn hello_text() -> String {
-    "Hello from Broker!".to_string()
-}
+    let args = config::RawBaseArgs::parse();
+    let args = config::BaseArgs::try_from(args)
+        .change_context(Error::ValidateArgs)
+        .help("detailed error messages are available below")
+        .help("try running Broker with the '--help' argument to see available options and usage suggestions")?;
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn hello_world_text() {
-        assert_eq!(hello_text(), "Hello from Broker!".to_string());
-    }
+    println!("args: {args:?}");
+    Ok(())
 }
