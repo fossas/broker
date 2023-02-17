@@ -23,7 +23,6 @@ dependencies = [
  "dirs",
  "error-stack",
  "getset",
- "nutype",
  "thiserror",
  "url",
 ]
@@ -242,24 +241,6 @@ name = "linux-raw-sys"
 version = "0.1.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f051f77a7c8e6957c0696eac88f26b0117e54f52d3fc682ab19397a8812846a4"
-
-[[package]]
-name = "nutype"
-version = "0.2.0"
-source = "git+https://github.com/greyblake/nutype?branch=master#257d91f42696e4f03d1494d858668147e520ebcc"
-dependencies = [
- "nutype_macros",
-]
-
-[[package]]
-name = "nutype_macros"
-version = "0.2.0"
-source = "git+https://github.com/greyblake/nutype?branch=master#257d91f42696e4f03d1494d858668147e520ebcc"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn",
-]
 
 [[package]]
 name = "once_cell"
