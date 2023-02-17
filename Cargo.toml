@@ -1,6 +1,6 @@
 [package]
 name = "broker"
-version = "0.0.2"
+version = "0.1.0-pre"
 edition = "2021"
 description = "The bridge between FOSSA and internal DevOps services"
 readme = "README.md"
@@ -12,8 +12,13 @@ publish = false # rather than publishing this to crates.io, we'll provide releas
 
 [dependencies]
 clap = { version = "4.1.6", features = ["derive", "cargo", "env"] }
+colored = "2.0.0"
+derive_more = "0.99.17"
+dirs = "4.0.0"
 error-stack = { version = "0.3.1", features = ["spantrace", "hooks"] }
+getset = "0.1.2"
 thiserror = "1.0.38"
+url = "2.3.1"
 
 [build-dependencies]
 error-stack = { version = "0.3", features = ["hooks"] }
