@@ -12,6 +12,7 @@ publish = false # rather than publishing this to crates.io, we'll provide releas
 
 [dependencies]
 clap = { version = "4.1.6", features = ["derive", "cargo", "env"] }
+colored = "2.0.0"
 derive_more = "0.99.17"
 dirs = "4.0.0"
 error-stack = { version = "0.3.1", features = ["spantrace", "hooks"] }
