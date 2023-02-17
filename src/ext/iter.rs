@@ -56,6 +56,8 @@ pub trait AlternativeIter<T, E> {
     /// serially fold over multiple fallible operation results, combining their errors into
     /// the final error stack and returning the result of the first successful operation.
     /// If none were successful, `Err` contains the stacked errors from all attempts.
+    ///
+    /// Panics if the iterator does not yield any items.
     fn alternative_fold(self) -> Result<T, Report<E>>;
 }
 
@@ -67,34 +69,39 @@ impl<I: Iterator<Item = Result<T, Report<E>>>, T, E> AlternativeIter<T, E> for I
             // and collect errors together into a single "successful" result at the end.
             // Finally, flip it back and treat it like a normal error.
             //
-            // The only frustrating part here is that to handle the first iteration
-            // we have to use `None` (since as of the first iteration, there's no error).
-            // As programmers, we _know_ that if the final `Result<T, Option<Report<E>>>`
-            // is `Err`, then it _must_ also be `Err(Some(_))`.
-            // Unfortunately this means we have to `unwrap` (or provide a much worse API).
+            // The only frustrating part here is that it's possible for the iterator to
+            // not actually yield any items, in which case we cannot get a response at all.
+            // An ideal way to handle this would be to have some form of "non-empty iterator".
+            // Unfortunately this means we have to `unwrap` (or provide a much worse API that forces
+            // users to deal with `Option`).
             //
             // Possible fixes for the future:
-            // - Extend `error_stack` to have an empty-but-not-null error, and then `mem::replace` it.
-            // - Build/find a stable version of `try_reduce` and use it.
+            // - Create a `NonEmptyIterator` that enforces at compile time that there is at least one item.
             .map(|result| result.flip())
-            .try_fold(None::<Report<E>>, |mut stack, operation| {
+            .try_fold(Vec::new(), |mut errs, operation| {
                 operation.map(|actually_err| {
-                    if let Some(stack) = stack.as_mut() {
-                        stack.extend_one(actually_err);
-                    } else {
-                        stack = Some(actually_err);
-                    }
-                    stack
+                    errs.push(actually_err);
+                    errs
                 })
             })
             // Flip the `Result<E, T>` back to `Result<T, E>`.
             .flip()
-            // In the error case, unwrap the `Option`.
-            // While this panics if the error is actually `None`,
-            // we know this is safe because we'll only get here if there's no `Ok`
-            // in which case there _must_ have been an error.
-            .map_err(|err| err.expect("internal invariant: err is known to be Some"))
+            // In the error case, reduce all the errors seen into a single one via `extend_one`.
+            // Due to the "frustrating part" explained above, we must handle the case that the `Vec` of errors is empty;
+            // this occurs if no items were ever given to the iterator.
+            // This is clearly a misuse of this API, and so it generates a panic in this scenario,
+            // but ideally we'd convert this to a compile time check into a run time check.
+            .map_err(collapse_errs_stack)
+            .map_err(|stack| stack.expect("invariant: iterator consumed by `alternative_fold` must yield at least one item"))
     }
+}
+
+/// Using `extend_one`, collapse an iterable of reports into a single report.
+fn collapse_errs_stack<I: IntoIterator<Item = Report<E>>, E>(errs: I) -> Option<Report<E>> {
+    errs.into_iter().reduce(|mut stack, err| {
+        stack.extend_one(err);
+        stack
+    })
 }
 
 #[cfg(test)]
@@ -163,5 +170,15 @@ mod tests {
             format!("{errs:?}").contains("some other error"),
             "must have reported 'some other error' in text: {errs:?}"
         );
+    }
+
+    #[test]
+    #[should_panic = "invariant: iterator consumed by `alternative_fold` must yield at least one item"]
+    fn alternative_fold_invariant_empty_iter() {
+        #[derive(Debug, thiserror::Error)]
+        #[error("some error")]
+        struct Error;
+
+        let _ = iter::empty::<Result<(), Report<Error>>>().alternative_fold();
     }
 }
