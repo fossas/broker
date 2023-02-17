@@ -18,19 +18,17 @@ use crate::ext::{
 pub struct RawBaseArgs {
     /// The path to the Broker config file.
     ///
-    /// If unset, Broker searches (in order):
-    /// - The current working directory
-    /// - On Linux and macOS: `~/.fossa/broker/`
-    /// - On Windows: `%USERPROFILE%\.fossa\broker`
+    /// If unset, Broker searches (in order) for `config.yml` or `config.json` in
+    /// the current working directory, then (on Linux and macOS) `~/.fossa/broker/`,
+    /// or (on Windows) `%USERPROFILE%\.fossa\broker`.
     #[arg(short = 'c', long)]
     config_file_path: Option<String>,
 
     /// The path to the Broker database file.
     ///
-    /// If unset, Broker searches (in order):
-    /// - The current working directory
-    /// - On Linux and macOS: `~/.fossa/broker/`
-    /// - On Windows: `%USERPROFILE%\.fossa\broker`
+    /// If unset, Broker searches (in order) for `db.sqlite` in
+    /// the current working directory, then (on Linux and macOS) `~/.fossa/broker/`,
+    /// or (on Windows) `%USERPROFILE%\.fossa\broker`.
     #[arg(short = 'd', long)]
     database_file_path: Option<String>,
 }
@@ -94,11 +92,11 @@ impl TryFrom<RawBaseArgs> for BaseArgs {
             .unwrap_or_else(ConfigFilePath::discover)
             .change_context(ValidationError::ValidateConfigFileLocation)
             .describe_if(
-                discovering_config, 
+                discovering_config,
                 "searches the working directory and '{USER_DIR}/.fossa/broker' for 'config.yml' or 'config.json'"
             )
             .help_if(
-                discovering_config, 
+                discovering_config,
                 "consider providing an explicit argument instead"
             );
 
@@ -135,7 +133,7 @@ impl TryFrom<RawBaseArgs> for BaseArgs {
         // because a "heterogenous vec" is ~a tuple, we just need some extra syntax to be able to
         // recursively work with tuples. I think this way would probably result in the least boilerplate
         // with purely compile time validation.
-        // 
+        //
         // We could also use a macro to automatically create `match` statements like the below at arbitrary arity,
         // in other words simply automate creation of the boilerplate. This is probably the less elegant but
         // more practical (and faster) approach.
@@ -153,9 +151,8 @@ impl TryFrom<RawBaseArgs> for BaseArgs {
             (Err(mut first), Err(second)) => {
                 first.extend_one(second);
                 Err(first)
-            },
+            }
         }
-
     }
 }
 
