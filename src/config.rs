@@ -3,10 +3,8 @@
 use std::{env, fs, iter, path::PathBuf};
 
 use clap::Parser;
-use derive_more::AsRef;
 use error_stack::{IntoReport, Report, ResultExt};
 use getset::{CopyGetters, Getters};
-use url::Url;
 
 use crate::ext::{
     error_stack::{DescribeContext, ErrorHelper},
@@ -18,14 +16,6 @@ use crate::ext::{
 #[derive(Debug, Parser)]
 #[command(version, about)]
 pub struct RawBaseArgs {
-    /// URL of FOSSA instance with which Broker should communicate.
-    #[arg(short = 'e', long, default_value = "https://app.fossa.com")]
-    endpoint: String,
-
-    /// The API key to use when communicating with FOSSA.
-    #[arg(short = 'k', long = "fossa-api-key", env = "FOSSA_API_KEY")]
-    api_key: String,
-
     /// The path to the Broker config file.
     ///
     /// If unset, Broker searches (in order):
@@ -49,12 +39,6 @@ pub struct RawBaseArgs {
 #[derive(Debug, Clone, PartialEq, Eq, Getters)]
 #[getset(get = "pub")]
 pub struct BaseArgs {
-    /// URL of FOSSA instance with which Broker should communicate.
-    endpoint: FossaEndpoint,
-
-    /// The API key to use when communicating with FOSSA.
-    api_key: FossaApiKey,
-
     /// The path to the config file on disk.
     config_path: ConfigFilePath,
 
@@ -65,14 +49,6 @@ pub struct BaseArgs {
 /// Errors that are possibly surfaced during validation of config values.
 #[derive(Debug, thiserror::Error)]
 pub enum ValidationError {
-    /// The FOSSA endpoint provided is not valid.
-    #[error("validate FOSSA endpoint")]
-    ValidateFossaEndpoint,
-
-    /// The FOSSA API key provided is not valid.
-    #[error("validate FOSSA api key")]
-    ValidateFossaApiKey,
-
     /// The config file location provided is not valid, or was not able to be located.
     #[error("validate config file location")]
     ValidateConfigFileLocation,
@@ -111,56 +87,6 @@ impl TryFrom<RawBaseArgs> for BaseArgs {
     type Error = Report<ValidationError>;
 
     fn try_from(raw: RawBaseArgs) -> Result<Self, Self::Error> {
-        // TODO:
-        // `error_stack` supports stacking multiple errors together so
-        // they can all be reported at the same time.
-        // We use this elsewhere, for example in `alternative_fold`.
-        //
-        // It looks like this:
-        //
-        // ```not_rust
-        // Error: validate arguments
-        // ├╴at src/main.rs:26:49
-        // │
-        // ╰┬▶ validate FOSSA endpoint
-        //  │  ├╴at src/config.rs:132:14
-        //  │  │
-        //  │  ╰─▶ relative URL without a base
-        //  │      ├╴at src/config.rs:129:14
-        //  │      ╰╴context: provided input: 'foo'
-        //  │
-        //  ╰▶ validate FOSSA api key
-        //     ├╴at src/config.rs:149:18
-        //     │
-        //     ╰─▶ value is empty, but a non-empty value is required
-        //         ├╴at src/config.rs:146:17
-        //         ╰╴context: provided input: ''
-        // ```
-        //
-        // It can trivially be created by folding `Vec<Result<T, Report<E>>>`
-        // into `Result<Vec<T>, Report<E>>` using `Report::extend_one`.
-        //
-        // Unfortunately, since our `Result<T, E>` types have heterogenous `T`'s,
-        // so we can't store them in a `Vec` or `Iterator`.
-        // To explain, `Result<T1, E>` and `Result<T2, E>` can be reduced down to `T1, T2`.
-        // It's not possible to store `Vec<T1, T2>` or `Iterator<Item = T1, T2>`,
-        // because both of these containers require homogenous data types.
-        //
-        // I think the best way around this is likely using https://docs.rs/tuple_list/latest/tuple_list/
-        // because a "heterogenous vec" is ~a tuple, we just need some extra syntax to be able to
-        // recursively work with tuples. I think this way would probably result in the least boilerplate
-        // with purely compile time validation.
-        //
-        // Alternately, it may be more boilerplate and will probably have to resort to runtime validation,
-        // but we could store an enum of valid types or use `Box<Any>` into a `Vec`,
-        // and perform the error fold that way.
-        //
-        // For now I'm tabling this in favor of simply reporting the first error we come across,
-        // but it's much better UX long term if we can report all the errors at once.
-
-        let endpoint = FossaEndpoint::try_from(raw.endpoint)?;
-        let api_key = FossaApiKey::try_from(raw.api_key)?;
-
         let discovering_config = raw.config_file_path.is_none();
         let config_path = raw
             .config_file_path
@@ -174,7 +100,7 @@ impl TryFrom<RawBaseArgs> for BaseArgs {
             .help_if(
                 discovering_config, 
                 "consider providing an explicit argument instead"
-            )?;
+            );
 
         let discovering_db = raw.database_file_path.is_none();
         let database_path = raw
@@ -189,50 +115,47 @@ impl TryFrom<RawBaseArgs> for BaseArgs {
             .help_if(
                 discovering_db,
                 "consider providing an explicit argument instead",
-            )?;
+            );
 
-        Ok(Self {
-            api_key,
-            endpoint,
-            config_path,
-            database_path,
-        })
-    }
-}
-
-/// The URL to the FOSSA endpoint.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct FossaEndpoint(Url);
-
-impl TryFrom<String> for FossaEndpoint {
-    type Error = Report<ValidationError>;
-
-    fn try_from(input: String) -> Result<Self, Self::Error> {
-        Url::parse(&input)
-            .into_report()
-            .describe_lazy(|| format!("provided input: '{input}'"))
-            .help("the url provided must be absolute and must contain the protocol, for example 'https://app.fossa.com'")
-            .change_context(ValidationError::ValidateFossaEndpoint)
-            .map(FossaEndpoint)
-    }
-}
-
-/// The FOSSA API key.
-#[derive(Debug, Clone, PartialEq, Eq, AsRef)]
-pub struct FossaApiKey(String);
-
-impl TryFrom<String> for FossaApiKey {
-    type Error = Report<ValidationError>;
-
-    fn try_from(input: String) -> Result<Self, Self::Error> {
-        if input.is_empty() {
-            Err(Report::new(ValidationError::ValueEmpty))
-                .describe_lazy(|| format!("provided input: '{input}'"))
-                .help("use an API key from FOSSA here: https://app.fossa.com/account/settings/integrations/api_tokens")
-                .change_context(ValidationError::ValidateFossaApiKey)
-        } else {
-            Ok(FossaApiKey(input))
+        // `error_stack` supports stacking multiple errors together so
+        // they can all be reported at the same time.
+        // We use this elsewhere, for example in `alternative_fold`,
+        // and we use this manually here.
+        //
+        // A stacked error can trivially be created by folding `Vec<Result<T, Report<E>>>`
+        // into `Result<Vec<T>, Report<E>>` using `Report::extend_one`.
+        //
+        // Unfortunately, since our `Result<T, E>` types have heterogenous `T`'s,
+        // we can't store them in a `Vec` or `Iterator`.
+        // To explain, `Result<T1, E>` and `Result<T2, E>` can be reduced down to `T1, T2`.
+        // It's not possible to store `Vec<T1, T2>` or `Iterator<Item = T1, T2>`,
+        // because both of these containers require homogenous data types.
+        //
+        // I think the most elegant way around this is likely using https://docs.rs/tuple_list/latest/tuple_list/
+        // because a "heterogenous vec" is ~a tuple, we just need some extra syntax to be able to
+        // recursively work with tuples. I think this way would probably result in the least boilerplate
+        // with purely compile time validation.
+        // 
+        // We could also use a macro to automatically create `match` statements like the below at arbitrary arity,
+        // in other words simply automate creation of the boilerplate. This is probably the less elegant but
+        // more practical (and faster) approach.
+        //
+        // For now I'm tabling either route in favor of manually writing the match; we only have two things to validate.
+        // If we start adding too many more, we should really consider making this better.
+        // Seeing the below, you can imagine how unweidly this'll get with 3 or 4 errors.
+        match (config_path, database_path) {
+            (Ok(config_path), Ok(database_path)) => Ok(Self {
+                config_path,
+                database_path,
+            }),
+            (Ok(_), Err(err)) => Err(err),
+            (Err(err), Ok(_)) => Err(err),
+            (Err(mut first), Err(second)) => {
+                first.extend_one(second);
+                Err(first)
+            },
         }
+
     }
 }
 
