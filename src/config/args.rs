@@ -47,7 +47,7 @@ pub enum Error {
 pub struct RawBaseArgs {
     /// The path to the Broker config file.
     ///
-    /// If unset, Broker searches (in order) for `config.yml` or `config.json` in
+    /// If unset, Broker searches (in order) for `config.yml` or `config.yaml` in
     /// the current working directory, then (on Linux and macOS) `~/.fossa/broker/`,
     /// or (on Windows) `%USERPROFILE%\.fossa\broker`.
     #[arg(short = 'c', long)]
@@ -85,7 +85,7 @@ impl TryFrom<RawBaseArgs> for BaseArgs {
             .change_context(Error::ConfigFileLocation)
             .describe_if(
                 discovering_config,
-                "searches the working directory and '{USER_DIR}/.fossa/broker' for 'config.yml' or 'config.json'"
+                "searches the working directory and '{USER_DIR}/.fossa/broker' for 'config.yml' or 'config.yaml'"
             )
             .help_if(
                 discovering_config,
@@ -168,7 +168,7 @@ impl ConfigFilePath {
     /// Discover the location for the config file on disk.
     fn discover() -> Result<Self, Report<Error>> {
         iter::once_with(|| io::find("config.yml"))
-            .chain_once_with(|| io::find("config.json"))
+            .chain_once_with(|| io::find("config.yaml"))
             .alternative_fold()
             .change_context(Error::LocateFile)
             .map(|path| Self {
