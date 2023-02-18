@@ -11,8 +11,8 @@ use error_stack::{bail, fmt::ColorMode, Report, Result, ResultExt};
 
 #[derive(Debug, thiserror::Error)]
 enum Error {
-    #[error("validate arguments")]
-    ValidateArgs,
+    #[error("determine effective configuration")]
+    DetermineEffectiveConfig,
 
     #[error("this subcommand is not implemented")]
     SubcommandUnimplemented,
@@ -106,8 +106,7 @@ fn main_run(args: config::RawBaseArgs) -> Result<(), Error> {
 }
 
 fn validate_args(provided: config::RawBaseArgs) -> Result<config::BaseArgs, Error> {
-    config::BaseArgs::try_from(provided)
-        .change_context(Error::ValidateArgs)
-        .help("detailed error messages are available below")
+    config::validate_args(provided)
+        .change_context(Error::DetermineEffectiveConfig)
         .help("try running Broker with the '--help' argument to see available options and usage suggestions")
 }
