@@ -1,3 +1,5 @@
+//! Types and functions for parsing & validating CLI arguments.
+
 use std::{iter, path::PathBuf};
 
 use clap::Parser;
@@ -29,6 +31,17 @@ pub enum Error {
 
 /// Base arguments, used in most Broker subcommands.
 /// The "Raw" prefix indicates that this is the initial parsed value before any validation.
+///
+/// There is no exported function in `config` that parses these args; instead these are
+/// parsed automatically by `clap` since they implement `Parser` and are included in the
+/// top-level subcommand configuration sent to `clap`.
+///
+/// Unlike with the config file, there's not really a concept of these args "failing to parse",
+/// as `clap` steps in and shows the user errors in this case. By the time `clap` hands
+/// us this structure, it's been successfully parsed.
+///
+/// This odd dichotomy is why we have to leak the `RawBaseArgs` implementation to the package consumer,
+/// because the consumer (`main`) needs to be able to give this type to `clap` for it to be parsed.
 #[derive(Debug, Parser)]
 #[command(version, about)]
 pub struct RawBaseArgs {

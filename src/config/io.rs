@@ -1,3 +1,5 @@
+//! Types and functions for validations requiring IO.
+
 use std::{env, fs, iter, path::PathBuf};
 
 use error_stack::{IntoReport, Report, ResultExt};

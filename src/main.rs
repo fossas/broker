@@ -5,7 +5,10 @@
 #![deny(missing_docs)]
 #![warn(rust_2018_idioms)]
 
-use broker::{config, ext::error_stack::ErrorHelper};
+use broker::{
+    config::{self, Config},
+    ext::error_stack::ErrorHelper,
+};
 use clap::{Parser, Subcommand};
 use error_stack::{bail, fmt::ColorMode, Report, Result, ResultExt};
 
@@ -78,35 +81,39 @@ fn main_setup() -> Result<(), Error> {
 
 /// Guided interactive configuration changes.
 fn main_config(args: config::RawBaseArgs) -> Result<(), Error> {
-    let args = validate_args(args)?;
-    println!("args: {args:?}");
+    let conf = load_config(args)?;
+    println!("conf: {conf:?}");
     bail!(Error::SubcommandUnimplemented)
 }
 
 /// Automatically detect problems with Broker and fix them.
 /// If they can't be fixed, generate a debug bundle.
 fn main_fix(args: config::RawBaseArgs) -> Result<(), Error> {
-    let args = validate_args(args)?;
-    println!("args: {args:?}");
+    let conf = load_config(args)?;
+    println!("conf: {conf:?}");
     bail!(Error::SubcommandUnimplemented)
 }
 
 /// Back up or restore Broker's current config and database.
 fn main_backup(args: config::RawBaseArgs) -> Result<(), Error> {
-    let args = validate_args(args)?;
-    println!("args: {args:?}");
+    let conf = load_config(args)?;
+    println!("conf: {conf:?}");
     bail!(Error::SubcommandUnimplemented)
 }
 
 /// Run Broker with the current config.
 fn main_run(args: config::RawBaseArgs) -> Result<(), Error> {
-    let args = validate_args(args)?;
-    println!("args: {args:?}");
+    let conf = load_config(args)?;
+    println!("conf: {conf:?}");
     bail!(Error::SubcommandUnimplemented)
 }
 
-fn validate_args(provided: config::RawBaseArgs) -> Result<config::BaseArgs, Error> {
-    config::validate_args(provided)
+/// Parse application args and then load effective config.
+fn load_config(args: config::RawBaseArgs) -> Result<Config, Error> {
+    let args = config::validate_args(args)
         .change_context(Error::DetermineEffectiveConfig)
-        .help("try running Broker with the '--help' argument to see available options and usage suggestions")
+        .help("try running Broker with the '--help' argument to see available options and usage suggestions")?;
+
+    // TODO: point the user towards the docs entrypoint for configuration.
+    config::load(&args).change_context(Error::DetermineEffectiveConfig)
 }
