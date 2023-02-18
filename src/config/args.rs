@@ -24,8 +24,8 @@ pub enum Error {
     #[error("validate database file location")]
     DbFileLocation,
 
-    /// Failed to locate the file in any search location.
-    #[error("failed to locate file in any known location")]
+    /// Failed to locate the file.
+    #[error("failed to locate file")]
     LocateFile,
 }
 
@@ -77,35 +77,17 @@ impl TryFrom<RawBaseArgs> for BaseArgs {
     type Error = Report<Error>;
 
     fn try_from(raw: RawBaseArgs) -> Result<Self, Self::Error> {
-        let discovering_config = raw.config_file_path.is_none();
         let config_path = raw
             .config_file_path
             .map(ConfigFilePath::try_from)
             .unwrap_or_else(ConfigFilePath::discover)
-            .change_context(Error::ConfigFileLocation)
-            .describe_if(
-                discovering_config,
-                "searches the working directory and '{USER_DIR}/.fossa/broker' for 'config.yml' or 'config.yaml'"
-            )
-            .help_if(
-                discovering_config,
-                "consider providing an explicit argument instead"
-            );
+            .change_context(Error::ConfigFileLocation);
 
-        let discovering_db = raw.database_file_path.is_none();
         let database_path = raw
             .database_file_path
             .map(DatabaseFilePath::try_from)
             .unwrap_or_else(DatabaseFilePath::discover)
-            .change_context(Error::DbFileLocation)
-            .describe_if(
-                discovering_db,
-                "searches the working directory and '{USER_DIR}/.fossa/broker' for 'db.sqlite'",
-            )
-            .help_if(
-                discovering_db,
-                "consider providing an explicit argument instead",
-            );
+            .change_context(Error::DbFileLocation);
 
         // `error_stack` supports stacking multiple errors together so
         // they can all be reported at the same time.
@@ -171,6 +153,8 @@ impl ConfigFilePath {
             .chain_once_with(|| io::find("config.yaml"))
             .alternative_fold()
             .change_context(Error::LocateFile)
+            .describe("searches the working directory and '{USER_DIR}/.fossa/broker' for 'config.yml' or 'config.yaml'")
+            .help("consider providing an explicit argument instead")
             .map(|path| Self {
                 path,
                 provided: false,
@@ -212,6 +196,10 @@ impl DatabaseFilePath {
     fn discover() -> Result<Self, Report<Error>> {
         io::find("db.sqlite")
             .change_context(Error::LocateFile)
+            .describe(
+                "searches the working directory and '{USER_DIR}/.fossa/broker' for 'db.sqlite'",
+            )
+            .help("consider providing an explicit argument instead")
             .map(|path| Self {
                 path,
                 provided: false,
