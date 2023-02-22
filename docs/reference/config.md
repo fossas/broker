@@ -13,7 +13,7 @@ fossa_integration_key: abcd1234
 version: 1
 
 debugging:
-  location: ~/.fossa/broker/debugging/
+  location: /home/me/.fossa/broker/debugging/
   retention:
     duration: 7d
     size: 1048576

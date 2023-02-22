@@ -61,8 +61,11 @@ pub struct Root(PathBuf);
 /// Since observability artifacts are stored on disk, we obviously want to clean them up.
 /// These retention settings are used by a background process to keep artifact size in line.
 #[derive(Debug, Clone, PartialEq, Eq, Getters, new)]
+#[getset(get = "pub")]
 pub struct Retention {
+    /// The max age for an artifact.
     age: Option<ArtifactMaxAge>,
+    /// The max size for an artifact.
     size: Option<ArtifactMaxSize>,
 }
 

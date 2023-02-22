@@ -47,6 +47,14 @@ cargo dist generate-ci github \
   --installer github-shell
 ```
 
+### snapshot testing
+
+Broker uses [insta](https://docs.rs/insta) to perform snapshot testing of outputs.
+Refer to `insta`'s [getting started guide](https://insta.rs/docs/) for optimal usage.
+
+The short version of the workflow is that if you get "snapshot errors" during tests,
+run `cargo insta test --review" to review the changes and accept/deny them as intentional.
+
 ## style guide
 
 Make your code look like the code around it. Consistency is the name of the game.

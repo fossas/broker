@@ -56,7 +56,7 @@ impl RawConfigV1 {
 
 fn validate(config: RawConfigV1) -> Result<super::Config, Report<Error>> {
     let endpoint = fossa::Endpoint::try_from(config.endpoint).change_context(Error::Validate)?;
-    let key = fossa::ApiKey::try_from(config.integration_key).change_context(Error::Validate)?;
+    let key = fossa::Key::try_from(config.integration_key).change_context(Error::Validate)?;
     let api = fossa::Config::new(endpoint, key);
     let debugging = debug::Config::try_from(config.logging).change_context(Error::Validate)?;
     let integrations = config

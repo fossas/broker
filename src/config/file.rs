@@ -74,7 +74,7 @@ pub struct Config {
     fossa_api: api::fossa::Config,
 
     /// Configuration related to observability.
-    observability: debug::Config,
+    debug: debug::Config,
 
     /// Configured integration points.
     integrations: api::code_host::Config,

@@ -28,6 +28,9 @@ subtle = "2.4.1"
 thiserror = "1.0.38"
 url = "2.3.1"
 
+[dev-dependencies]
+insta = { version = "1.28.0", features = ["filters", "json", "yaml"] }
+
 [build-dependencies]
 error-stack = { version = "0.3", features = ["hooks"] }
 thiserror = "1.0.38"
@@ -36,3 +39,9 @@ thiserror = "1.0.38"
 inherits = "release"
 debug = true
 split-debuginfo = "packed"
+
+[profile.dev.package.insta]
+opt-level = 3
+
+[profile.dev.package.similar]
+opt-level = 3

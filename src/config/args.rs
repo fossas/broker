@@ -3,8 +3,10 @@
 use std::{iter, path::PathBuf};
 
 use clap::Parser;
+use derive_new::new;
 use error_stack::{Report, ResultExt};
 use getset::{CopyGetters, Getters};
+use serde::Serialize;
 
 use crate::ext::{
     error_stack::{DescribeContext, ErrorHelper},
@@ -42,7 +44,7 @@ pub enum Error {
 ///
 /// This odd dichotomy is why we have to leak the `RawBaseArgs` implementation to the package consumer,
 /// because the consumer (`main`) needs to be able to give this type to `clap` for it to be parsed.
-#[derive(Debug, Parser)]
+#[derive(Debug, Clone, Parser, Serialize, new)]
 #[command(version, about)]
 pub struct RawBaseArgs {
     /// The path to the Broker config file.

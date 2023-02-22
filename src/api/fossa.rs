@@ -35,7 +35,7 @@ pub struct Config {
     endpoint: Endpoint,
 
     /// The key used when interacting with the FOSSA backend.
-    key: ApiKey,
+    key: Key,
 }
 
 /// The URL to the FOSSA endpoint.
@@ -57,9 +57,9 @@ impl TryFrom<String> for Endpoint {
 
 /// The FOSSA API key.
 #[derive(Debug, Clone, PartialEq, Eq, AsRef, From, new)]
-pub struct ApiKey(ComparableSecretString);
+pub struct Key(ComparableSecretString);
 
-impl TryFrom<String> for ApiKey {
+impl TryFrom<String> for Key {
     type Error = Report<ValidationError>;
 
     fn try_from(input: String) -> Result<Self, Self::Error> {
@@ -70,7 +70,7 @@ impl TryFrom<String> for ApiKey {
                 .change_context(ValidationError::ApiKey)
         } else {
             let secret = ComparableSecretString::from(input);
-            Ok(ApiKey(secret))
+            Ok(Key(secret))
         }
     }
 }
