@@ -48,6 +48,50 @@ fn help_literal() -> String {
     "help:".bold().blue().to_string()
 }
 
+/// Used to provide a documentation reference useful for resolving an error.
+///
+/// This is meant to be readable by users of the application;
+/// ideally just provide the URL to the user so they can click it for more information.
+pub trait ErrorDocReference {
+    /// Provide a link to documentation that will help the user resolve this problem.
+    fn documentation<S: AsRef<str>>(self, url: S) -> Self;
+
+    /// Optionally provide a link to documentation that will help the user resolve this problem.
+    fn documentation_if<S: AsRef<str>>(self, should_link: bool, url: S) -> Self;
+
+    /// Lazily provide a link to documentation that will help the user resolve this problem.
+    fn documentation_lazy<S: AsRef<str>, F: FnOnce() -> S>(self, url_generator: F) -> Self;
+}
+
+impl<T, C> ErrorDocReference for error_stack::Result<T, C> {
+    fn documentation<S: AsRef<str>>(self, url: S) -> Self {
+        let doc = documentation_literal();
+        let doc_url = url.as_ref();
+        self.attach_printable_lazy(|| format!("{doc} {doc_url}"))
+    }
+
+    fn documentation_if<S: AsRef<str>>(self, should_link: bool, url: S) -> Self {
+        if should_link {
+            let doc = documentation_literal();
+            let doc_url = url.as_ref();
+            self.attach_printable_lazy(|| format!("{doc} {doc_url}"))
+        } else {
+            self
+        }
+    }
+
+    fn documentation_lazy<S: AsRef<str>, F: FnOnce() -> S>(self, url_generator: F) -> Self {
+        let doc = documentation_literal();
+        let doc_url = url_generator();
+        let doc_url = doc_url.as_ref();
+        self.attach_printable_lazy(|| format!("{doc} {doc_url}"))
+    }
+}
+
+fn documentation_literal() -> String {
+    "documentation:".bold().purple().to_string()
+}
+
 /// Used to provide a description of the operation being performed when an error occurred.
 pub trait DescribeContext {
     /// Provide a human-readable description of the context in which the error occurred.

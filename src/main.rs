@@ -7,7 +7,7 @@
 
 use broker::{
     config::{self, Config},
-    ext::error_stack::ErrorHelper,
+    ext::error_stack::{DescribeContext, ErrorHelper},
 };
 use clap::{Parser, Subcommand};
 use error_stack::{bail, fmt::ColorMode, Report, Result, ResultExt};
@@ -57,6 +57,9 @@ fn main() -> Result<(), Error> {
     // App-wide setup goes here.
     Report::set_color_mode(ColorMode::Color);
 
+    // Record global information to display with any error.
+    let version = env!("CARGO_PKG_VERSION");
+
     // Subcommand routing.
     let Opts { command } = Opts::parse();
     match command {
@@ -67,6 +70,7 @@ fn main() -> Result<(), Error> {
         Commands::Backup(args) => main_backup(args),
         Commands::Run(args) => main_run(args),
     }
+    .describe_lazy(|| format!("broker version: {version}"))
 }
 
 /// Initialize Broker configuration.

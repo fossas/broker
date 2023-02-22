@@ -12,4 +12,6 @@
 
 pub mod api;
 pub mod config;
+pub mod debug;
+pub mod doc;
 pub mod ext;
