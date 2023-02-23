@@ -5,10 +5,11 @@
 #![deny(missing_docs)]
 #![warn(rust_2018_idioms)]
 
+use broker::{config, ext::error_stack::ErrorHelper, git_wrapper};
 use broker::{
-    config::{self, Config},
+    config::Config,
     doc,
-    ext::error_stack::{DescribeContext, ErrorDocReference, ErrorHelper, FatalErrorReport},
+    ext::error_stack::{DescribeContext, ErrorDocReference, FatalErrorReport},
 };
 use clap::{Parser, Subcommand};
 use error_stack::{bail, fmt::ColorMode, Report, Result, ResultExt};
@@ -17,6 +18,9 @@ use error_stack::{bail, fmt::ColorMode, Report, Result, ResultExt};
 enum Error {
     #[error("determine effective configuration")]
     DetermineEffectiveConfig,
+
+    #[error("git command")]
+    GitWrapperError,
 
     #[error("this subcommand is not implemented")]
     SubcommandUnimplemented,
@@ -52,6 +56,9 @@ enum Commands {
 
     /// Run Broker with the current config.
     Run(config::RawBaseArgs),
+
+    /// Attempt to do a git clone.
+    Clone,
 }
 
 #[tokio::main]
@@ -71,6 +78,7 @@ async fn main() -> Result<(), Error> {
         Commands::Fix(args) => main_fix(args).await,
         Commands::Backup(args) => main_backup(args).await,
         Commands::Run(args) => main_run(args).await,
+        Commands::Clone => main_clone().await,
     }
     .request_support()
     .describe_lazy(|| format!("broker version: {version}"))
@@ -127,4 +135,18 @@ async fn load_config(args: config::RawBaseArgs) -> Result<Config, Error> {
         .await
         .change_context(Error::DetermineEffectiveConfig)
         .documentation_lazy(doc::link::config_file_reference)
+}
+
+async fn main_clone() -> Result<(), Error> {
+    let repo = git_wrapper::Repository {
+        directory: String::from("/tmp/cloned"),
+        safe_url: String::from("https://github.com/spatten/slack-wifi-status"),
+        checkout_type: git_wrapper::CheckoutType::None,
+        auth: git_wrapper::GitAuth::NoAuth,
+    };
+    let res = repo.clone();
+    match res {
+        Ok(_) => Ok(()),
+        Err(err) => Err(err).change_context(Error::GitWrapperError),
+    }
 }
