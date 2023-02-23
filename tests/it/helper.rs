@@ -1,5 +1,5 @@
-/// Tests are run independently by cargo nextest, so this macro configures settings used in most tests.
-macro_rules! set_vars {
+/// Tests are run independently by cargo nextest, so this macro configures settings used in snapshot tests.
+macro_rules! set_snapshot_vars {
     () => {
         // During error stack snapshot testing, colors really mess with readability.
         // While colors are an important part of the overall error message story,
@@ -10,4 +10,4 @@ macro_rules! set_vars {
     };
 }
 
-pub(crate) use set_vars;
+pub(crate) use set_snapshot_vars;

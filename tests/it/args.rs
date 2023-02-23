@@ -3,7 +3,7 @@ use std::path::PathBuf;
 use broker::config;
 use insta::assert_debug_snapshot;
 
-use crate::helper::set_vars;
+use crate::helper::set_snapshot_vars;
 
 pub fn raw_base_args(config: &str, db: &str) -> config::RawBaseArgs {
     config::RawBaseArgs::new(Some(String::from(config)), Some(String::from(db)))
@@ -11,7 +11,7 @@ pub fn raw_base_args(config: &str, db: &str) -> config::RawBaseArgs {
 
 #[test]
 fn validates_args() {
-    set_vars!();
+    set_snapshot_vars!();
 
     let base = raw_base_args(
         "testdata/config/basic.yml",
@@ -32,7 +32,7 @@ fn validates_args() {
 
 #[test]
 fn errors_on_nonexistent_config() {
-    set_vars!();
+    set_snapshot_vars!();
 
     let base = raw_base_args(
         "testdata/config/does_not_exist",
@@ -53,7 +53,7 @@ fn errors_on_nonexistent_config() {
 
 #[test]
 fn errors_on_nonexistent_database() {
-    set_vars!();
+    set_snapshot_vars!();
 
     let base = raw_base_args(
         "testdata/config/basic.yml",
@@ -74,7 +74,7 @@ fn errors_on_nonexistent_database() {
 
 #[test]
 fn errors_on_nonexistent_both() {
-    set_vars!();
+    set_snapshot_vars!();
 
     let base = raw_base_args(
         "testdata/config/does_not_exist",
