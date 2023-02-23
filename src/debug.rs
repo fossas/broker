@@ -13,6 +13,7 @@ use derive_more::{AsRef, Display, From};
 use derive_new::new;
 use error_stack::{report, IntoReport, Report, ResultExt};
 use getset::Getters;
+use humantime::parse_duration;
 
 use crate::ext::{
     self,
@@ -77,7 +78,7 @@ impl TryFrom<String> for ArtifactMaxAge {
     type Error = Report<ValidationError>;
 
     fn try_from(value: String) -> Result<Self, Self::Error> {
-        parse_duration::parse(&value)
+        parse_duration(&value)
             .into_report()
             .change_context(ValidationError::ParseDuration)
             .and_then(|duration| {

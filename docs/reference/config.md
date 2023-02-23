@@ -85,14 +85,14 @@ For more details on authentication, see [integration authentication](#integratio
 
 ## `duration` values
 
-_Durations are specified in a manner similar to `systemd.time` ([reference](https://www.freedesktop.org/software/systemd/man/systemd.time.html#Parsing%20Time%20Spans))._
-
-A duration is made up of `{value} {time unit}` pairs.
-For readabilty, it is recommended to prefer a `{value} {time unit}` pair for a single time unit, or `{value}{time unit} {value}{time unit}` for multiple.
+A duration is made up of `{value}{unit}` pairs, where `value` is the count of `unit`s.
+For example, the input `5h 30min` means "5 hours and 30 minutes".
+If a single `value` is provided with no `time unit`, it is assumed to be seconds.
 
 To specify a time unit, use one of the below forms:
 
-- Microseconds: `usec`, `us`, `µs`
+- Nanoseconds: `nsec`, `ns`
+- Microseconds: `usec`, `us`
 - Milliseconds: `msec`, `ms`
 - Seconds: `seconds`, `second`, `sec`, `s`
 - Minutes: `minutes`, `minute`, `min`, `m`
@@ -101,13 +101,6 @@ To specify a time unit, use one of the below forms:
 - Weeks: `weeks`, `week`, `w`
 - Months: `months`, `month`, `M`
 - Years: `years`, `year`, `y`
-
-Semantics:
-
-- Spaces between `value` and `time unit` are optional.
-- Any `time unit` without a correspoding `value` is ignored.
-- If a single `value` is provided with no `time unit`, it is assumed to be seconds.
-- If the same `value` and `time unit` pair is specified multiple times, they are summed.
 
 Examples for valid durations:
 
@@ -119,7 +112,7 @@ Examples for valid durations:
 | `1y 12month`           | 1 year and 12 months                     |
 | `55s 500ms`            | 55 seconds and 500 milliseconds          |
 | `300ms 20s 5day`       | 5 days, 20 seconds, and 300 milliseconds |
-| `5day 4 hours 10 days` | 15 days and 4 hours                      |
+| `5day 4hours 10days`   | 15 days and 4 hours                      |
 
 ## Integration authentication
 

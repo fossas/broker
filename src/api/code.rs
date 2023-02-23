@@ -6,6 +6,7 @@ use derive_more::{AsRef, Display, From};
 use derive_new::new;
 use error_stack::{report, IntoReport, Report, ResultExt};
 use getset::{CopyGetters, Getters};
+use humantime::parse_duration;
 
 use crate::ext::error_stack::{DescribeContext, ErrorHelper};
 
@@ -88,7 +89,7 @@ impl TryFrom<String> for PollInterval {
     type Error = Report<ValidationError>;
 
     fn try_from(value: String) -> Result<Self, Self::Error> {
-        parse_duration::parse(&value)
+        parse_duration(&value)
             .into_report()
             .change_context(ValidationError::PollInterval)
             .describe_lazy(|| format!("provided value: {value}"))
