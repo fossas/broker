@@ -18,9 +18,9 @@ pub enum ValidationError {
     #[error("validate poll interval")]
     PollInterval,
 
-    /// The provided URL is not valid.
-    #[error("validate endpoint URL")]
-    ValidateEndpoint,
+    /// The provided remote is not valid.
+    #[error("validate remote location")]
+    Remote,
 
     /// The provided value is empty.
     #[error("value is empty")]
@@ -49,7 +49,7 @@ impl TryFrom<String> for Remote {
             Ok(Remote(input))
         }
         .help("the url may not be empty")
-        .change_context(ValidationError::ValidateEndpoint)
+        .change_context(ValidationError::Remote)
     }
 }
 

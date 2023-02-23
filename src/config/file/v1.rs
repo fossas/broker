@@ -156,7 +156,7 @@ impl TryFrom<Integration> for code::Integration {
                     Auth::None { transport } => match transport.as_str() {
                         "ssh" => Ok(git::Transport::new_ssh(endpoint, None)),
                         "http" => Ok(git::Transport::new_http(endpoint, None)),
-                        other => Err(report!(code::ValidationError::ValidateEndpoint))
+                        other => Err(report!(code::ValidationError::Remote))
                             .help("transport must be 'ssh' or 'http'")
                             .describe_lazy(|| format!("provided transport: {other}")),
                     }?,
