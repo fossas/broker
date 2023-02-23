@@ -4,9 +4,8 @@ use std::time::Duration;
 
 use derive_more::{AsRef, Display, From};
 use derive_new::new;
-use error_stack::{IntoReport, Report, ResultExt};
+use error_stack::{report, IntoReport, Report, ResultExt};
 use getset::{CopyGetters, Getters};
-use url::Url;
 
 use crate::ext::error_stack::{DescribeContext, ErrorHelper};
 
@@ -22,26 +21,35 @@ pub enum ValidationError {
     /// The provided URL is not valid.
     #[error("validate endpoint URL")]
     ValidateEndpoint,
+
+    /// The provided value is empty.
+    #[error("value is empty")]
+    ValueEmpty,
 }
 
 /// Validated config values for external code host integrations.
-#[derive(Debug, Clone, PartialEq, Eq, AsRef, From, new)]
+#[derive(Debug, Default, Clone, PartialEq, Eq, AsRef, From, new)]
 pub struct Config(Vec<Integration>);
 
-/// Validated endpoint for a code host.
-#[derive(Debug, Clone, PartialEq, Eq, AsRef, From, Display, new)]
-pub struct Endpoint(Url);
+/// Validated remote location for a code host.
+#[derive(Debug, Clone, PartialEq, Eq, AsRef, Display, new)]
+pub struct Remote(String);
 
-impl TryFrom<String> for Endpoint {
+impl TryFrom<String> for Remote {
     type Error = Report<ValidationError>;
 
     fn try_from(input: String) -> Result<Self, Self::Error> {
-        Url::parse(&input)
-            .into_report()
-            .describe_lazy(|| format!("provided input: '{input}'"))
-            .help("the url provided must be absolute and must contain the protocol")
-            .change_context(ValidationError::ValidateEndpoint)
-            .map(Endpoint)
+        // Different remotes have different semantics-
+        // we can't guarantee this is actually a well formatted URL.
+        // Just validate that it's not empty.
+        if input.is_empty() {
+            Err(report!(ValidationError::ValueEmpty))
+                .describe_lazy(|| format!("provided input: '{input}'"))
+        } else {
+            Ok(Remote(input))
+        }
+        .help("the url may not be empty")
+        .change_context(ValidationError::ValidateEndpoint)
     }
 }
 

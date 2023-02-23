@@ -9,9 +9,9 @@ debugging:
     size: 1048576
 
 integrations:
-- type: git
-  poll_interval: 1h
-  url: ssh://git@github.com:fossas/broker.git
-  auth:
-    type: ssh_key_file
-    path: /home/me/.ssh/id_rsa
+  - type: git
+    poll_interval: 1h
+    remote: git@github.com:fossas/broker.git
+    auth:
+      type: ssh_key_file
+      path: /home/me/.ssh/id_rsa

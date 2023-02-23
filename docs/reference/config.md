@@ -21,7 +21,7 @@ debugging:
 integrations:
 - type: git
   poll_interval: 1h
-  url: ssh://git@github.com:fossas/broker.git
+  url: git@github.com:fossas/broker.git
   auth:
     type: ssh_key_file
     path: /home/me/.ssh/id_rsa
@@ -75,15 +75,10 @@ This block specifies how to configure Broker to communicate with a git server fo
 | Value           | Optional | Description                                                                       | Suggested default |
 |-----------------|----------|-----------------------------------------------------------------------------------|-------------------|
 | `poll_interval` | No       | How often Broker checks with the remote repository to see whether it has changed. | `1 hour`          |
-| `url`           | No       | The URL to the git repository.                                                    | N/A               |
-| `auth`          | Yes      | Required authentication to clone this repository                                  | N/A               |
+| `remote`        | No       | The remote git repository address.                                                | N/A               |
+| `auth`          | No       | Required authentication to clone this repository.                                 | N/A               |
 
 The poll interval defines the interval at which Broker _checks for updates_, not the interval at which Broker actually analyzes the repository.
-
-`url` must either be an `http://`/`https://` or `ssh://` URL. If you have a URL like `git@github.com:fossas/broker.git`, you can just prepend `ssh://` to it to make it valid.
-
-If the `url` begins with `http://` or `https://`, valid authentication types are `http_basic` or `http_header`.
-If the `url` begins with `ssh://`, valid authentication types are `ssh_key` or `ssh_key_file`.
 For more details on authentication, see [integration authentication](#integration-authentication).
 
 # Appendix
@@ -138,6 +133,23 @@ If the `url` begins with `ssh://`, valid authentication types are `ssh_key` or `
 While it does its best to ensure secrets exist on disk for the minimum time possible, it may write secrets to the temporary directory during the course of its operation.
 On unix-based operating systems, the temporary directory location may be specified with the `TMPDIR` environment variable.
 
+### `none`
+
+If no authentication is required, specify type "none".
+This requires a "transport" field, so that Broker can determine which transport mechanism (HTTP or SSH) to use to clone the repository.
+Usually this is determined automatically by the authentication type, but in this case it has to be manually specified.
+
+Example integration block:
+
+```yaml
+- type: git
+  poll_interval: 1h
+  remote: https://github.com/fossas/broker.git
+  auth:
+    type: none
+    transport: http
+```
+
 ### `http_basic`
 
 Performs authentication with a username and password.
@@ -146,7 +158,7 @@ Example integration block:
 ```yaml
 - type: git
   poll_interval: 1h
-  url: https://github.com/fossas/broker.git
+  remote: https://github.com/fossas/broker.git
   auth:
     type: http_basic
     username: jssblck
@@ -161,7 +173,7 @@ Example integration block:
 ```yaml
 - type: git
   poll_interval: 1h
-  url: https://github.com/fossas/broker.git
+  remote: https://github.com/fossas/broker.git
   auth:
     type: http_header
     http_header: "Authorization: Bearer abcd1234"
@@ -175,7 +187,7 @@ Example integration block:
 ```yaml
 - type: git
   poll_interval: 1h
-  url: https://github.com/fossas/broker.git
+  remote: git@github.com:fossas/broker.git
   auth:
     type: ssh_key
     ssh_key: "<key value>"
@@ -189,7 +201,7 @@ Example integration block:
 ```yaml
 - type: git
   poll_interval: 1h
-  url: https://github.com/fossas/broker.git
+  remote: git@github.com:fossas/broker.git
   auth:
     type: ssh_key_file
     ssh_key_file: /home/me/.ssh/id_rsa

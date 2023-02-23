@@ -5,7 +5,7 @@ use derive_new::new;
 
 use crate::api::{http, ssh};
 
-use super::Endpoint;
+use super::Remote;
 
 /// Code hosts speaking the git protocol may support downloading a given repository
 /// using any, or a subset, of the below transport.
@@ -18,7 +18,7 @@ pub enum Transport {
     /// Specifies that the remote code host is configured to use the SSH protocol.
     Ssh {
         /// The URL to the remote code host.
-        endpoint: Endpoint,
+        endpoint: Remote,
 
         /// Authentication to that host, if applicable.
         auth: Option<ssh::Auth>,
@@ -27,7 +27,7 @@ pub enum Transport {
     /// Specifies that the remote code host is configured to use the HTTP protocol.
     Http {
         /// The URL to the remote code host.
-        endpoint: Endpoint,
+        endpoint: Remote,
 
         /// Authentication to that host, if applicable.
         auth: Option<http::Auth>,

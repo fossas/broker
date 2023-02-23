@@ -77,7 +77,7 @@ pub struct Config {
     debug: debug::Config,
 
     /// Configured integration points.
-    integrations: api::code_host::Config,
+    integrations: api::code::Config,
 }
 
 impl Config {

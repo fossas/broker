@@ -7,7 +7,7 @@ use serde::Deserialize;
 
 use crate::{
     api::{
-        code_host::{self, git},
+        code::{self, git},
         fossa, http, ssh,
     },
     debug,
@@ -39,9 +39,11 @@ pub fn load(content: String) -> Result<super::Config, Report<Error>> {
 /// so we don't.
 #[derive(Debug, Deserialize)]
 struct RawConfigV1 {
+    #[serde(rename = "fossa_endpoint")]
     endpoint: String,
+    #[serde(rename = "fossa_integration_key")]
     integration_key: String,
-    logging: Logging,
+    debugging: Debugging,
     integrations: Vec<Integration>,
 }
 
@@ -58,28 +60,28 @@ fn validate(config: RawConfigV1) -> Result<super::Config, Report<Error>> {
     let endpoint = fossa::Endpoint::try_from(config.endpoint).change_context(Error::Validate)?;
     let key = fossa::Key::try_from(config.integration_key).change_context(Error::Validate)?;
     let api = fossa::Config::new(endpoint, key);
-    let debugging = debug::Config::try_from(config.logging).change_context(Error::Validate)?;
+    let debugging = debug::Config::try_from(config.debugging).change_context(Error::Validate)?;
     let integrations = config
         .integrations
         .into_iter()
-        .map(code_host::Integration::try_from)
-        .collect::<Result<Vec<_>, Report<code_host::ValidationError>>>()
+        .map(code::Integration::try_from)
+        .collect::<Result<Vec<_>, Report<code::ValidationError>>>()
         .change_context(Error::Validate)
-        .map(code_host::Config::new)?;
+        .map(code::Config::new)?;
 
     Ok(super::Config::new(api, debugging, integrations))
 }
 
 #[derive(Debug, Deserialize)]
-pub(super) struct Logging {
+pub(super) struct Debugging {
     location: PathBuf,
-    retention: LoggingRetention,
+    retention: DebuggingRetention,
 }
 
-impl TryFrom<Logging> for debug::Config {
+impl TryFrom<Debugging> for debug::Config {
     type Error = Report<debug::ValidationError>;
 
-    fn try_from(value: Logging) -> Result<Self, Self::Error> {
+    fn try_from(value: Debugging) -> Result<Self, Self::Error> {
         let root = debug::Root::from(value.location);
         let retention = debug::Retention::try_from(value.retention)?;
         Ok(Self::new(root, retention))
@@ -87,15 +89,15 @@ impl TryFrom<Logging> for debug::Config {
 }
 
 #[derive(Debug, Deserialize)]
-pub(super) struct LoggingRetention {
+pub(super) struct DebuggingRetention {
     duration: Option<String>,
     size: Option<u64>,
 }
 
-impl TryFrom<LoggingRetention> for debug::Retention {
+impl TryFrom<DebuggingRetention> for debug::Retention {
     type Error = Report<debug::ValidationError>;
 
-    fn try_from(value: LoggingRetention) -> Result<Self, Self::Error> {
+    fn try_from(value: DebuggingRetention) -> Result<Self, Self::Error> {
         let age = value
             .duration
             .map(debug::ArtifactMaxAge::try_from)
@@ -112,78 +114,75 @@ impl TryFrom<LoggingRetention> for debug::Retention {
 #[serde(tag = "type")]
 pub(super) enum Integration {
     #[serde(rename = "git")]
-    Git(GitIntegration),
+    Git {
+        poll_interval: String,
+        remote: String,
+        auth: Auth,
+    },
 }
 
-impl TryFrom<Integration> for code_host::Integration {
-    type Error = Report<code_host::ValidationError>;
+impl TryFrom<Integration> for code::Integration {
+    type Error = Report<code::ValidationError>;
 
     fn try_from(value: Integration) -> Result<Self, Self::Error> {
         match value {
-            Integration::Git(git) => {
-                let poll_interval = code_host::PollInterval::try_from(git.poll_interval)?;
-                let endpoint = code_host::Endpoint::try_from(git.url)?;
-                let protocol = match git.auth {
-                    Some(auth) => match auth {
-                        Auth::SshKeyFile(file) => {
-                            let auth = ssh::Auth::KeyFile(file);
-                            git::Transport::new_ssh(endpoint, Some(auth))
-                        }
-                        Auth::SshKey(key) => {
-                            let secret = ComparableSecretString::from(key);
-                            let auth = ssh::Auth::KeyValue(secret);
-                            git::Transport::new_ssh(endpoint, Some(auth))
-                        }
-                        Auth::HttpHeader(header) => {
-                            let secret = ComparableSecretString::from(header);
-                            let auth = http::Auth::new_header(secret);
-                            git::Transport::new_http(endpoint, Some(auth))
-                        }
-                        Auth::HttpBasic(AuthHttpBasic { username, password }) => {
-                            let password = ComparableSecretString::from(password);
-                            let auth = http::Auth::new_basic(username, password);
-                            git::Transport::new_http(endpoint, Some(auth))
-                        }
-                    },
-                    None => match endpoint.as_ref().scheme() {
-                        "http" => Ok(git::Transport::new_http(endpoint, None)),
+            Integration::Git {
+                poll_interval,
+                remote,
+                auth,
+            } => {
+                let poll_interval = code::PollInterval::try_from(poll_interval)?;
+                let endpoint = code::Remote::try_from(remote)?;
+                let protocol = match auth {
+                    Auth::SshKeyFile { path } => {
+                        let auth = ssh::Auth::KeyFile(path);
+                        git::Transport::new_ssh(endpoint, Some(auth))
+                    }
+                    Auth::SshKey { key } => {
+                        let secret = ComparableSecretString::from(key);
+                        let auth = ssh::Auth::KeyValue(secret);
+                        git::Transport::new_ssh(endpoint, Some(auth))
+                    }
+                    Auth::HttpHeader { header } => {
+                        let secret = ComparableSecretString::from(header);
+                        let auth = http::Auth::new_header(secret);
+                        git::Transport::new_http(endpoint, Some(auth))
+                    }
+                    Auth::HttpBasic { username, password } => {
+                        let password = ComparableSecretString::from(password);
+                        let auth = http::Auth::new_basic(username, password);
+                        git::Transport::new_http(endpoint, Some(auth))
+                    }
+                    Auth::None { transport } => match transport.as_str() {
                         "ssh" => Ok(git::Transport::new_ssh(endpoint, None)),
-                        scheme => Err(report!(code_host::ValidationError::ValidateEndpoint))
-                            .help("supported protocols: 'ssh', 'http'")
-                            .describe_lazy(|| {
-                                format!("provided url: {endpoint} with protocol {scheme}")
-                            }),
+                        "http" => Ok(git::Transport::new_http(endpoint, None)),
+                        other => Err(report!(code::ValidationError::ValidateEndpoint))
+                            .help("transport must be 'ssh' or 'http'")
+                            .describe_lazy(|| format!("provided transport: {other}")),
                     }?,
                 };
 
-                Ok(code_host::Integration::new(poll_interval, protocol.into()))
+                Ok(code::Integration::new(poll_interval, protocol.into()))
             }
         }
     }
 }
 
 #[derive(Debug, Deserialize)]
-pub(super) struct GitIntegration {
-    poll_interval: String,
-    url: String,
-    auth: Option<Auth>,
-}
-
-#[derive(Debug, Deserialize)]
 #[serde(tag = "type")]
 pub(super) enum Auth {
     #[serde(rename = "ssh_key_file")]
-    SshKeyFile(PathBuf),
-    #[serde(rename = "ssh_key")]
-    SshKey(String),
-    #[serde(rename = "http_header")]
-    HttpHeader(String),
-    #[serde(rename = "http_basic")]
-    HttpBasic(AuthHttpBasic),
-}
+    SshKeyFile { path: PathBuf },
 
-#[derive(Debug, Deserialize)]
-pub(super) struct AuthHttpBasic {
-    username: String,
-    password: String,
+    #[serde(rename = "ssh_key")]
+    SshKey { key: String },
+
+    #[serde(rename = "http_header")]
+    HttpHeader { header: String },
+
+    #[serde(rename = "http_basic")]
+    HttpBasic { username: String, password: String },
+
+    #[serde(rename = "none")]
+    None { transport: String },
 }
