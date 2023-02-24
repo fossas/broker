@@ -70,7 +70,7 @@ fn test_one_integration() {
 }
 
 #[test]
-fn test_integration_git_sshkey() {
+fn test_integration_git_ssh_key_file() {
     let conf = load_config!();
 
     let Some(integration) = conf.integrations().as_ref().iter().next() else { panic!("must have parsed at least one integration") };
@@ -87,6 +87,119 @@ fn test_integration_git_sshkey() {
 
     let Some(api::ssh::Auth::KeyFile(file)) = auth else { panic!("must have parsed ssh key file auth") };
     assert_eq!(file, &test_path_buf("/home/me/.ssh/id_rsa"));
+}
+
+#[test]
+fn test_integration_git_ssh_key() {
+    let conf = load_config!(
+        "testdata/config/basic-ssh-key.yml",
+        "testdata/database/empty.sqlite"
+    );
+
+    let Some(integration) = conf.integrations().as_ref().iter().next() else { panic!("must have parsed at least one integration") };
+    assert_eq!(
+        integration.poll_interval(),
+        test_integration_poll_interval(Duration::from_secs(3600))
+    );
+
+    let code::Protocol::Git(code::git::Transport::Ssh{ endpoint, auth }) = integration.protocol() else { panic!("must have parsed integration") };
+    assert_eq!(
+        endpoint,
+        &test_host_endpoint("git@github.com:fossas/broker.git")
+    );
+
+    let Some(api::ssh::Auth::KeyValue(key)) = auth else { panic!("must have parsed auth value") };
+    assert_eq!(key, &test_secret("efgh5678"));
+}
+
+#[test]
+fn test_integration_git_ssh_no_auth() {
+    let conf = load_config!(
+        "testdata/config/basic-ssh-no-auth.yml",
+        "testdata/database/empty.sqlite"
+    );
+
+    let Some(integration) = conf.integrations().as_ref().iter().next() else { panic!("must have parsed at least one integration") };
+    assert_eq!(
+        integration.poll_interval(),
+        test_integration_poll_interval(Duration::from_secs(3600))
+    );
+
+    let code::Protocol::Git(code::git::Transport::Ssh{ endpoint, auth }) = integration.protocol() else { panic!("must have parsed integration") };
+    assert_eq!(
+        endpoint,
+        &test_host_endpoint("git@github.com:fossas/broker.git")
+    );
+
+    let None = auth else { panic!("must have parsed no auth value") };
+}
+
+#[test]
+fn test_integration_git_http_basic() {
+    let conf = load_config!(
+        "testdata/config/basic-http-basic.yml",
+        "testdata/database/empty.sqlite"
+    );
+
+    let Some(integration) = conf.integrations().as_ref().iter().next() else { panic!("must have parsed at least one integration") };
+    assert_eq!(
+        integration.poll_interval(),
+        test_integration_poll_interval(Duration::from_secs(3600))
+    );
+
+    let code::Protocol::Git(code::git::Transport::Http{ endpoint, auth }) = integration.protocol() else { panic!("must have parsed integration") };
+    assert_eq!(
+        endpoint,
+        &test_host_endpoint("https://github.com/fossas/broker.git")
+    );
+
+    let Some(api::http::Auth::Basic { username, password }) = auth else { panic!("must have parsed auth value") };
+    assert_eq!(username, &String::from("jssblck"));
+    assert_eq!(password, &test_secret("efgh5678"));
+}
+
+#[test]
+fn test_integration_git_http_header() {
+    let conf = load_config!(
+        "testdata/config/basic-http-header.yml",
+        "testdata/database/empty.sqlite"
+    );
+
+    let Some(integration) = conf.integrations().as_ref().iter().next() else { panic!("must have parsed at least one integration") };
+    assert_eq!(
+        integration.poll_interval(),
+        test_integration_poll_interval(Duration::from_secs(3600))
+    );
+
+    let code::Protocol::Git(code::git::Transport::Http{ endpoint, auth }) = integration.protocol() else { panic!("must have parsed integration") };
+    assert_eq!(
+        endpoint,
+        &test_host_endpoint("https://github.com/fossas/broker.git")
+    );
+
+    let Some(api::http::Auth::Header(header)) = auth else { panic!("must have parsed auth value") };
+    assert_eq!(header, &test_secret("Bearer: efgh5678"));
+}
+#[test]
+fn test_integration_git_http_no_auth() {
+    let conf = load_config!(
+        "testdata/config/basic-http-no-auth.yml",
+        "testdata/database/empty.sqlite"
+    );
+
+    let Some(integration) = conf.integrations().as_ref().iter().next() else { panic!("must have parsed at least one integration") };
+    assert_eq!(
+        integration.poll_interval(),
+        test_integration_poll_interval(Duration::from_secs(3600))
+    );
+
+    let code::Protocol::Git(code::git::Transport::Http{ endpoint, auth }) = integration.protocol() else { panic!("must have parsed integration") };
+    assert_eq!(
+        endpoint,
+        &test_host_endpoint("https://github.com/fossas/broker.git")
+    );
+
+    let None = auth else { panic!("must have parsed no auth value") };
 }
 
 fn test_fossa_api_key(val: &str) -> api::fossa::Key {
@@ -119,4 +232,8 @@ fn test_host_endpoint(val: &str) -> api::code::Remote {
 
 fn test_path_buf(val: &str) -> PathBuf {
     PathBuf::from(String::from(val))
+}
+
+fn test_secret(val: &str) -> ComparableSecretString {
+    ComparableSecretString::from(String::from(val))
 }
