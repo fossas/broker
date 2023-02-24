@@ -9,14 +9,14 @@
 /// If using `assert_error_stack_snapshot`, there's no need to run this, as it is run automatically.
 /// This macro is still exported for tests using `insta` directly.
 macro_rules! set_snapshot_vars {
-    () => {
+    () => {{
         // During error stack snapshot testing, colors really mess with readability.
         // While colors are an important part of the overall error message story,
         // they're less important than structure; the thought is that by making structure easier to test
         // we can avoid most failures. Colors, by comparison, are harder to accidentally change.
         error_stack::Report::set_color_mode(error_stack::fmt::ColorMode::None);
         colored::control::set_override(false);
-    };
+    }};
 }
 
 /// Run an error stack snapshot.
@@ -29,7 +29,7 @@ macro_rules! set_snapshot_vars {
 /// - When validating a config, `context` is the raw config struct.
 /// - When parsing a config, `context` is the string being parsed.
 macro_rules! assert_error_stack_snapshot {
-    ($context:expr, $inner:expr) => {
+    ($context:expr, $inner:expr) => {{
         crate::helper::set_snapshot_vars!();
         insta::with_settings!({
             // The program state that led to this error.
@@ -39,7 +39,7 @@ macro_rules! assert_error_stack_snapshot {
         }, {
             insta::assert_debug_snapshot!($inner);
         });
-    };
+    }};
 }
 
 /// Convenience macro to load the config inline with the test function (so errors are properly attributed).
