@@ -1,6 +1,6 @@
 ---
-source: tests/it/duration.rs
-expression: "ArtifactMaxAge::try_from(input).expect_err(\"must have failed to parse\")"
+source: tests/it/debug.rs
+expression: "ArtifactMaxAge::try_from(input).expect_err(\"must have failed validation\")"
 info: 1ms
 ---
 validate retention age

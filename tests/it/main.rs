@@ -8,7 +8,8 @@
 //! If error text changes too often, or changes in a way that makes the error less understandable,
 //! we need to make very sure we want to actually make the change.
 
+mod api_code;
 mod args;
 mod config;
-mod duration;
+mod debug;
 mod helper;

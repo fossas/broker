@@ -1,89 +1,15 @@
-//! Tests for duration validators.
+//! Helpers for testing duration validators.
 //!
 //! The idea is that we define a bunch of types representing the values we want to support
-//! (these are the `TimeUnit` enums below).
+//! (these are the `TimeUnit` types in this package).
 //! Then we define an input struct, which is filled with arbitrary values and time units.
 //!
 //! Finally we define a property based test which tests those generated values.
 
 use std::{fmt::Display, time::Duration};
 
-use broker::{
-    api::code::PollInterval,
-    debug::{ArtifactMaxAge, MIN_RETENTION_AGE},
-};
-use proptest::prelude::*;
 use strum::Display;
-use test_strategy::{proptest, Arbitrary};
-
-use crate::helper::assert_error_stack_snapshot;
-
-#[proptest]
-fn validate_artifact_max_age(
-    #[by_ref]
-    #[filter(#input.expected_duration() > MIN_RETENTION_AGE)]
-    input: DurationInput,
-) {
-    let user_input = input.to_string();
-    match ArtifactMaxAge::try_from(user_input.clone()) {
-        Ok(validated) => prop_assert_eq!(
-            validated.as_ref(),
-            &input.expected_duration(),
-            "tested input: {:?}",
-            input
-        ),
-        Err(err) => prop_assert!(
-            false,
-            "unexpected parsing error '{err:#}' for input '{user_input}'"
-        ),
-    }
-}
-
-#[test]
-fn validate_artifact_max_age_empty() {
-    let input = String::from("");
-    assert_error_stack_snapshot!(
-        &input,
-        ArtifactMaxAge::try_from(input).expect_err("must have failed validation")
-    )
-}
-
-#[test]
-fn validate_artifact_max_age_below_min() {
-    let input = String::from("1ms");
-    assert_error_stack_snapshot!(
-        &input,
-        ArtifactMaxAge::try_from(input).expect_err("must have failed validation")
-    )
-}
-
-#[proptest]
-fn validate_poll_interval(input: DurationInput) {
-    let user_input = input.to_string();
-    match PollInterval::try_from(user_input.clone()) {
-        Ok(validated) => prop_assert_eq!(
-            validated.as_ref(),
-            &input.expected_duration(),
-            "tested input: {:?}",
-            input
-        ),
-        Err(err) => prop_assert!(
-            false,
-            "unexpected parsing error '{err:#}' for input '{user_input}'"
-        ),
-    }
-}
-
-#[test]
-fn validate_poll_interval_empty() {
-    let input = String::from("");
-    assert_error_stack_snapshot!(
-        &input,
-        PollInterval::try_from(input).expect_err("must have failed validation")
-    )
-}
-
-// ---- Below this line are types used to generate test cases ----
+use test_strategy::Arbitrary;
 
 /// Generates inputs for the validator.
 ///
@@ -97,7 +23,7 @@ fn validate_poll_interval_empty() {
 /// that are "up to but not over the limit" (especially since our durations aren't expected to be so large).
 #[derive(Debug, Default, Eq, PartialEq, Arbitrary)]
 #[filter(#self.is_valid())]
-struct DurationInput {
+pub struct DurationInput {
     ns: Option<(u8, TimeUnitsNanoseconds)>,
     us: Option<(u8, TimeUnitsMicroseconds)>,
     ms: Option<(u8, TimeUnitsMilliseconds)>,
@@ -125,7 +51,8 @@ impl DurationInput {
             .add(self.yr)
     }
 
-    fn expected_duration(&self) -> Duration {
+    /// The duration this input is expected to be parsed into.
+    pub fn expected_duration(&self) -> Duration {
         self.builder().sum()
     }
 

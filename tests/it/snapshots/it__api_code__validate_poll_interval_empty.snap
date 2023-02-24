@@ -1,6 +1,6 @@
 ---
-source: tests/it/duration.rs
-expression: "PollInterval::try_from(input).expect_err(\"must have failed to parse\")"
+source: tests/it/api_code.rs
+expression: "PollInterval::try_from(input).expect_err(\"must have failed validation\")"
 info: ""
 ---
 validate poll interval
