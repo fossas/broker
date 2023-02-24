@@ -1,0 +1,11 @@
+---
+source: tests/it/duration.rs
+expression: "PollInterval::try_from(input).expect_err(\"must have failed to parse\")"
+info: ""
+---
+validate poll interval
+├╴at {source location}
+├╴context: provided value: 
+│
+╰─▶ value was empty
+    ╰╴at {source location}

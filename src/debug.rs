@@ -20,8 +20,11 @@ use crate::ext::{
     error_stack::{DescribeContext, ErrorHelper},
 };
 
-const MIN_RETENTION_SIZE_BYTES: u64 = 1000;
-const MIN_RETENTION_AGE: Duration = Duration::from_secs(1);
+/// The minimum size for a debugging artifact in bytes.
+pub const MIN_RETENTION_SIZE_BYTES: u64 = 1000;
+
+/// The minimum age for a debugging artifact.
+pub const MIN_RETENTION_AGE: Duration = Duration::from_secs(1);
 
 /// Errors that are possibly surfaced during validation of config values.
 #[derive(Debug, thiserror::Error)]

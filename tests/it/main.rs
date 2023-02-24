@@ -10,4 +10,5 @@
 
 mod args;
 mod config;
+mod duration;
 mod helper;
