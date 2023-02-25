@@ -1,7 +1,0 @@
-# Seeds for failure cases proptest has generated in the past. It is
-# automatically read and these particular cases re-run before any
-# novel cases are generated.
-#
-# It is recommended to check this file in to source control so that
-# everyone who runs the test benefits from these saved cases.
-cc d9a3b2c132d078c3c090a88cf497f6ebe19b70f82a0c39c57396dfc1ddace24d # shrinks to input = _ValidateArtifactMaxSizeBelowMinFuzzyArgs { user_input: 0 }

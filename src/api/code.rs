@@ -49,7 +49,7 @@ impl TryFrom<String> for Remote {
         } else {
             Ok(Remote(input))
         }
-        .help("the url may not be empty")
+        .help("the remote location may not be empty")
         .change_context(ValidationError::Remote)
     }
 }

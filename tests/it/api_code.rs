@@ -1,6 +1,6 @@
 //! Tests for `api::code` functionality.
 
-use broker::api::code::PollInterval;
+use broker::api::code::{PollInterval, Remote};
 use proptest::prelude::*;
 use test_strategy::proptest;
 
@@ -29,5 +29,25 @@ fn validate_poll_interval_empty() {
     assert_error_stack_snapshot!(
         &input,
         PollInterval::try_from(input).expect_err("must have failed validation")
+    )
+}
+
+#[proptest]
+fn validate_remote(#[strategy("\\PC+")] input: String) {
+    match Remote::try_from(input.clone()) {
+        Ok(validated) => prop_assert_eq!(validated.as_ref(), &input, "tested input: {:?}", input),
+        Err(err) => prop_assert!(
+            false,
+            "unexpected parsing error '{err:#}' for input '{input}'"
+        ),
+    }
+}
+
+#[test]
+fn validate_remote_empty() {
+    let input = String::from("");
+    assert_error_stack_snapshot!(
+        &input,
+        Remote::try_from(input).expect_err("must have failed validation")
     )
 }
