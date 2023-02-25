@@ -11,7 +11,7 @@ exclude = [ "docs", ".github" ]
 publish = false # rather than publishing this to crates.io, we'll provide releases here on GitHub.
 
 [dependencies]
-bytesize = { version = "1.1.0", features = ["serde"] }
+bytesize = { version = "1.2.0", features = ["serde"] }
 clap = { version = "4.1.6", features = ["derive", "cargo", "env"] }
 colored = "2.0.0"
 derive-new = "0.5.9"
@@ -35,7 +35,7 @@ strum = { version = "0.24.1", features = ["derive"] }
 test-strategy = "0.3.0"
 
 [build-dependencies]
-error-stack = { version = "0.3", features = ["hooks"] }
+error-stack = { version = "0.3.1", features = ["hooks"] }
 thiserror = "1.0.38"
 
 [profile.dist]
