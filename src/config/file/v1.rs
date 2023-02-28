@@ -7,8 +7,9 @@ use serde::Deserialize;
 
 use crate::{
     api::{
-        code::{self, git},
-        fossa, http, ssh,
+        fossa, http,
+        remote::{self, git},
+        ssh,
     },
     debug,
     ext::{
@@ -64,10 +65,10 @@ fn validate(config: RawConfigV1) -> Result<super::Config, Report<Error>> {
     let integrations = config
         .integrations
         .into_iter()
-        .map(code::Integration::try_from)
-        .collect::<Result<Vec<_>, Report<code::ValidationError>>>()
+        .map(remote::Integration::try_from)
+        .collect::<Result<Vec<_>, Report<remote::ValidationError>>>()
         .change_context(Error::Validate)
-        .map(code::Config::new)?;
+        .map(remote::Config::new)?;
 
     Ok(super::Config::new(api, debugging, integrations))
 }
@@ -121,8 +122,8 @@ pub(super) enum Integration {
     },
 }
 
-impl TryFrom<Integration> for code::Integration {
-    type Error = Report<code::ValidationError>;
+impl TryFrom<Integration> for remote::Integration {
+    type Error = Report<remote::ValidationError>;
 
     fn try_from(value: Integration) -> Result<Self, Self::Error> {
         match value {
@@ -131,8 +132,8 @@ impl TryFrom<Integration> for code::Integration {
                 remote,
                 auth,
             } => {
-                let poll_interval = code::PollInterval::try_from(poll_interval)?;
-                let endpoint = code::Remote::try_from(remote)?;
+                let poll_interval = remote::PollInterval::try_from(poll_interval)?;
+                let endpoint = remote::Remote::try_from(remote)?;
                 let protocol = match auth {
                     Auth::SshKeyFile { path } => {
                         let auth = ssh::Auth::KeyFile(path);
@@ -156,13 +157,13 @@ impl TryFrom<Integration> for code::Integration {
                     Auth::None { transport } => match transport.as_str() {
                         "ssh" => Ok(git::Transport::new_ssh(endpoint, None)),
                         "http" => Ok(git::Transport::new_http(endpoint, None)),
-                        other => Err(report!(code::ValidationError::Remote))
+                        other => Err(report!(remote::ValidationError::Remote))
                             .help("transport must be 'ssh' or 'http'")
                             .describe_lazy(|| format!("provided transport: {other}")),
                     }?,
                 };
 
-                Ok(code::Integration::new(poll_interval, protocol.into()))
+                Ok(remote::Integration::new(poll_interval, protocol.into()))
             }
         }
     }
