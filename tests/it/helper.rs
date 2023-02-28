@@ -59,11 +59,15 @@ macro_rules! load_config {
             "testdata/database/empty.sqlite"
         )
     };
-    ($config_path:expr, $db_path:expr) => {{
-        let base = raw_base_args($config_path, $db_path);
-        let args = config::validate_args(base).expect("must have validated");
-        config::load(&args).expect("must have loaded config")
-    }};
+    ($config_path:expr, $db_path:expr) => {
+        async {
+            let base = raw_base_args($config_path, $db_path);
+            let args = config::validate_args(base)
+                .await
+                .expect("must have validated");
+            config::load(&args).await.expect("must have loaded config")
+        }
+    };
 }
 
 pub(crate) use assert_error_stack_snapshot;

@@ -9,9 +9,9 @@ use crate::{
     helper::{gen, load_config},
 };
 
-#[test]
-fn test_fossa_api_values() {
-    let conf = load_config!();
+#[tokio::test]
+async fn test_fossa_api_values() {
+    let conf = load_config!().await;
 
     assert_eq!(conf.fossa_api().key(), &gen::fossa_api_key("abcd1234"),);
     assert_eq!(
@@ -20,9 +20,9 @@ fn test_fossa_api_values() {
     );
 }
 
-#[test]
-fn test_debug_values() {
-    let conf = load_config!();
+#[tokio::test]
+async fn test_debug_values() {
+    let conf = load_config!().await;
 
     assert_eq!(
         conf.debug().location(),
@@ -38,18 +38,18 @@ fn test_debug_values() {
     );
 }
 
-#[test]
-fn test_one_integration() {
-    let conf = load_config!();
+#[tokio::test]
+async fn test_one_integration() {
+    let conf = load_config!().await;
 
     let mut integrations = conf.integrations().as_ref().iter();
     let Some(_) = integrations.next() else { panic!("must have parsed at least one integration") };
     let None = integrations.next() else { panic!("must have parsed exactly one integration") };
 }
 
-#[test]
-fn test_integration_git_ssh_key_file() {
-    let conf = load_config!();
+#[tokio::test]
+async fn test_integration_git_ssh_key_file() {
+    let conf = load_config!().await;
 
     let Some(integration) = conf.integrations().as_ref().iter().next() else { panic!("must have parsed at least one integration") };
     assert_eq!(integration.poll_interval(), gen::code_poll_interval("1h"));
@@ -64,12 +64,13 @@ fn test_integration_git_ssh_key_file() {
     assert_eq!(file, &gen::path_buf("/home/me/.ssh/id_rsa"));
 }
 
-#[test]
-fn test_integration_git_ssh_key() {
+#[tokio::test]
+async fn test_integration_git_ssh_key() {
     let conf = load_config!(
         "testdata/config/basic-ssh-key.yml",
         "testdata/database/empty.sqlite"
-    );
+    )
+    .await;
 
     let Some(integration) = conf.integrations().as_ref().iter().next() else { panic!("must have parsed at least one integration") };
     assert_eq!(integration.poll_interval(), gen::code_poll_interval("1h"));
@@ -84,12 +85,13 @@ fn test_integration_git_ssh_key() {
     assert_eq!(key, &gen::secret("efgh5678"));
 }
 
-#[test]
-fn test_integration_git_ssh_no_auth() {
+#[tokio::test]
+async fn test_integration_git_ssh_no_auth() {
     let conf = load_config!(
         "testdata/config/basic-ssh-no-auth.yml",
         "testdata/database/empty.sqlite"
-    );
+    )
+    .await;
 
     let Some(integration) = conf.integrations().as_ref().iter().next() else { panic!("must have parsed at least one integration") };
     assert_eq!(integration.poll_interval(), gen::code_poll_interval("1h"));
@@ -103,12 +105,13 @@ fn test_integration_git_ssh_no_auth() {
     let None = auth else { panic!("must have parsed no auth value") };
 }
 
-#[test]
-fn test_integration_git_http_basic() {
+#[tokio::test]
+async fn test_integration_git_http_basic() {
     let conf = load_config!(
         "testdata/config/basic-http-basic.yml",
         "testdata/database/empty.sqlite"
-    );
+    )
+    .await;
 
     let Some(integration) = conf.integrations().as_ref().iter().next() else { panic!("must have parsed at least one integration") };
     assert_eq!(integration.poll_interval(), gen::code_poll_interval("1h"));
@@ -124,12 +127,13 @@ fn test_integration_git_http_basic() {
     assert_eq!(password, &gen::secret("efgh5678"));
 }
 
-#[test]
-fn test_integration_git_http_header() {
+#[tokio::test]
+async fn test_integration_git_http_header() {
     let conf = load_config!(
         "testdata/config/basic-http-header.yml",
         "testdata/database/empty.sqlite"
-    );
+    )
+    .await;
 
     let Some(integration) = conf.integrations().as_ref().iter().next() else { panic!("must have parsed at least one integration") };
     assert_eq!(integration.poll_interval(), gen::code_poll_interval("1h"));
@@ -143,12 +147,14 @@ fn test_integration_git_http_header() {
     let Some(api::http::Auth::Header(header)) = auth else { panic!("must have parsed auth value") };
     assert_eq!(header, &gen::secret("Bearer: efgh5678"));
 }
-#[test]
-fn test_integration_git_http_no_auth() {
+
+#[tokio::test]
+async fn test_integration_git_http_no_auth() {
     let conf = load_config!(
         "testdata/config/basic-http-no-auth.yml",
         "testdata/database/empty.sqlite"
-    );
+    )
+    .await;
 
     let Some(integration) = conf.integrations().as_ref().iter().next() else { panic!("must have parsed at least one integration") };
     assert_eq!(integration.poll_interval(), gen::code_poll_interval("1h"));
