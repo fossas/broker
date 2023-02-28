@@ -45,6 +45,8 @@ use crate::{
     ext::error_stack::{DescribeContext, ErrorHelper},
 };
 
+use super::io;
+
 mod v1;
 
 /// Errors that are possibly surfaced during validation of config values.
@@ -84,9 +86,8 @@ impl Config {
     /// Load the config for the application.
     pub async fn load(path: &Path) -> Result<Self, Report<Error>> {
         // Parsing the config file at least twice; just load it into memory since it's small.
-        let content = tokio::fs::read_to_string(path)
+        let content = io::read_to_string(path)
             .await
-            .into_report()
             .change_context(Error::ReadFile)
             .describe_lazy(|| format!("read config file at {path:?}"))
             .help("ensure you have access to the file and that it exists")?;

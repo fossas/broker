@@ -151,7 +151,7 @@ pub struct ConfigFilePath {
 impl ConfigFilePath {
     /// Discover the location for the config file on disk.
     async fn discover() -> Result<Self, Report<io::Error>> {
-        io::find_some(&["config.yml", "config.yaml"])
+        io::find_some(["config.yml", "config.yaml"])
             .await
             .describe("searches for 'config.yml' or 'config.yaml'")
             .help("consider providing an explicit argument instead")
