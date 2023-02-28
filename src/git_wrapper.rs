@@ -1,9 +1,7 @@
 //! Wrapper for Git
-
-use std::io;
 use std::process::{Command, Output};
 
-use error_stack::{Context, IntoReport, Report, ResultExt};
+use error_stack::{IntoReport, Report, ResultExt};
 use url::Url;
 
 use crate::ext::error_stack::DescribeContext;
