@@ -1,8 +1,6 @@
-use std::time::Duration;
-
 use broker::{
     api::{self, remote},
-    config
+    config,
 };
 use bytesize::ByteSize;
 
@@ -135,13 +133,6 @@ fn test_integration_git_http_header() {
 
     let Some(integration) = conf.integrations().as_ref().iter().next() else { panic!("must have parsed at least one integration") };
     assert_eq!(integration.poll_interval(), gen::code_poll_interval("1h"));
-
-fn test_integration_poll_interval(val: Duration) -> remote::PollInterval {
-    remote::PollInterval::from(val)
-}
-
-fn test_host_endpoint(val: &str) -> api::remote::Remote {
-    api::remote::Remote::new(String::from(val))
 }
 
 #[test]

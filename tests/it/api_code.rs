@@ -1,6 +1,6 @@
 //! Tests for `api::code` functionality.
 
-use broker::api::code::{PollInterval, Remote};
+use broker::api::remote::{PollInterval, Remote};
 use proptest::prelude::*;
 use test_strategy::proptest;
 
