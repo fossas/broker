@@ -142,7 +142,7 @@ impl Repository {
                 ..self
             };
             Ok(repo)
-        }) // TODO: the state of the repository needs to be set now
+        })
     }
 
     fn run_git(args: &[String]) -> Result<Output, Report<Error>> {
@@ -162,7 +162,6 @@ impl Repository {
                 )
             });
         }
-
         Ok(output)
     }
 }
