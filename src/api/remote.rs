@@ -1,4 +1,14 @@
-//! This module provides functionality for integrating with external code hosts.
+//! This module provides functionality for integrating with "remotes", which are external code hosts.
+//!
+//! # "Remote" as a concept
+//!
+//! An example of a [`Remote`] is Github; it's a place where code is stored remotely.
+//! [`Remote`] as a concept is abstracted over protocol implementation:
+//! for example, a code host accessed via `ssh` or via `http` are both simply a [`Remote`].
+//!
+//! Their connection protocol (and any specifics, like authentication) is then specified via
+//! [`Protocol`], which is usually wrapped inside an [`Integration`], forming the primary interaction
+//! point for this module.
 
 use std::time::Duration;
 

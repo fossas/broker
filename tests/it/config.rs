@@ -1,7 +1,7 @@
 use std::{path::PathBuf, time::Duration};
 
 use broker::{
-    api::{self, code},
+    api::{self, remote},
     config, debug,
     ext::secrecy::ComparableSecretString,
 };
@@ -79,7 +79,7 @@ fn test_integration_git_sshkey() {
         test_integration_poll_interval(Duration::from_secs(3600))
     );
 
-    let code::Protocol::Git(code::git::Transport::Ssh{ endpoint, auth }) = integration.protocol() else { panic!("must have parsed integration to git") };
+    let remote::Protocol::Git(remote::git::Transport::Ssh{ endpoint, auth }) = integration.protocol() else { panic!("must have parsed integration to git") };
     assert_eq!(
         endpoint,
         &test_host_endpoint("git@github.com:fossas/broker.git")
@@ -109,12 +109,12 @@ fn test_debug_retention_size(val: ByteSize) -> debug::ArtifactMaxSize {
     debug::ArtifactMaxSize::from(val)
 }
 
-fn test_integration_poll_interval(val: Duration) -> code::PollInterval {
-    code::PollInterval::from(val)
+fn test_integration_poll_interval(val: Duration) -> remote::PollInterval {
+    remote::PollInterval::from(val)
 }
 
-fn test_host_endpoint(val: &str) -> api::code::Remote {
-    api::code::Remote::new(String::from(val))
+fn test_host_endpoint(val: &str) -> api::remote::Remote {
+    api::remote::Remote::new(String::from(val))
 }
 
 fn test_path_buf(val: &str) -> PathBuf {
