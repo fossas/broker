@@ -34,10 +34,10 @@ It is required to have `version` present in the config file.
 
 ## FOSSA communication
 
-| Value                   | Optional | Description                        | Suggested default       |
-|-------------------------|----------|------------------------------------|-------------------------|
-| `fossa_endpoint`        | No       | The address to the FOSSA instance. | `https://app.fossa.com` |
-| `fossa_integration_key` | No       | The API key for FOSSA.             | N/A                     |
+| Value                   | Required? | Description                        | Suggested default       |
+|-------------------------|-----------|------------------------------------|-------------------------|
+| `fossa_endpoint`        | Required  | The address to the FOSSA instance. | `https://app.fossa.com` |
+| `fossa_integration_key` | Required  | The API key for FOSSA.             | N/A                     |
 
 FOSSA integration keys can be created at [Settings → Integrations → API](https://app.fossa.com/account/settings/integrations/api_tokens).
 
@@ -49,11 +49,11 @@ but future features may require a "full" key to get the most use.
 This block specifies where Broker stores its debugging artifacts.
 For more information on what a "debugging artifact" is, see [Debug Artifacts](./debug-artifacts.md).
 
-| Value                | Optional | Description                                                | Suggested default                      |
-|----------------------|----------|------------------------------------------------------------|----------------------------------------|
-| `location`           | No       | The root directory into which debug artifacts are written. | `{USER_HOME}/.fossa/broker/debugging/` |
-| `retention.duration` | Yes      | Remove debug artifacts that are older than this time span. | `7 days`                               |
-| `retention.size`     | Yes      | Remove debug artifacts that are larger than this size.     | None                                   |
+| Value                | Required? | Description                                                | Suggested default                      |
+|----------------------|-----------|------------------------------------------------------------|----------------------------------------|
+| `location`           | Required  | The root directory into which debug artifacts are written. | `{USER_HOME}/.fossa/broker/debugging/` |
+| `retention.duration` | Optional  | Remove debug artifacts that are older than this time span. | `7 days` or no limit                   |
+| `retention.size`     | Optional  | Remove debug artifacts that are larger than this size.     | None                                   |
 
 - `retention.duration` is a `duration`; see [duration values](#duration-values) for more details.
 - `retention.size` is an integer representing bytes.
@@ -72,11 +72,11 @@ Supported types:
 
 This block specifies how to configure Broker to communicate with a git server for a specific git repository.
 
-| Value           | Optional | Description                                                                       | Suggested default |
-|-----------------|----------|-----------------------------------------------------------------------------------|-------------------|
-| `poll_interval` | No       | How often Broker checks with the remote repository to see whether it has changed. | `1 hour`          |
-| `remote`        | No       | The remote git repository address.                                                | N/A               |
-| `auth`          | No       | Required authentication to clone this repository.                                 | N/A               |
+| Value           | Required? | Description                                                                       | Suggested default |
+|-----------------|-----------|-----------------------------------------------------------------------------------|-------------------|
+| `poll_interval` | Required  | How often Broker checks with the remote repository to see whether it has changed. | `1 hour`          |
+| `remote`        | Required  | The remote git repository address.                                                | N/A               |
+| `auth`          | Required  | Required authentication to clone this repository.                                 | N/A               |
 
 The poll interval defines the interval at which Broker _checks for updates_, not the interval at which Broker actually analyzes the repository.
 For more details on authentication, see [integration authentication](#integration-authentication).
@@ -104,15 +104,15 @@ To specify a time unit, use one of the below forms:
 
 Examples for valid durations:
 
-| Input                  | Description                              |
-|------------------------|------------------------------------------|
-| `2h`                   | 2 hours                                  |
-| `2hours`               | 2 hours                                  |
-| `48hr`                 | 48 hours                                 |
-| `1y 12month`           | 1 year and 12 months                     |
-| `55s 500ms`            | 55 seconds and 500 milliseconds          |
-| `300ms 20s 5day`       | 5 days, 20 seconds, and 300 milliseconds |
-| `5day 4hours 10days`   | 15 days and 4 hours                      |
+| Input                | Description                              |
+|----------------------|------------------------------------------|
+| `2h`                 | 2 hours                                  |
+| `2hours`             | 2 hours                                  |
+| `48hr`               | 48 hours                                 |
+| `1y 12month`         | 1 year and 12 months                     |
+| `55s 500ms`          | 55 seconds and 500 milliseconds          |
+| `300ms 20s 5day`     | 5 days, 20 seconds, and 300 milliseconds |
+| `5day 4hours 10days` | 15 days and 4 hours                      |
 
 ## Integration authentication
 
