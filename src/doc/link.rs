@@ -2,6 +2,11 @@
 
 use once_cell::sync::OnceCell;
 
+/// The link to the support site.
+pub fn fossa_support() -> &'static str {
+    "https://support.fossa.com"
+}
+
 /// The reference documentation for the config file.
 pub fn config_file_reference() -> &'static str {
     // This value is set by Cargo and evaluated at compile time.
