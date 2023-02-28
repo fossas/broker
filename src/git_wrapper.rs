@@ -1,9 +1,12 @@
 //! Wrapper for Git
 
-use std::process::Command;
+use std::io;
+use std::process::{Command, Output};
 
-use error_stack::{IntoReport, Report};
+use error_stack::{Context, IntoReport, Report, ResultExt};
 use url::Url;
+
+use crate::ext::error_stack::DescribeContext;
 
 /// Errors that are encountered while shelling out to git.
 #[derive(Debug, thiserror::Error)]
@@ -17,6 +20,7 @@ pub enum Error {
 }
 
 /// The checkout type of the repository
+#[derive(Debug)]
 pub enum CheckoutType {
     /// not checked out yet
     None,
@@ -56,6 +60,7 @@ pub enum GitAuth {
 }
 
 /// A git repository
+#[derive(Debug)]
 pub struct Repository {
     /// directory is the location on disk where the repository resides or will reside
     pub directory: String,
@@ -125,38 +130,41 @@ impl Repository {
     }
 
     /// Do a blobless clone of the repository
-    pub fn clone(&self) -> Result<Self, Report<Error>> {
-        let remote = self.remote_with_auth();
-        match remote {
-            Err(rem) => Err(rem),
-            Ok(rem) => {
-                let res = Self::run_git(&[
-                    String::from("clone"),
-                    String::from("--filter=blob:none"),
-                    rem,
-                    self.directory.clone(),
-                ]);
-                match res {
-                    Ok(_) => Ok(Repository {
-                        checkout_type: CheckoutType::Blobless,
-                        directory: self.directory.clone(),
-                        safe_url: self.safe_url.clone(),
-                        auth: self.auth.clone(),
-                    }),
-                    Err(err) => Err(err),
-                }
-            }
-        }
+    pub fn git_clone(self) -> Result<Self, Report<Error>> {
+        let remote_with_auth = self.remote_with_auth()?;
+        Self::run_git(&[
+            String::from("clone"),
+            String::from("--filter=blob:none"),
+            remote_with_auth,
+            self.directory.clone(),
+        ])
+        .and_then(|_| {
+            let repo = Repository {
+                checkout_type: CheckoutType::Blobless,
+                ..self
+            };
+            Ok(repo)
+        }) // TODO: the state of the repository needs to be set now
     }
 
-    fn run_git(args: &[String]) -> Result<(), Report<Error>> {
+    fn run_git(args: &[String]) -> Result<Output, Report<Error>> {
         let output = Command::new("git")
             .args(args)
             .output()
-            .expect("error running git");
-        if output.status.success() {
-            return Ok(());
+            .into_report()
+            .change_context(Error::RunCommand)
+            .describe_lazy(|| format!("running git command {:?}", args))?;
+
+        if !output.status.success() {
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            return Err(Error::RunCommand).into_report().describe_lazy(|| {
+                format!(
+                    "running git command {:?}, status was: {}, stderr: {}",
+                    args, output.status, stderr
+                )
+            });
         }
-        return Err(Error::RunCommand).into_report();
+
+        Ok(output)
     }
 }

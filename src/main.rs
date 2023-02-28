@@ -144,9 +144,15 @@ async fn main_clone() -> Result<(), Error> {
         checkout_type: git_wrapper::CheckoutType::None,
         auth: git_wrapper::GitAuth::NoAuth,
     };
-    let res = repo.clone();
+    let res = repo.git_clone();
     match res {
-        Ok(_) => Ok(()),
-        Err(err) => Err(err).change_context(Error::GitWrapperError),
+        Ok(repo) => {
+            println!("got OK() from git clone, repo = {:?}", repo);
+            Ok(())
+        }
+        Err(err) => {
+            // println!("git clone err: {}", err);
+            Err(err).change_context(Error::GitWrapperError)
+        }
     }
 }
