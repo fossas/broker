@@ -7,13 +7,13 @@ use url::Url;
 
 /// Errors that are encountered while shelling out to git.
 #[derive(Debug, thiserror::Error)]
-pub enum GitWrapperError {
+pub enum Error {
     /// We encountered an error while shelling out to git
-    #[error("Error running command")]
-    RunGitCommand,
+    #[error("running git command")]
+    RunCommand,
     /// We encountered an error while parsing the repository's URL
     #[error("parsing url")]
-    ParseGitUrl,
+    ParseUrl,
 }
 
 /// The checkout type of the repository
@@ -82,7 +82,7 @@ impl Repository {
     //     check_remote(repo)
     // }
 
-    fn remote_with_auth(&self) -> Result<String, Report<GitWrapperError>> {
+    fn remote_with_auth(&self) -> Result<String, Report<Error>> {
         match &self.auth {
             GitAuth::NoAuth => Ok(self.safe_url.clone()),
             GitAuth::TokenAuth(token) => Self::add_auth_to_remote(
@@ -105,27 +105,27 @@ impl Repository {
         url: &String,
         password: Option<&String>,
         username: String,
-    ) -> Result<String, Report<GitWrapperError>> {
+    ) -> Result<String, Report<Error>> {
         let parsed_url = Url::parse(&url[..]);
         match parsed_url {
             Ok(mut url) => {
                 let res = url.set_password(password.map(|p| p.as_str()));
                 if let Err(_) = res {
-                    return Err(GitWrapperError::ParseGitUrl).into_report();
+                    return Err(Error::ParseUrl).into_report();
                 }
                 let res = url.set_username(username.as_str());
                 if let Err(_) = res {
-                    return Err(GitWrapperError::ParseGitUrl).into_report();
+                    return Err(Error::ParseUrl).into_report();
                 }
 
                 Ok(url.to_string())
             }
-            Err(_) => Err(GitWrapperError::ParseGitUrl).into_report(),
+            Err(_) => Err(Error::ParseUrl).into_report(),
         }
     }
 
     /// Do a blobless clone of the repository
-    pub fn clone(&self) -> Result<Self, Report<GitWrapperError>> {
+    pub fn clone(&self) -> Result<Self, Report<Error>> {
         let remote = self.remote_with_auth();
         match remote {
             Err(rem) => Err(rem),
@@ -149,7 +149,7 @@ impl Repository {
         }
     }
 
-    fn run_git(args: &[String]) -> Result<(), Report<GitWrapperError>> {
+    fn run_git(args: &[String]) -> Result<(), Report<Error>> {
         let output = Command::new("git")
             .args(args)
             .output()
@@ -157,6 +157,6 @@ impl Repository {
         if output.status.success() {
             return Ok(());
         }
-        return Err(GitWrapperError::RunGitCommand).into_report();
+        return Err(Error::RunCommand).into_report();
     }
 }
