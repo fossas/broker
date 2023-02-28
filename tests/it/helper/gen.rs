@@ -3,7 +3,7 @@
 use std::{path::PathBuf, time::Duration};
 
 use broker::{
-    api::{self, code},
+    api::{self, remote},
     debug,
     ext::secrecy::ComparableSecretString,
 };
@@ -37,13 +37,13 @@ pub(crate) fn debug_artifact_max_size(val: ByteSize) -> debug::ArtifactMaxSize {
 }
 
 #[track_caller]
-pub(crate) fn code_poll_interval(val: &str) -> code::PollInterval {
-    code::PollInterval::from(duration(val))
+pub(crate) fn code_poll_interval(val: &str) -> remote::PollInterval {
+    remote::PollInterval::from(duration(val))
 }
 
 #[track_caller]
-pub(crate) fn code_remote(val: &str) -> api::code::Remote {
-    api::code::Remote::new(String::from(val))
+pub(crate) fn code_remote(val: &str) -> api::remote::Remote {
+    api::remote::Remote::new(String::from(val))
 }
 
 #[track_caller]
