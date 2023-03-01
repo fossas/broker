@@ -5,6 +5,7 @@
 #![deny(missing_docs)]
 #![warn(rust_2018_idioms)]
 
+use broker::api::remote::{self, git};
 use broker::{config, ext::error_stack::ErrorHelper, git_wrapper};
 use broker::{
     config::Config,
@@ -138,11 +139,16 @@ async fn load_config(args: config::RawBaseArgs) -> Result<Config, Error> {
 }
 
 async fn main_clone() -> Result<(), Error> {
+    let endpoint =
+        remote::Remote::try_from(String::from("http://github.com/spatten/slack-wifi-status"))
+            .unwrap();
     let repo = git_wrapper::Repository {
         directory: String::from("/tmp/cloned"),
-        safe_url: String::from("https://github.com/spatten/slack-wifi-status"),
         checkout_type: git_wrapper::CheckoutType::None,
-        auth: git_wrapper::GitAuth::NoAuth,
+        transport: git::Transport::Http {
+            endpoint,
+            auth: None,
+        },
     };
     let res = repo.git_clone();
     match res {
