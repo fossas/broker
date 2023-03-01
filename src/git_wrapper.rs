@@ -4,7 +4,13 @@ use std::process::{Command, Output};
 use error_stack::{IntoReport, Report, ResultExt};
 use url::Url;
 
-use crate::ext::error_stack::DescribeContext;
+use crate::{
+    api::http,
+    api::remote::git,
+    api::remote::Remote,
+    api::ssh,
+    ext::{error_stack::DescribeContext, secrecy::ComparableSecretString},
+};
 
 /// Errors that are encountered while shelling out to git.
 #[derive(Debug, thiserror::Error)]
@@ -58,16 +64,25 @@ pub enum GitAuth {
 }
 
 /// A git repository
+// pub struct Repository {
+//     /// directory is the location on disk where the repository resides or will reside
+//     pub directory: String,
+//     /// safe_url is the URL of the repository with no authentication info
+//     pub safe_url: String,
+//     /// auth is the authentication info for the repository
+//     pub auth: GitAuth,
+//     /// checkout_type is the state of the repository
+//     pub checkout_type: CheckoutType,
+// }
+
 #[derive(Debug)]
 pub struct Repository {
     /// directory is the location on disk where the repository resides or will reside
     pub directory: String,
-    /// safe_url is the URL of the repository with no authentication info
-    pub safe_url: String,
-    /// auth is the authentication info for the repository
-    pub auth: GitAuth,
     /// checkout_type is the state of the repository
     pub checkout_type: CheckoutType,
+    /// transport contains the info that Broker uses to communicate with the git host
+    pub transport: git::Transport,
 }
 
 impl Repository {
@@ -85,34 +100,32 @@ impl Repository {
     //     check_remote(repo)
     // }
 
-    fn remote_with_auth(&self) -> Result<String, Report<Error>> {
-        match &self.auth {
-            GitAuth::NoAuth => Ok(self.safe_url.clone()),
-            GitAuth::TokenAuth(token) => Self::add_auth_to_remote(
-                &self.safe_url.clone(),
-                Some(token),
-                String::from("auth-x"),
-            ),
-            GitAuth::BasicAuth(auth_info) => Self::add_auth_to_remote(
-                &self.safe_url.clone(),
-                Some(&auth_info.password),
-                auth_info.name.clone(),
-            ),
-            GitAuth::SSHAuth(auth_info) => {
-                Self::add_auth_to_remote(&self.safe_url.clone(), None, auth_info.name.clone())
+    fn remote_with_auth(&self) -> Result<Remote, Report<Error>> {
+        let safe_url = self.transport.endpoint().clone();
+        match self.transport.auth() {
+            // If we are going over SSH, then auth is not set in the remote
+            // We do auth via GIT_SSH_COMMAND instead
+            // Similarly, if we are using HTTP, then auth is only set for the Basic authentication type
+            git::Auth::Ssh(_) => Ok(safe_url),
+            git::Auth::Http(None) => Ok(safe_url),
+            git::Auth::Http(Some(http::Auth::Basic { username, password })) => {
+                Self::add_auth_to_remote(safe_url, &password.clone(), &username.clone())
             }
+            git::Auth::Http(_) => Ok(safe_url),
         }
     }
 
     fn add_auth_to_remote(
-        url: &String,
-        password: Option<&String>,
-        username: String,
-    ) -> Result<String, Report<Error>> {
-        let parsed_url = Url::parse(&url[..]);
+        url: Remote,
+        password: &ComparableSecretString,
+        username: &String,
+    ) -> Result<Remote, Report<Error>> {
+        let parsed_url = url.parse();
         match parsed_url {
             Ok(mut url) => {
-                let res = url.set_password(password.map(|p| p.as_str()));
+                // let res = url.set_password(password.map(|p| p.as_str()));
+                let res = url.set_password(Some(&format!("{:?}", password)));
+
                 if let Err(_) = res {
                     return Err(Error::ParseUrl).into_report();
                 }
@@ -121,7 +134,7 @@ impl Repository {
                     return Err(Error::ParseUrl).into_report();
                 }
 
-                Ok(url.to_string())
+                Remote::try_from(url.to_string()).change_context(Error::ParseUrl)
             }
             Err(_) => Err(Error::ParseUrl).into_report(),
         }
@@ -133,7 +146,7 @@ impl Repository {
         Self::run_git(&[
             String::from("clone"),
             String::from("--filter=blob:none"),
-            remote_with_auth,
+            format!("{}", remote_with_auth),
             self.directory.clone(),
         ])
         .and_then(|_| {

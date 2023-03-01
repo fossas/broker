@@ -17,6 +17,7 @@ use derive_new::new;
 use error_stack::{report, IntoReport, Report, ResultExt};
 use getset::{CopyGetters, Getters};
 use humantime::parse_duration;
+use url;
 
 use crate::ext::error_stack::{DescribeContext, ErrorHelper};
 
@@ -45,6 +46,13 @@ pub struct Config(Vec<Integration>);
 /// Validated remote location for a code host.
 #[derive(Debug, Clone, PartialEq, Eq, AsRef, Display, new)]
 pub struct Remote(String);
+
+impl Remote {
+    /// parses a Remote and returns a Result<Url>
+    pub fn parse(&self) -> Result<url::Url, url::ParseError> {
+        url::Url::parse(&self.0)
+    }
+}
 
 impl TryFrom<String> for Remote {
     type Error = Report<ValidationError>;
