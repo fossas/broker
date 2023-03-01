@@ -1,0 +1,85 @@
+{
+  // Use IntelliSense to learn about possible attributes.
+  // Hover to view descriptions of existing attributes.
+  // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "type": "lldb",
+      "request": "launch",
+      "name": "Debug unit tests in library 'broker'",
+      "cargo": {
+        "args": [
+          "test",
+          "--no-run",
+          "--lib",
+          "--package=broker"
+        ],
+        "filter": {
+          "name": "broker",
+          "kind": "lib"
+        }
+      },
+      "args": [],
+      "cwd": "${workspaceFolder}"
+    },
+    {
+      "type": "lldb",
+      "request": "launch",
+      "name": "Debug executable 'broker'",
+      "cargo": {
+        "args": [
+          "build",
+          "--bin=broker",
+          "--package=broker"
+        ],
+        "filter": {
+          "name": "broker",
+          "kind": "bin"
+        }
+      },
+      "args": [
+        "run"
+      ],
+      "cwd": "${workspaceFolder}"
+    },
+    {
+      "type": "lldb",
+      "request": "launch",
+      "name": "Debug unit tests in executable 'broker'",
+      "cargo": {
+        "args": [
+          "test",
+          "--no-run",
+          "--bin=broker",
+          "--package=broker"
+        ],
+        "filter": {
+          "name": "broker",
+          "kind": "bin"
+        }
+      },
+      "args": [],
+      "cwd": "${workspaceFolder}"
+    },
+    {
+      "type": "lldb",
+      "request": "launch",
+      "name": "Debug integration test 'it'",
+      "cargo": {
+        "args": [
+          "test",
+          "--no-run",
+          "--test=it",
+          "--package=broker"
+        ],
+        "filter": {
+          "name": "it",
+          "kind": "test"
+        }
+      },
+      "args": [],
+      "cwd": "${workspaceFolder}"
+    }
+  ]
+}

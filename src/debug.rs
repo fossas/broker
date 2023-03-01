@@ -14,6 +14,7 @@ use derive_new::new;
 use error_stack::{report, IntoReport, Report, ResultExt};
 use getset::Getters;
 use humantime::parse_duration;
+use tracing::info;
 use tracing_appender::rolling;
 use tracing_subscriber::{filter, fmt::format::FmtSpan, prelude::*, Registry};
 
@@ -110,7 +111,10 @@ impl Config {
             .into_report()
             .change_context(Error::TraceSinkReconfigured)
             .help("if you're a user and you're seeing this, please report this as a defect to FOSSA support")
-            .describe("this is a program bug and is not something that users can fix")
+            .describe("this is a program bug and is not something that users can fix")?;
+
+        info!("Debug artifacts being stored in {:?}", self.tracing_root());
+        Ok(())
     }
 }
 
