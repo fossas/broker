@@ -102,16 +102,12 @@ impl Repository {
 
     fn remote_with_auth(&self) -> Result<Remote, Report<Error>> {
         let safe_url = self.transport.endpoint().clone();
-        match self.transport.auth() {
-            // If we are going over SSH, then auth is not set in the remote
-            // We do auth via GIT_SSH_COMMAND instead
-            // Similarly, if we are using HTTP, then auth is only set for the Basic authentication type
-            git::Auth::Ssh(_) => Ok(safe_url),
-            git::Auth::Http(None) => Ok(safe_url),
-            git::Auth::Http(Some(http::Auth::Basic { username, password })) => {
-                Self::add_auth_to_remote(safe_url, &password.clone(), &username.clone())
-            }
-            git::Auth::Http(_) => Ok(safe_url),
+        if let git::Auth::Http(Some(http::Auth::Basic { username, password })) =
+            self.transport.auth()
+        {
+            Self::add_auth_to_remote(safe_url, &password.clone(), &username.clone())
+        } else {
+            Ok(safe_url)
         }
     }
 
