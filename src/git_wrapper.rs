@@ -2,13 +2,11 @@
 use std::process::{Command, Output};
 
 use error_stack::{IntoReport, Report, ResultExt};
-use url::Url;
 
 use crate::{
     api::http,
     api::remote::git,
     api::remote::Remote,
-    api::ssh,
     ext::{error_stack::DescribeContext, secrecy::ComparableSecretString},
 };
 
@@ -32,35 +30,6 @@ pub enum CheckoutType {
     Inited,
     /// Blobless clone
     Blobless,
-}
-
-/// Name and password for basis auth
-#[derive(Debug, Clone)]
-pub struct NameAndPassword {
-    name: String,
-    password: String,
-}
-
-/// username and path to the private key for SSH auth
-#[derive(Debug, Clone)]
-pub struct NameAndPath {
-    /// The username for SSH auth
-    name: String,
-    /// The path to the private key for SSH auth
-    path: String,
-}
-
-/// Auth type for a git repo
-#[derive(Debug, Clone)]
-pub enum GitAuth {
-    /// No authentication
-    NoAuth,
-    /// Authentication via a token
-    TokenAuth(String),
-    /// Basic auth via name and password
-    BasicAuth(NameAndPassword),
-    /// Auth via an SSH key stored on disk
-    SSHAuth(NameAndPath),
 }
 
 /// A git repository
