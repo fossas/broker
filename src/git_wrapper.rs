@@ -2,6 +2,7 @@
 use std::process::{Command, Output};
 
 use error_stack::{IntoReport, Report, ResultExt};
+use secrecy::ExposeSecret;
 
 use crate::{
     api::http,
@@ -71,8 +72,10 @@ impl Repository {
 
     fn remote_with_auth(&self) -> Result<Remote, Report<Error>> {
         let safe_url = self.transport.endpoint().clone();
-        if let git::Auth::Http(Some(http::Auth::Basic { username, password })) =
-            self.transport.auth()
+        if let git::Transport::Http {
+            auth: Some(http::Auth::Basic { username, password }),
+            ..
+        } = self.transport.clone()
         {
             Self::add_auth_to_remote(safe_url, &password.clone(), &username.clone())
         } else {
@@ -88,8 +91,8 @@ impl Repository {
         let parsed_url = url.parse();
         match parsed_url {
             Ok(mut url) => {
-                // let res = url.set_password(password.map(|p| p.as_str()));
-                let res = url.set_password(Some(&format!("{:?}", password)));
+                let pass_string = password.as_ref().expose_secret();
+                let res = url.set_password(Some(pass_string));
 
                 if let Err(_) = res {
                     return Err(Error::ParseUrl).into_report();
@@ -111,7 +114,7 @@ impl Repository {
         Self::run_git(&[
             String::from("clone"),
             String::from("--filter=blob:none"),
-            format!("{}", remote_with_auth),
+            remote_with_auth.as_ref().to_string(),
             self.directory.clone(),
         ])
         .and_then(|_| {
