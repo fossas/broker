@@ -5,7 +5,7 @@
 #![deny(missing_docs)]
 #![warn(rust_2018_idioms)]
 
-use broker::api::remote::{self, git};
+use broker::api::remote::{self};
 use broker::{config, ext::error_stack::ErrorHelper, git_wrapper};
 use broker::{
     config::Config,
@@ -59,7 +59,7 @@ enum Commands {
     Run(config::RawBaseArgs),
 
     /// Attempt to do a git clone.
-    Clone,
+    Clone(config::RawBaseArgs),
 }
 
 #[tokio::main]
@@ -79,7 +79,7 @@ async fn main() -> Result<(), Error> {
         Commands::Fix(args) => main_fix(args).await,
         Commands::Backup(args) => main_backup(args).await,
         Commands::Run(args) => main_run(args).await,
-        Commands::Clone => main_clone().await,
+        Commands::Clone(args) => main_clone(args).await,
     }
     .request_support()
     .describe_lazy(|| format!("broker version: {version}"))
@@ -138,17 +138,14 @@ async fn load_config(args: config::RawBaseArgs) -> Result<Config, Error> {
         .documentation_lazy(doc::link::config_file_reference)
 }
 
-async fn main_clone() -> Result<(), Error> {
-    let endpoint =
-        remote::Remote::try_from(String::from("http://github.com/spatten/slack-wifi-status"))
-            .unwrap();
+async fn main_clone(args: config::RawBaseArgs) -> Result<(), Error> {
+    let conf = load_config(args).await?;
+    let integration = &conf.integrations().as_ref()[0];
+    let remote::Protocol::Git(transport) = integration.protocol().clone();
     let repo = git_wrapper::Repository {
         directory: String::from("/tmp/cloned"),
         checkout_type: git_wrapper::CheckoutType::None,
-        transport: git::Transport::Http {
-            endpoint,
-            auth: None,
-        },
+        transport,
     };
     let res = repo.git_clone();
     match res {
