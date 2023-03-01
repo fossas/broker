@@ -26,7 +26,7 @@ async fn test_debug_values() {
 
     assert_eq!(
         conf.debug().location(),
-        &gen::debug_root("/home/me/.fossa/broker/debugging/"),
+        &gen::debug_root("/home/me/.config/fossa/broker/debugging/"),
     );
     assert_eq!(
         conf.debug().retention().age(),
