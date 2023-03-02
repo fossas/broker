@@ -51,7 +51,7 @@ For more information on what a "debugging artifact" is, see [Debug Artifacts](./
 | Value            | Required? | Description                                                | Suggested default                             |
 |------------------|-----------|------------------------------------------------------------|-----------------------------------------------|
 | `location`       | Required  | The root directory into which debug artifacts are written. | `{USER_HOME}/.config/fossa/broker/debugging/` |
-| `retention.days` | Optional  | Remove debug artifacts that are older than this time span. | `7 days`                                      |
+| `retention.days` | Optional  | Remove debug artifacts that are older than this time span. | `7`                                      |
 
 ## Integrations
 
