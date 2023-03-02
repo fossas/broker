@@ -1,9 +1,9 @@
 //! Extensions to the `secrecy` crate. Specifically, to make secrets comparable.
 
-use std::fmt::Debug;
+use std::fmt::{Debug, Display};
 
 use delegate::delegate;
-use secrecy::{DebugSecret, ExposeSecret, Secret};
+use secrecy::{ExposeSecret, Secret};
 use subtle::ConstantTimeEq;
 
 /// [`Secret`], specialized to [`String`], with constant-time comparisons.
@@ -26,9 +26,13 @@ impl ComparableSecretString {
 
 impl Debug for ComparableSecretString {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str("ComparableSecret(")?;
-        String::debug_secret(f)?;
-        f.write_str(")")
+        f.write_str("ComparableSecret(REDACTED)")
+    }
+}
+
+impl Display for ComparableSecretString {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("<REDACTED>")
     }
 }
 
