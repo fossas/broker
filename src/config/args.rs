@@ -45,16 +45,16 @@ pub struct RawBaseArgs {
     /// The path to the Broker config file.
     ///
     /// If unset, Broker searches (in order) for `config.yml` or `config.yaml` in
-    /// the current working directory, then (on Linux and macOS) `~/.fossa/broker/`,
-    /// or (on Windows) `%USERPROFILE%\.fossa\broker`.
+    /// the current working directory, then (on Linux and macOS) `~/.config/fossa/broker/`,
+    /// or (on Windows) `%USERPROFILE%\.config\fossa\broker`.
     #[arg(short = 'c', long)]
     config_file_path: Option<String>,
 
     /// The path to the Broker database file.
     ///
     /// If unset, Broker searches (in order) for `db.sqlite` in
-    /// the current working directory, then (on Linux and macOS) `~/.fossa/broker/`,
-    /// or (on Windows) `%USERPROFILE%\.fossa\broker`.
+    /// the current working directory, then (on Linux and macOS) `~/.config/fossa/broker/`,
+    /// or (on Windows) `%USERPROFILE%\.config\fossa\broker`.
     #[arg(short = 'd', long)]
     database_file_path: Option<String>,
 }
