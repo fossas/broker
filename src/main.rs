@@ -7,7 +7,6 @@
 
 use broker::{
     config::{self, Config},
-    debug::retention,
     doc,
     ext::{
         error_stack::{DescribeContext, ErrorDocReference, ErrorHelper, FatalErrorReport},
@@ -16,7 +15,7 @@ use broker::{
 };
 use clap::{Parser, Subcommand};
 use error_stack::{bail, fmt::ColorMode, Report, Result, ResultExt};
-use futures::try_join;
+use futures::{try_join, FutureExt};
 
 #[derive(Debug, thiserror::Error)]
 enum Error {
@@ -116,11 +115,15 @@ async fn main_backup(args: config::RawBaseArgs) -> Result<(), Error> {
 /// Run Broker with the current config.
 async fn main_run(args: config::RawBaseArgs) -> Result<(), Error> {
     let conf = load_config(args).await?;
-    conf.debug().initialize().change_context(Error::Runtime)?;
 
-    try_join!(retention::run_worker(conf.debug()))
-        .discard_ok()
-        .change_context(Error::Runtime)
+    // Set up background processes to run.
+    let tracing_sink = conf
+        .debug()
+        .run_tracing_sink()
+        .map(|v| v.change_context(Error::Runtime));
+
+    // Run the background processes, exiting on any error.
+    try_join!(tracing_sink).discard_ok()
 }
 
 /// Parse application args and then load effective config.

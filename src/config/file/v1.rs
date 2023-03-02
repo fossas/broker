@@ -42,10 +42,14 @@ pub fn load(content: String) -> Result<super::Config, Report<Error>> {
 struct RawConfigV1 {
     #[serde(rename = "fossa_endpoint")]
     endpoint: String,
+
     #[serde(rename = "fossa_integration_key")]
     integration_key: String,
-    debugging: Debugging,
+
+    #[serde(default)]
     integrations: Vec<Integration>,
+
+    debugging: Debugging,
 }
 
 impl RawConfigV1 {
@@ -76,6 +80,8 @@ fn validate(config: RawConfigV1) -> Result<super::Config, Report<Error>> {
 #[derive(Debug, Deserialize)]
 pub(super) struct Debugging {
     location: PathBuf,
+
+    #[serde(default)]
     retention: DebuggingRetention,
 }
 
@@ -91,23 +97,27 @@ impl TryFrom<Debugging> for debug::Config {
 
 #[derive(Debug, Deserialize)]
 pub(super) struct DebuggingRetention {
-    duration: Option<String>,
-    size: Option<u64>,
+    days: usize,
+}
+
+impl Default for DebuggingRetention {
+    fn default() -> Self {
+        Self {
+            days: debug::ArtifactRetentionCount::default().into(),
+        }
+    }
 }
 
 impl TryFrom<DebuggingRetention> for debug::Retention {
     type Error = Report<debug::ValidationError>;
 
     fn try_from(value: DebuggingRetention) -> Result<Self, Self::Error> {
-        let age = value
-            .duration
-            .map(debug::ArtifactMaxAge::try_from)
-            .transpose()?;
-        let size = value
-            .size
-            .map(debug::ArtifactMaxSize::try_from)
-            .transpose()?;
-        Ok(debug::Retention::new(age, size))
+        let days = value
+            .days
+            .try_into()
+            .describe("validate 'retention.days'")?;
+
+        Ok(Self::new(days))
     }
 }
 

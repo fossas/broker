@@ -1,0 +1,16 @@
+---
+source: tests/it/config.rs
+expression: err
+info: testdata/config/basic-retention-malformed.yml
+---
+load config file
+├╴at /Users/jessica/projects/broker/{source location}
+│
+├─▶ parse config file in v1 format
+│   ╰╴at /Users/jessica/projects/broker/{source location}
+│
+├─▶ parse config file
+│   ╰╴at {source location}
+│
+╰─▶ debugging.retention: missing field `days` at line 8 column 5
+    ╰╴at {source location}

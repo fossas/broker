@@ -7,7 +7,6 @@ use broker::{
     debug,
     ext::secrecy::ComparableSecretString,
 };
-use bytesize::ByteSize;
 use humantime::parse_duration;
 use url::Url;
 
@@ -27,13 +26,8 @@ pub(crate) fn debug_root(val: &str) -> debug::Root {
 }
 
 #[track_caller]
-pub(crate) fn debug_artifact_max_age(val: &str) -> debug::ArtifactMaxAge {
-    debug::ArtifactMaxAge::from(duration(val))
-}
-
-#[track_caller]
-pub(crate) fn debug_artifact_max_size(val: ByteSize) -> debug::ArtifactMaxSize {
-    debug::ArtifactMaxSize::from(val)
+pub(crate) fn debug_artifact_retention_count(val: usize) -> debug::ArtifactRetentionCount {
+    debug::ArtifactRetentionCount::new(val)
 }
 
 #[track_caller]

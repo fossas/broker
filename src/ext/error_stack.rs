@@ -5,10 +5,10 @@ use error_stack::{Context, IntoReport, Report, ResultExt};
 
 use crate::doc;
 
-/// Merge a bunch of error stacks together into a single combined stack.
+/// Merge multiple error stacks together into a single combined stack.
 macro_rules! merge_error_stacks {
     ($initial:expr, $( $other:expr ),*) => {{
-        let mut merged = report!($initial);
+        let mut merged = $initial;
         $( merged.extend_one($other); )*
         merged
     }};
@@ -166,7 +166,7 @@ fn support_literal() -> String {
 
 /// Extends [`Result`] to convert the [`Err`] variant to a [`Report`]
 /// and immediately change the context.
-pub trait IntoContext<C>: Sized {
+pub trait IntoContext<C> {
     /// Type of the [`Ok`] value in the [`Result`]
     type Ok;
 

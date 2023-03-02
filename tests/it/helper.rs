@@ -70,6 +70,23 @@ macro_rules! load_config {
     };
 }
 
+/// Convenience macro to load a failing config inline with the test function (so errors are properly attributed).
+macro_rules! load_config_err {
+    ($config_path:expr, $db_path:expr) => {
+        async {
+            let base = raw_base_args($config_path, $db_path);
+            let args = config::validate_args(base)
+                .await
+                .expect("must have validated args");
+            let err = config::load(&args)
+                .await
+                .expect_err("must have failed to validate config");
+            ($config_path, err)
+        }
+    };
+}
+
 pub(crate) use assert_error_stack_snapshot;
 pub(crate) use load_config;
+pub(crate) use load_config_err;
 pub(crate) use set_snapshot_vars;

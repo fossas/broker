@@ -2,11 +2,10 @@ use broker::{
     api::{self, remote},
     config,
 };
-use bytesize::ByteSize;
 
 use crate::{
     args::raw_base_args,
-    helper::{gen, load_config},
+    helper::{assert_error_stack_snapshot, gen, load_config, load_config_err},
 };
 
 #[tokio::test]
@@ -29,13 +28,47 @@ async fn test_debug_values() {
         &gen::debug_root("/home/me/.fossa/broker/debugging/"),
     );
     assert_eq!(
-        conf.debug().retention().age(),
-        &Some(gen::debug_artifact_max_age("7days")),
+        conf.debug().retention().days(),
+        gen::debug_artifact_retention_count(3),
+    );
+}
+
+#[tokio::test]
+async fn test_debug_values_default_retention() {
+    let conf = load_config!(
+        "testdata/config/basic-retention-default.yml",
+        "testdata/database/empty.sqlite"
+    )
+    .await;
+
+    assert_eq!(
+        conf.debug().location(),
+        &gen::debug_root("/home/me/.fossa/broker/debugging/"),
     );
     assert_eq!(
-        conf.debug().retention().size(),
-        &Some(gen::debug_artifact_max_size(ByteSize::b(1048576))),
+        conf.debug().retention().days(),
+        gen::debug_artifact_retention_count(7),
     );
+}
+
+#[tokio::test]
+async fn test_debug_values_retention_malformed() {
+    let (config_file_path, err) = load_config_err!(
+        "testdata/config/basic-retention-malformed.yml",
+        "testdata/database/empty.sqlite"
+    )
+    .await;
+    assert_error_stack_snapshot!(&config_file_path, err);
+}
+
+#[tokio::test]
+async fn test_debug_values_retention_invalid() {
+    let (config_file_path, err) = load_config_err!(
+        "testdata/config/basic-retention-invalid.yml",
+        "testdata/database/empty.sqlite"
+    )
+    .await;
+    assert_error_stack_snapshot!(&config_file_path, err);
 }
 
 #[tokio::test]
