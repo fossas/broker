@@ -3,7 +3,6 @@ use base64::{engine::general_purpose, Engine as _};
 use error_stack::{IntoReport, Report, ResultExt};
 use secrecy::ExposeSecret;
 use std::collections::HashMap;
-use std::ffi::OsStr;
 use std::fs::File;
 use std::io::Write;
 use std::process::{Command, Output};
@@ -106,7 +105,10 @@ impl Repository {
         args
     }
 
-    fn env_vars(&self, ssh_key_file: &mut NamedTempFile<File>) -> HashMap<String, String> {
+    fn env_vars(
+        &self,
+        ssh_key_file: &mut NamedTempFile<File>,
+    ) -> Result<HashMap<String, String>, Report<Error>> {
         let mut env = HashMap::new();
         env.insert(String::from("GIT_TERMINAL_PROMPT"), String::from("0"));
 
@@ -120,8 +122,14 @@ impl Repository {
                 env.insert(String::from("GIT_SSH_COMMAND"), git_ssh_command);
             }
             git::Auth::Ssh(Some(ssh::Auth::KeyValue(key))) => {
-                // TODO: deal with the error here
-                ssh_key_file.write_all(key.as_ref().expose_secret().as_bytes());
+                // Write the contents of the SSH key to a file so that we can point to it in
+                // GIT_SSH_COMMAND
+                ssh_key_file
+                    .write_all(key.as_ref().expose_secret().as_bytes())
+                    .into_report()
+                    .describe("writing ssh key to file")
+                    .change_context(Error::RunCommand)?;
+
                 let git_ssh_command = format!(
                     "ssh -i {} -o IdentitiesOnly=yes -o StrictHostKeyChecking=no -F /dev/null",
                     ssh_key_file.path().display(),
@@ -130,37 +138,26 @@ impl Repository {
             }
             _ => {}
         }
-        env
+        Ok(env)
     }
 
     fn run_git(&self, args: Vec<String>) -> Result<Output, Report<Error>> {
         let mut full_args = self.default_args();
         full_args.append(&mut args.clone());
 
-        // TODO: Handle the error instead of unwrapping
-        let mut ssh_key_file = NamedTempFile::new().unwrap();
-        let env = self.env_vars(&mut ssh_key_file);
-        println!("env vars: {:?}", env);
+        let mut ssh_key_file = NamedTempFile::new()
+            .into_report()
+            .change_context(Error::RunCommand)
+            .describe("creating temp file")?;
+        let env = self.env_vars(&mut ssh_key_file)?;
 
-        let mut output = Command::new("git");
-        output.args(full_args);
-        let actual_args: Vec<&OsStr> = output.get_args().collect();
-        println!("Args: {:?}", actual_args);
-
-        let output = output
+        let output = Command::new("git")
+            .args(full_args)
             .envs(env)
             .output()
             .into_report()
             .change_context(Error::RunCommand)
             .describe_lazy(|| format!("running git command {:?}", args))?;
-
-        // let output = Command::new("git")
-        //     .args(full_args)
-        //     .envs(env)
-        //     .output()
-        //     .into_report()
-        //     .change_context(Error::RunCommand)
-        //     .describe_lazy(|| format!("running git command {:?}", args))?;
 
         if !output.status.success() {
             let stderr = String::from_utf8_lossy(&output.stderr);
