@@ -74,6 +74,7 @@ dependencies = [
  "serde_yaml",
  "strum",
  "subtle",
+ "tempfile",
  "test-strategy",
  "thiserror",
  "tokio",

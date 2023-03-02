@@ -2,9 +2,13 @@
 use base64::{engine::general_purpose, Engine as _};
 use error_stack::{IntoReport, Report, ResultExt};
 use secrecy::ExposeSecret;
+use std::collections::HashMap;
+use std::fs::File;
+use std::io::Write;
 use std::process::{Command, Output};
+use tempfile::NamedTempFile;
 
-use crate::{api::http, api::remote::git, ext::error_stack::DescribeContext};
+use crate::{api::http, api::remote::git, api::ssh, ext::error_stack::DescribeContext};
 
 /// Errors that are encountered while shelling out to git.
 #[derive(Debug, thiserror::Error)]
@@ -101,16 +105,45 @@ impl Repository {
         }
     }
 
+    fn env_vars(&self, ssh_key_file: &mut NamedTempFile<File>) -> HashMap<String, String> {
+        let mut env = HashMap::new();
+        env.insert(String::from("GIT_TERMINAL_PROMPT"), String::from("0"));
+
+        let auth = self.transport.auth();
+        match auth {
+            git::Auth::Ssh(Some(ssh::Auth::KeyFile(path))) => {
+                let git_ssh_command = format!(
+                    "ssh -i {} -o IdentitiesOnly=yes -o StrictHostKeyChecking=no -F /dev/null",
+                    path.display(),
+                );
+                env.insert(String::from("GIT_SSH_COMMAND"), git_ssh_command);
+            }
+            git::Auth::Ssh(Some(ssh::Auth::KeyValue(key))) => {
+                // TODO: deal with the error here
+                ssh_key_file.write_all(key.as_ref().expose_secret().as_bytes());
+                let git_ssh_command = format!(
+                    "ssh -i {} -o IdentitiesOnly=yes -o StrictHostKeyChecking=no -F /dev/null",
+                    ssh_key_file.path().display(),
+                );
+                env.insert(String::from("GIT_SSH_COMMAND"), git_ssh_command);
+            }
+            _ => {}
+        }
+        env
+    }
+
     fn run_git(&self, args: Vec<String>) -> Result<Output, Report<Error>> {
         let mut full_args = args.clone();
 
         self.add_default_args(&mut full_args);
+        // TODO: Handle the error instead of unwrapping
+        let mut ssh_key_file = NamedTempFile::new().unwrap();
+        let env = self.env_vars(&mut ssh_key_file);
+        println!("env vars: {:?}", env);
 
-        // let env = Self.create_env_vars();
-
-        // let env = Self.create_env_vars();
         let output = Command::new("git")
             .args(full_args)
+            .envs(env)
             .output()
             .into_report()
             .change_context(Error::RunCommand)
