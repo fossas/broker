@@ -6,10 +6,7 @@
 //! - They can contain more than just logs, for example traces.
 //! - They can comprise other types of data, for example time series metrics snapshots.
 
-use std::{
-    path::{Path, PathBuf},
-    time::Duration,
-};
+use std::path::{Path, PathBuf};
 
 use derive_more::{AsRef, From, Into};
 use derive_new::new;
@@ -61,19 +58,9 @@ impl Config {
     /// If the configured log rotation root doesn't exist, it's created.
     /// Until this method is run, traces are not output anywhere and are lost forever;
     /// run it as soon as possible.
-    pub async fn run_tracing_sink(&self) -> Result<(), Report<Error>> {
-        let _guard = self.initialize_tracing_sink()?;
-
-        // Background async operations make extensive use of these "guard" variables,
-        // where the variable being dropped exits the background operation.
-        //
-        // I prefer to make this an explicit future, then all the background futures in the program
-        // can just be shoved into one big `try_join`.
-        // Here this is accomplished by just doing this async loop so long as the future is driven.
-        let interval = Duration::from_secs(60);
-        loop {
-            tokio::time::sleep(interval).await;
-        }
+    #[must_use = "This guard must be stored in a variable that is retained; if it is dropped the tracing sink will stop running"]
+    pub fn run_tracing_sink(&self) -> Result<WorkerGuard, Report<Error>> {
+        self.initialize_tracing_sink()
     }
 
     /// The path to the directory containing trace files.

@@ -5,17 +5,16 @@
 #![deny(missing_docs)]
 #![warn(rust_2018_idioms)]
 
+use std::time::Duration;
+
 use broker::{
     config::{self, Config},
     doc,
-    ext::{
-        error_stack::{DescribeContext, ErrorDocReference, ErrorHelper, FatalErrorReport},
-        result::DiscardResult,
-    },
+    ext::error_stack::{DescribeContext, ErrorDocReference, ErrorHelper, FatalErrorReport},
 };
 use clap::{Parser, Subcommand};
 use error_stack::{bail, fmt::ColorMode, Report, Result, ResultExt};
-use futures::{try_join, FutureExt};
+use tracing::info;
 
 #[derive(Debug, thiserror::Error)]
 enum Error {
@@ -115,15 +114,19 @@ async fn main_backup(args: config::RawBaseArgs) -> Result<(), Error> {
 /// Run Broker with the current config.
 async fn main_run(args: config::RawBaseArgs) -> Result<(), Error> {
     let conf = load_config(args).await?;
-
-    // Set up background processes to run.
-    let tracing_sink = conf
+    let _tracing_guard = conf
         .debug()
         .run_tracing_sink()
-        .map(|v| v.change_context(Error::Runtime));
+        .change_context(Error::Runtime)?;
 
-    // Run the background processes, exiting on any error.
-    try_join!(tracing_sink).discard_ok()
+    // Pretend to do work.
+    info!("Broker will run until it is terminated, but isn't doing anything special: this subcommand is still basically NYI");
+    for i in 0.. {
+        tokio::time::sleep(Duration::from_secs(10)).await;
+        info!("Yep, still running{}", "!".repeat(i % 5));
+    }
+
+    Ok(())
 }
 
 /// Parse application args and then load effective config.
