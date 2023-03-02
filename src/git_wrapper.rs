@@ -89,8 +89,6 @@ impl Repository {
                     format!("http.extraHeader=AUTHORIZATION: Basic {}", base64_header),
                 );
                 args.insert(0, String::from("-c"));
-                args.insert(0, String::from("http.version=HTTP/1.1"));
-                args.insert(0, String::from("-c"));
             }
             git::Auth::Http(Some(http::Auth::Header(header))) => {
                 args.insert(
