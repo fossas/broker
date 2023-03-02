@@ -1,5 +1,6 @@
 //! Interactions and data types for the FOSSA API live here.
 
+use delegate::delegate;
 use derive_more::{AsRef, Display, From};
 use derive_new::new;
 use error_stack::{Report, ResultExt};
@@ -55,8 +56,17 @@ impl TryFrom<String> for Endpoint {
 }
 
 /// The FOSSA API key.
-#[derive(Debug, Clone, PartialEq, Eq, AsRef, From, new)]
+#[derive(Debug, Clone, PartialEq, Eq, From, new)]
 pub struct Key(ComparableSecretString);
+
+impl Key {
+    delegate! {
+        to self.0 {
+            /// Expose the key, viewing it as a standard string.
+            pub fn expose_secret(&self) -> &str;
+        }
+    }
+}
 
 impl TryFrom<String> for Key {
     type Error = Report<ValidationError>;

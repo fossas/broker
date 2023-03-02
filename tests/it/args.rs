@@ -4,7 +4,6 @@ use broker::{
     api::fossa::{Endpoint, Key},
     config,
 };
-use secrecy::ExposeSecret;
 use url::Url;
 
 use crate::helper::assert_error_stack_snapshot;
@@ -76,7 +75,7 @@ fn fossa_api_endpoint(#[strategy(r#"\PC+"#)] user_input: String) {
 #[proptest]
 fn fossa_api_key(#[strategy(r#"\PC+"#)] user_input: String) {
     match Key::try_from(user_input.clone()) {
-        Ok(validated) => prop_assert_eq!(validated.as_ref().as_ref().expose_secret(), &user_input),
+        Ok(validated) => prop_assert_eq!(validated.expose_secret(), &user_input),
         Err(err) => prop_assert!(false, "unexpected parse error: {:#}", err),
     }
 }
