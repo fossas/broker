@@ -17,3 +17,8 @@ Broker from scanning projects and sending their metadata to FOSSA.
 
 Boots Broker using the local config file, scanning the projects on
 configured DevOps hosts and importing their metadata into FOSSA.
+
+## Config
+
+The Broker config file tells Broker about the repositories it should scan, how it can access them, and at what cadence.
+See the [config reference](./reference/config.md) for more details.

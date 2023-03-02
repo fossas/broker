@@ -5,6 +5,8 @@
 //! - They don't fit the vision of the upstream.
 //! - We aren't sure how to make them more generic in order to fit the upstream.
 
+pub mod bytesize;
 pub mod error_stack;
 pub mod iter;
 pub mod result;
+pub mod secrecy;

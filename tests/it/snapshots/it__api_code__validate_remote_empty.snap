@@ -1,0 +1,12 @@
+---
+source: tests/it/api_code.rs
+expression: "Remote::try_from(input).expect_err(\"must have failed validation\")"
+info: ""
+---
+validate remote location
+├╴at {source location}
+│
+╰─▶ value is empty
+    ├╴at {source location}
+    ├╴context: provided input: ''
+    ╰╴help: the remote location may not be empty

@@ -1,36 +1,33 @@
 //! Types and functions for parsing & validating CLI arguments.
 
-use std::{iter, path::PathBuf};
+use std::path::PathBuf;
 
 use clap::Parser;
+use derive_new::new;
 use error_stack::{Report, ResultExt};
 use getset::{CopyGetters, Getters};
+use serde::Serialize;
 
-use crate::ext::{
-    error_stack::{DescribeContext, ErrorHelper},
-    iter::{AlternativeIter, ChainOnceWithIter},
-};
+use crate::ext::error_stack::{DescribeContext, ErrorHelper};
 
 use super::io;
 
 /// Errors that are possibly surfaced during validation of config values.
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
-    /// The config file location provided is not valid, or was not able to be located.
-    #[error("validate config file location")]
+    /// The config file was not able to be located.
+    #[error("locate config file")]
     ConfigFileLocation,
 
-    /// The DB file location provided is not valid, or was not able to be located.
-    #[error("validate database file location")]
+    /// The DB file was not able to be located.
+    #[error("locate database file")]
     DbFileLocation,
-
-    /// Failed to locate the file.
-    #[error("failed to locate file")]
-    LocateFile,
 }
 
 /// Base arguments, used in most Broker subcommands.
 /// The "Raw" prefix indicates that this is the initial parsed value before any validation.
+///
+/// # Background
 ///
 /// There is no exported function in `config` that parses these args; instead these are
 /// parsed automatically by `clap` since they implement `Parser` and are included in the
@@ -42,7 +39,7 @@ pub enum Error {
 ///
 /// This odd dichotomy is why we have to leak the `RawBaseArgs` implementation to the package consumer,
 /// because the consumer (`main`) needs to be able to give this type to `clap` for it to be parsed.
-#[derive(Debug, Parser)]
+#[derive(Debug, Clone, Parser, Serialize, new)]
 #[command(version, about)]
 pub struct RawBaseArgs {
     /// The path to the Broker config file.
@@ -62,32 +59,28 @@ pub struct RawBaseArgs {
     database_file_path: Option<String>,
 }
 
-/// Base arguments, used in most Broker subcommands.
-#[derive(Debug, Clone, PartialEq, Eq, Getters)]
-#[getset(get = "pub")]
-pub struct BaseArgs {
-    /// The path to the config file on disk.
-    config_path: ConfigFilePath,
+impl RawBaseArgs {
+    /// Validate the raw args provided.
+    ///
+    /// In practice, if the user provided a path to the db and config file, the validation is straightforward.
+    /// If the user did not provide one or both, this function discovers their location on disk
+    /// or errors if they are not able to be found.
+    pub async fn validate(self) -> Result<BaseArgs, Report<Error>> {
+        let config_path = if let Some(provided_path) = self.config_file_path {
+            Ok(ConfigFilePath::from(provided_path))
+        } else {
+            ConfigFilePath::discover()
+                .await
+                .change_context(Error::ConfigFileLocation)
+        };
 
-    /// The path to the database file on disk.
-    database_path: DatabaseFilePath,
-}
-
-impl TryFrom<RawBaseArgs> for BaseArgs {
-    type Error = Report<Error>;
-
-    fn try_from(raw: RawBaseArgs) -> Result<Self, Self::Error> {
-        let config_path = raw
-            .config_file_path
-            .map(ConfigFilePath::try_from)
-            .unwrap_or_else(ConfigFilePath::discover)
-            .change_context(Error::ConfigFileLocation);
-
-        let database_path = raw
-            .database_file_path
-            .map(DatabaseFilePath::try_from)
-            .unwrap_or_else(DatabaseFilePath::discover)
-            .change_context(Error::DbFileLocation);
+        let database_path = if let Some(provided_path) = self.database_file_path {
+            Ok(DatabaseFilePath::from(provided_path))
+        } else {
+            DatabaseFilePath::discover()
+                .await
+                .change_context(Error::DbFileLocation)
+        };
 
         // `error_stack` supports stacking multiple errors together so
         // they can all be reported at the same time.
@@ -116,7 +109,7 @@ impl TryFrom<RawBaseArgs> for BaseArgs {
         // If we start adding too many more, we should really consider making this better.
         // Seeing the below, you can imagine how unweidly this'll get with 3 or 4 errors.
         match (config_path, database_path) {
-            (Ok(config_path), Ok(database_path)) => Ok(Self {
+            (Ok(config_path), Ok(database_path)) => Ok(BaseArgs {
                 config_path,
                 database_path,
             }),
@@ -130,10 +123,20 @@ impl TryFrom<RawBaseArgs> for BaseArgs {
     }
 }
 
-/// The path to the config file, validated as existing on disk.
+/// Base arguments, used in most Broker subcommands.
+#[derive(Debug, Clone, PartialEq, Eq, Getters)]
+#[getset(get = "pub")]
+pub struct BaseArgs {
+    /// The path to the config file on disk.
+    config_path: ConfigFilePath,
+
+    /// The path to the database file on disk.
+    database_path: DatabaseFilePath,
+}
+
+/// The path to the config file.
 ///
-/// It is still required to handle possible access errors at the time of actually using the file,
-/// since it is possible for the file to move or become otherwise inaccessible between validation time and access time.
+/// Note that this is validated as being correctly shaped; the file is not guaranteed to exist.
 #[derive(Debug, Clone, Eq, PartialEq, Getters, CopyGetters)]
 pub struct ConfigFilePath {
     /// The path on disk for the file.
@@ -141,19 +144,16 @@ pub struct ConfigFilePath {
     path: PathBuf,
 
     /// Whether the path was provided by a user.
-    /// If this is false, it was instead discovered during the validation process.
     #[getset(get_copy = "pub")]
     provided: bool,
 }
 
 impl ConfigFilePath {
     /// Discover the location for the config file on disk.
-    fn discover() -> Result<Self, Report<Error>> {
-        iter::once_with(|| io::find("config.yml"))
-            .chain_once_with(|| io::find("config.yaml"))
-            .alternative_fold()
-            .change_context(Error::LocateFile)
-            .describe("searches the working directory and '{USER_DIR}/.fossa/broker' for 'config.yml' or 'config.yaml'")
+    async fn discover() -> Result<Self, Report<io::Error>> {
+        io::find_some(["config.yml", "config.yaml"])
+            .await
+            .describe("searches for 'config.yml' or 'config.yaml'")
             .help("consider providing an explicit argument instead")
             .map(|path| Self {
                 path,
@@ -162,23 +162,18 @@ impl ConfigFilePath {
     }
 }
 
-impl TryFrom<String> for ConfigFilePath {
-    type Error = Report<Error>;
-
-    fn try_from(input: String) -> Result<Self, Self::Error> {
-        io::validate_file(PathBuf::from(input))
-            .change_context(Error::LocateFile)
-            .map(|path| Self {
-                path,
-                provided: true,
-            })
+impl From<String> for ConfigFilePath {
+    fn from(value: String) -> Self {
+        Self {
+            path: PathBuf::from(value),
+            provided: true,
+        }
     }
 }
 
-/// The path to the database file, validated as existing on disk.
+/// The path to the database file.
 ///
-/// It is still required to handle possible access errors at the time of actually using the file,
-/// since it is possible for the file to move or become otherwise inaccessible between validation time and access time.
+/// Note that this is validated as being correctly shaped; the file is not guaranteed to exist.
 #[derive(Debug, Clone, Eq, PartialEq, Getters, CopyGetters)]
 pub struct DatabaseFilePath {
     /// The path on disk for the file.
@@ -186,19 +181,16 @@ pub struct DatabaseFilePath {
     path: PathBuf,
 
     /// Whether the path was provided by a user.
-    /// If this is false, it was instead discovered during the validation process.
     #[getset(get_copy = "pub")]
     provided: bool,
 }
 
 impl DatabaseFilePath {
     /// Discover the location for the config file on disk.
-    fn discover() -> Result<Self, Report<Error>> {
+    async fn discover() -> Result<Self, Report<io::Error>> {
         io::find("db.sqlite")
-            .change_context(Error::LocateFile)
-            .describe(
-                "searches the working directory and '{USER_DIR}/.fossa/broker' for 'db.sqlite'",
-            )
+            .await
+            .describe("searches for 'db.sqlite'")
             .help("consider providing an explicit argument instead")
             .map(|path| Self {
                 path,
@@ -207,15 +199,11 @@ impl DatabaseFilePath {
     }
 }
 
-impl TryFrom<String> for DatabaseFilePath {
-    type Error = Report<Error>;
-
-    fn try_from(input: String) -> Result<Self, Self::Error> {
-        io::validate_file(PathBuf::from(input))
-            .change_context(Error::LocateFile)
-            .map(|path| Self {
-                path,
-                provided: true,
-            })
+impl From<String> for DatabaseFilePath {
+    fn from(value: String) -> Self {
+        Self {
+            path: PathBuf::from(value),
+            provided: true,
+        }
     }
 }

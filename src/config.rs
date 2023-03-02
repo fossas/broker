@@ -14,35 +14,34 @@ pub use file::Config;
 /// Errors that are possibly surfaced during validation of config values.
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
-    /// Validate CLI arguments
+    /// This crate doesn't actually parse command line arguments, it only validates them.
+    /// It hands off parsing to `clap` by exporting [`args::BaseArgs`].
+    ///
+    /// Given this, the error message is only concerned with _validating_ the args,
+    /// since `clap` already reports parse errors itself.
     #[error("validate command line arguments")]
     ValidateArgs,
 
-    /// Validate config file
-    #[error("validate config file")]
-    ValidateConfigFile,
-
-    /// Parse the config file on disk.
-    /// This is distinct from the "validation" step- where validation is about the _content_ being valid,
-    /// parsing is about the _shape_ being valid.
-    #[error("parse config file")]
-    ParseConfigFile,
+    /// Unlike with args, this crate is responsible for both parsing and validating the config file.
+    /// As such, [`file`] has its own errors reflecting this two-step process.
+    ///
+    /// At this level, this crate just reports the overall process as "loading",
+    /// and bubbles up the context from [`file`] to the user.
+    #[error("load config file")]
+    LoadConfigFile,
 }
 
 /// Validate the args provided by the user.
-pub fn validate_args(provided: RawBaseArgs) -> Result<BaseArgs, Error> {
-    provided.try_into().change_context(Error::ValidateArgs)
+pub async fn validate_args(provided: RawBaseArgs) -> Result<BaseArgs, Error> {
+    provided
+        .validate()
+        .await
+        .change_context(Error::ValidateArgs)
 }
 
 /// Load the config for the application.
-pub fn load(args: &BaseArgs) -> Result<file::Config, Error> {
-    file::RawConfig::parse(args.config_path().path())
-        // TODO: Point users to a reference (in `docs/`) for the config file shape.
-        .change_context(Error::ParseConfigFile)?
-        .try_into()
-        // TODO: Point users to help content (in `docs/`) for writing a valid config file.
-        //       Keep in mind this TODO is different than the above:
-        //       this error is generated during the validation step, which has different context
-        //       and deserves different help text/documentation.
-        .change_context(Error::ValidateConfigFile)
+pub async fn load(args: &BaseArgs) -> Result<file::Config, Error> {
+    file::Config::load(args.config_path().path())
+        .await
+        .change_context(Error::LoadConfigFile)
 }

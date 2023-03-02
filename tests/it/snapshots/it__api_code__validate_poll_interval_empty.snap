@@ -1,0 +1,11 @@
+---
+source: tests/it/api_code.rs
+expression: "PollInterval::try_from(input).expect_err(\"must have failed validation\")"
+info: ""
+---
+validate poll interval
+├╴at {source location}
+├╴context: provided value: 
+│
+╰─▶ value was empty
+    ╰╴at {source location}
