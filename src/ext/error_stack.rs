@@ -3,6 +3,8 @@
 use colored::Colorize;
 use error_stack::ResultExt;
 
+use crate::doc;
+
 /// Used to provide help text to an error.
 ///
 /// This is meant to be readable by users of the application;
@@ -131,4 +133,22 @@ impl<T, C> DescribeContext for error_stack::Result<T, C> {
 
 fn describe_literal() -> String {
     "context:".bold().green().to_string()
+}
+
+/// Used to prompt the user to report a problem to FOSSA support.
+pub trait FatalErrorReport {
+    /// Ask the user to open a ticket with support if they think this is a defect.
+    fn request_support(self) -> Self;
+}
+
+impl<T, C> FatalErrorReport for error_stack::Result<T, C> {
+    fn request_support(self) -> Self {
+        let support = support_literal();
+        let support_url = doc::link::fossa_support();
+        self.attach_printable_lazy(|| format!("{support} if you believe this to be a defect, please report a bug to FOSSA support at {support_url}"))
+    }
+}
+
+fn support_literal() -> String {
+    "support:".bold().red().to_string()
 }

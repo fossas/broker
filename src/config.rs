@@ -11,8 +11,6 @@ mod io;
 pub use args::{BaseArgs, RawBaseArgs};
 pub use file::Config;
 
-use crate::{doc, ext::error_stack::ErrorDocReference};
-
 /// Errors that are possibly surfaced during validation of config values.
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
@@ -34,13 +32,16 @@ pub enum Error {
 }
 
 /// Validate the args provided by the user.
-pub fn validate_args(provided: RawBaseArgs) -> Result<BaseArgs, Error> {
-    provided.try_into().change_context(Error::ValidateArgs)
+pub async fn validate_args(provided: RawBaseArgs) -> Result<BaseArgs, Error> {
+    provided
+        .validate()
+        .await
+        .change_context(Error::ValidateArgs)
 }
 
 /// Load the config for the application.
-pub fn load(args: &BaseArgs) -> Result<file::Config, Error> {
+pub async fn load(args: &BaseArgs) -> Result<file::Config, Error> {
     file::Config::load(args.config_path().path())
+        .await
         .change_context(Error::LoadConfigFile)
-        .documentation_lazy(doc::link::config_file_reference)
 }

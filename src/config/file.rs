@@ -33,7 +33,7 @@
 //!
 //! Validations are expressed as `From<String>` or `TryFrom<String>` implementations.
 
-use std::{fs, path::Path};
+use std::path::Path;
 
 use derive_new::new;
 use error_stack::{report, IntoReport, Report, ResultExt};
@@ -44,6 +44,8 @@ use crate::{
     api, debug,
     ext::error_stack::{DescribeContext, ErrorHelper},
 };
+
+use super::io;
 
 mod v1;
 
@@ -82,18 +84,19 @@ pub struct Config {
 
 impl Config {
     /// Load the config for the application.
-    pub fn load(path: &Path) -> Result<Self, Report<Error>> {
+    pub async fn load(path: &Path) -> Result<Self, Report<Error>> {
         // Parsing the config file at least twice; just load it into memory since it's small.
-        let content = fs::read_to_string(path)
-            .into_report()
+        let content = io::read_to_string(path)
+            .await
             .change_context(Error::ReadFile)
             .describe_lazy(|| format!("read config file at {path:?}"))
             .help("ensure you have access to the file and that it exists")?;
 
         // Parsing just the version allows us to then choose the correct parser to use.
-        let RawConfigVersion { version } = serde_yaml::from_str(&content).into_report()
-        .change_context(Error::ParseVersion)
-        .describe("prior to parsing the config file, Broker checks just the 'version' field to select the correct parser")?;
+        let RawConfigVersion { version } = serde_yaml::from_str(&content)
+            .into_report()
+            .change_context(Error::ParseVersion)
+            .describe("prior to parsing the config file, Broker checks just the 'version' field to select the correct parser")?;
 
         match version {
             1 => v1::load(content).change_context(Error::ParseV1),
