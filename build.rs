@@ -4,6 +4,7 @@ use std::env;
 use std::fs;
 use std::path::Path;
 use std::path::PathBuf;
+use std::process::Command;
 
 const DOCKERFILE: &str = "Dockerfile";
 
@@ -14,11 +15,17 @@ enum Error {
 
     #[error("write file at '{0}'")]
     WriteFile(PathBuf),
+
+    #[error("generate cargo build variables")]
+    CargoBuildVars,
 }
 
 fn main() -> Result<(), Error> {
     Report::set_color_mode(error_stack::fmt::ColorMode::Color);
     Report::install_debug_hook(Help::debug_hook);
+
+    // Read build info and output it as env vars for later.
+    generate_cargo_build_vars()?;
 
     // TODO: Use `version` to generate installers.
     let version = env_var("CARGO_PKG_VERSION")?;
@@ -29,7 +36,14 @@ fn main() -> Result<(), Error> {
 
     // Only need to re-generate this if the manifest changes,
     // because the only thing this script depends on is the version.
-    println!("cargo:rerun-if-changed=Cargo.toml");
+    //
+    // Disabled for now so that `generate_cargo_build_vars` always has latest data.
+    // (Running without emitting a 'cargo:rerun-if-changed' directive causes default change detection:
+    // https://doc.rust-lang.org/cargo/reference/build-scripts.html#change-detection)
+    // TODO: make this smarter, as in https://docs.rs/vergen/3.1.0/vergen/fn.generate_cargo_keys.html
+    //
+    // println!("cargo:rerun-if-changed=Cargo.toml");
+
     Ok(())
 }
 
@@ -72,6 +86,26 @@ ENTRYPOINT ["/usr/local/bin/broker"]
 "#,
         )
     }
+}
+
+/// Side-effectful function that inspects the repo state and generates vars used elsewhere in the build.
+/// Most notably, this makes the current git sha available at build time, so other parts of the program
+/// may reference it with `env!()`. This is used for doc links and diagnostics information.
+///
+/// https://docs.rs/vergen/latest/vergen/index.html
+fn generate_cargo_build_vars() -> Result<(), Error> {
+    let output = Command::new("git")
+        .args(["rev-parse", "HEAD"])
+        .output()
+        .into_report()
+        .change_context(Error::CargoBuildVars)?;
+
+    let git_hash = String::from_utf8(output.stdout)
+        .into_report()
+        .change_context(Error::CargoBuildVars)?;
+
+    println!("cargo:rustc-env=GIT_HASH={}", git_hash);
+    Ok(())
 }
 
 /// Provide help text for a given error.
