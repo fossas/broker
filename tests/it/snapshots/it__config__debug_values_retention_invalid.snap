@@ -4,10 +4,10 @@ expression: err
 info: testdata/config/basic-retention-invalid.yml
 ---
 load config file
-├╴at /Users/jessica/projects/broker/{source location}
+├╴at {source location}
 │
 ├─▶ parse config file in v1 format
-│   ╰╴at /Users/jessica/projects/broker/{source location}
+│   ╰╴at {source location}
 │
 ├─▶ validate parsed config file values
 │   ╰╴at {source location}

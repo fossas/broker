@@ -55,7 +55,6 @@ pub struct Config {
 impl Config {
     /// Initialize debugging singletons.
     ///
-    /// If the configured log rotation root doesn't exist, it's created.
     /// Until this method is run, traces are not output anywhere and are lost forever;
     /// run it as soon as possible.
     #[must_use = "This guard must be stored in a variable that is retained; if it is dropped the tracing sink will stop running"]
