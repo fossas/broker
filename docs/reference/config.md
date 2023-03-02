@@ -13,7 +13,7 @@ fossa_integration_key: abcd1234
 version: 1
 
 debugging:
-  location: /home/me/.fossa/broker/debugging/
+  location: /home/me/.config/fossa/broker/debugging/
   retention:
     duration: 7d
     size: 1048576
@@ -49,11 +49,11 @@ but future features may require a "full" key to get the most use.
 This block specifies where Broker stores its debugging artifacts.
 For more information on what a "debugging artifact" is, see [Debug Artifacts](./debug-artifacts.md).
 
-| Value                | Required? | Description                                                | Suggested default                      |
-|----------------------|-----------|------------------------------------------------------------|----------------------------------------|
-| `location`           | Required  | The root directory into which debug artifacts are written. | `{USER_HOME}/.fossa/broker/debugging/` |
-| `retention.duration` | Optional  | Remove debug artifacts that are older than this time span. | `7 days` or no limit                   |
-| `retention.size`     | Optional  | Remove debug artifacts that are larger than this size.     | None                                   |
+| Value                | Required? | Description                                                | Suggested default                             |
+|----------------------|-----------|------------------------------------------------------------|-----------------------------------------------|
+| `location`           | Required  | The root directory into which debug artifacts are written. | `{USER_HOME}/.config/fossa/broker/debugging/` |
+| `retention.duration` | Optional  | Remove debug artifacts that are older than this time span. | `7 days` or no limit                          |
+| `retention.size`     | Optional  | Remove debug artifacts that are larger than this size.     | None                                          |
 
 - `retention.duration` is a `duration`; see [duration values](#duration-values) for more details.
 - `retention.size` is an integer representing bytes.

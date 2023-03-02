@@ -82,8 +82,8 @@ where
 ///
 /// Locations searched:
 /// - The current working directory
-/// - On Linux and macOS: `~/.fossa/broker/`
-/// - On Windows: `%USERPROFILE%\.fossa\broker`
+/// - On Linux and macOS: `~/.config/fossa/broker/`
+/// - On Windows: `%USERPROFILE%\.config\fossa\broker`
 pub async fn find<S: AsRef<str>>(name: S) -> Result<PathBuf, Report<Error>> {
     let name = name.as_ref().to_string();
     run_background(move || find_sync(name)).await
@@ -106,7 +106,7 @@ fn find_sync<S: AsRef<str>>(name: S) -> Result<PathBuf, Report<Error>> {
     iter::once_with(|| check_cwd(name.as_ref()).and_then(validate_file))
         .chain_once_with(|| check_home(name.as_ref()).and_then(validate_file))
         .alternative_fold()
-        .describe("searches the working directory and '{USER_DIR}/.fossa/broker'")
+        .describe("searches the working directory and '{USER_DIR}/.config/fossa/broker'")
 }
 
 /// Validate that a file path exists and is a regular file.
@@ -137,13 +137,13 @@ fn check_cwd(name: &str) -> Result<PathBuf, Report<Error>> {
     Ok(cwd.join(name))
 }
 
-/// Validate that the given file name exists in `$HOME/.fossa/broker/`.
+/// Validate that the given file name exists in `$HOME/.config/fossa/broker/`.
 fn check_home(name: &str) -> Result<PathBuf, Report<Error>> {
     let home = dirs::home_dir().ok_or(Error::LocateUserHome).into_report()
         .describe("on macOS and Linux, this uses the $HOME environment variable or the system call 'getpwuid_r'")
         .describe("on Windows, this uses the Windows API call 'SHGetKnownFolderPath'")
         .describe("this is a very rare condition, and it's not likely that Broker will be able to resolve this issue")?;
-    Ok(home.join(".fossa").join("broker").join(name))
+    Ok(home.join(".config").join("fossa").join("broker").join(name))
 }
 
 /// Run the provided blocking closure in the background.
