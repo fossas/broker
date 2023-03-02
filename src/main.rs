@@ -5,8 +5,6 @@
 #![deny(missing_docs)]
 #![warn(rust_2018_idioms)]
 
-use std::time::Duration;
-
 use broker::{
     config::{self, Config},
     doc,
@@ -14,7 +12,6 @@ use broker::{
 };
 use clap::{Parser, Subcommand};
 use error_stack::{bail, fmt::ColorMode, Report, Result, ResultExt};
-use tracing::info;
 
 #[derive(Debug, thiserror::Error)]
 enum Error {
@@ -23,6 +20,9 @@ enum Error {
 
     #[error("this subcommand is not implemented")]
     SubcommandUnimplemented,
+
+    #[error("a fatal error occurred during internal configuration")]
+    InternalSetup,
 
     #[error("a fatal error occurred at runtime")]
     Runtime,
@@ -117,16 +117,11 @@ async fn main_run(args: config::RawBaseArgs) -> Result<(), Error> {
     let _tracing_guard = conf
         .debug()
         .run_tracing_sink()
-        .change_context(Error::Runtime)?;
+        .change_context(Error::InternalSetup)?;
 
-    // Pretend to do work.
-    info!("Broker will run until it is terminated, but isn't doing anything special: this subcommand is still basically NYI");
-    for i in 0.. {
-        tokio::time::sleep(Duration::from_secs(10)).await;
-        info!("Yep, still running{}", "!".repeat(i % 5));
-    }
-
-    Ok(())
+    broker::subcommand::run::main(conf)
+        .await
+        .change_context(Error::Runtime)
 }
 
 /// Parse application args and then load effective config.
