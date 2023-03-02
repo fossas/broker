@@ -10,7 +10,7 @@ use std::path::{Path, PathBuf};
 
 use derive_more::{AsRef, From, Into};
 use derive_new::new;
-use error_stack::{report, IntoReport, Report, ResultExt};
+use error_stack::{report, Report};
 use getset::{CopyGetters, Getters};
 use rolling_file::{BasicRollingFileAppender, RollingConditionBasic};
 use tracing::info;
@@ -92,8 +92,7 @@ impl Config {
             );
 
         tracing::subscriber::set_global_default(subscriber)
-            .into_report()
-            .change_context(Error::TraceSinkReconfigured)
+            .context(Error::TraceSinkReconfigured)
             .help("if you're a user and you're seeing this, please report this as a defect to FOSSA support")
             .describe("this is a program bug and is not something that users can fix")?;
 

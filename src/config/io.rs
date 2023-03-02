@@ -31,7 +31,7 @@ use error_stack::{IntoReport, Report, ResultExt};
 use tokio::task;
 
 use crate::ext::{
-    error_stack::{DescribeContext, ErrorHelper},
+    error_stack::{DescribeContext, ErrorHelper, IntoContext},
     iter::{AlternativeIter, ChainOnceWithIter},
 };
 
@@ -94,8 +94,7 @@ pub async fn read_to_string<P: AsRef<Path>>(file: P) -> Result<String, Report<Er
     let file = file.as_ref().to_path_buf();
     run_background(move || {
         fs::read_to_string(file)
-            .into_report()
-            .change_context(Error::ReadFileContent)
+            .context(Error::ReadFileContent)
             .help("validate that you have access to the file and that it exists")
     })
     .await
@@ -112,8 +111,7 @@ fn find_sync<S: AsRef<str>>(name: S) -> Result<PathBuf, Report<Error>> {
 /// Validate that a file path exists and is a regular file.
 fn validate_file(path: PathBuf) -> Result<PathBuf, Report<Error>> {
     let meta = fs::metadata(&path)
-        .into_report()
-        .change_context(Error::ValidatePath)
+        .context(Error::ValidatePath)
         .describe_lazy(|| format!("validate file: {path:?}"))
         .help("validate that you have access to the file and that it exists")?;
 
@@ -129,8 +127,7 @@ fn validate_file(path: PathBuf) -> Result<PathBuf, Report<Error>> {
 /// Validate that the given file name exists in the current working directory.
 fn check_cwd(name: &str) -> Result<PathBuf, Report<Error>> {
     let cwd = env::current_dir()
-        .into_report()
-        .change_context(Error::LocateWorkingDirectory)
+        .context(Error::LocateWorkingDirectory)
         .describe("on macOS and Linux, this uses the system call 'getcwd'")
         .describe("on Windows, this uses the Windows API call 'GetCurrentDirectoryW'")
         .describe("this kind of error is typically caused by the current user not having access to the working directory")?;
@@ -154,8 +151,7 @@ where
 {
     task::spawn_blocking(work)
         .await
-        .into_report()
-        .change_context(Error::JoinWorker)
+        .context(Error::JoinWorker)
         .describe("Broker runs some IO actions in a background process, and that thread was unable to be synchronized with the main Broker process.")
         .help("This is unlikely to be resolvable by an end user, although it may be environmental; try restarting Broker.")?
 }

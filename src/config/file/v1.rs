@@ -2,7 +2,7 @@
 
 use std::path::PathBuf;
 
-use error_stack::{report, IntoReport, Report, ResultExt};
+use error_stack::{report, Report, ResultExt};
 use serde::Deserialize;
 
 use crate::{
@@ -13,7 +13,7 @@ use crate::{
     },
     debug,
     ext::{
-        error_stack::{DescribeContext, ErrorHelper},
+        error_stack::{DescribeContext, ErrorHelper, IntoContext},
         secrecy::ComparableSecretString,
     },
 };
@@ -55,9 +55,7 @@ struct RawConfigV1 {
 impl RawConfigV1 {
     /// Parse config from the provided file on disk.
     pub fn parse(content: String) -> std::result::Result<Self, Report<Error>> {
-        serde_yaml::from_str(&content)
-            .into_report()
-            .change_context(Error::Parse)
+        serde_yaml::from_str(&content).context(Error::Parse)
     }
 }
 

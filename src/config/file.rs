@@ -36,13 +36,13 @@
 use std::path::Path;
 
 use derive_new::new;
-use error_stack::{report, IntoReport, Report, ResultExt};
+use error_stack::{report, Report, ResultExt};
 use getset::Getters;
 use serde::Deserialize;
 
 use crate::{
     api, debug,
-    ext::error_stack::{DescribeContext, ErrorHelper},
+    ext::error_stack::{DescribeContext, ErrorHelper, IntoContext},
 };
 
 use super::io;
@@ -94,8 +94,7 @@ impl Config {
 
         // Parsing just the version allows us to then choose the correct parser to use.
         let RawConfigVersion { version } = serde_yaml::from_str(&content)
-            .into_report()
-            .change_context(Error::ParseVersion)
+            .context(Error::ParseVersion)
             .describe("prior to parsing the config file, Broker checks just the 'version' field to select the correct parser")?;
 
         match version {
