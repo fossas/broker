@@ -21,7 +21,7 @@ enum Error {
     DetermineEffectiveConfig,
 
     #[error("git command")]
-    GitWrapperError,
+    GitWrapper,
 
     #[error("this subcommand is not implemented")]
     SubcommandUnimplemented,
@@ -155,7 +155,7 @@ async fn main_clone(args: config::RawBaseArgs) -> Result<(), Error> {
         }
         Err(err) => {
             // println!("git clone err: {}", err);
-            Err(err).change_context(Error::GitWrapperError)
+            Err(err).change_context(Error::GitWrapper)
         }
     }
 }

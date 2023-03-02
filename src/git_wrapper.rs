@@ -66,12 +66,9 @@ impl Repository {
             self.transport.endpoint().as_ref().to_string(),
             self.directory.clone(),
         ];
-        self.run_git(args).and_then(|_| {
-            let repo = Repository {
-                checkout_type: CheckoutType::Blobless,
-                ..self
-            };
-            Ok(repo)
+        self.run_git(args).map(|_| Repository {
+            checkout_type: CheckoutType::Blobless,
+            ..self
         })
     }
 
@@ -90,13 +87,13 @@ impl Repository {
                 let base64_header = general_purpose::STANDARD.encode(header);
                 let full_header =
                     format!("http.extraHeader=AUTHORIZATION: Basic {}", base64_header);
-                let mut header_args = vec![String::from("-c"), String::from(full_header)];
+                let mut header_args = vec![String::from("-c"), full_header];
                 args.append(&mut credential_helper_args);
                 args.append(&mut header_args);
             }
             git::Auth::Http(Some(http::Auth::Header(header))) => {
                 let full_header = format!("http.extraHeader={}", header.as_ref().expose_secret());
-                let mut header_args = vec![String::from("-c"), String::from(full_header)];
+                let mut header_args = vec![String::from("-c"), full_header];
                 args.append(&mut credential_helper_args);
                 args.append(&mut header_args);
             }
