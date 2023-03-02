@@ -1,15 +1,10 @@
 //! Wrapper for Git
-use std::process::{Command, Output};
-
+use base64::{engine::general_purpose, Engine as _};
 use error_stack::{IntoReport, Report, ResultExt};
 use secrecy::ExposeSecret;
+use std::process::{Command, Output};
 
-use crate::{
-    api::http,
-    api::remote::git,
-    api::remote::Remote,
-    ext::{error_stack::DescribeContext, secrecy::ComparableSecretString},
-};
+use crate::{api::http, api::remote::git, ext::error_stack::DescribeContext};
 
 /// Errors that are encountered while shelling out to git.
 #[derive(Debug, thiserror::Error)]
@@ -34,17 +29,6 @@ pub enum CheckoutType {
 }
 
 /// A git repository
-// pub struct Repository {
-//     /// directory is the location on disk where the repository resides or will reside
-//     pub directory: String,
-//     /// safe_url is the URL of the repository with no authentication info
-//     pub safe_url: String,
-//     /// auth is the authentication info for the repository
-//     pub auth: GitAuth,
-//     /// checkout_type is the state of the repository
-//     pub checkout_type: CheckoutType,
-// }
-
 #[derive(Debug)]
 pub struct Repository {
     /// directory is the location on disk where the repository resides or will reside
@@ -70,54 +54,15 @@ impl Repository {
     //     check_remote(repo)
     // }
 
-    fn remote_with_auth(&self) -> Result<Remote, Report<Error>> {
-        let safe_url = self.transport.endpoint().clone();
-        if let git::Transport::Http {
-            auth: Some(http::Auth::Basic { username, password }),
-            ..
-        } = self.transport.clone()
-        {
-            Self::add_auth_to_remote(safe_url, &password.clone(), &username.clone())
-        } else {
-            Ok(safe_url)
-        }
-    }
-
-    fn add_auth_to_remote(
-        url: Remote,
-        password: &ComparableSecretString,
-        username: &String,
-    ) -> Result<Remote, Report<Error>> {
-        let parsed_url = url.parse();
-        match parsed_url {
-            Ok(mut url) => {
-                let pass_string = password.as_ref().expose_secret();
-                let res = url.set_password(Some(pass_string));
-
-                if let Err(_) = res {
-                    return Err(Error::ParseUrl).into_report();
-                }
-                let res = url.set_username(username.as_str());
-                if let Err(_) = res {
-                    return Err(Error::ParseUrl).into_report();
-                }
-
-                Remote::try_from(url.to_string()).change_context(Error::ParseUrl)
-            }
-            Err(_) => Err(Error::ParseUrl).into_report(),
-        }
-    }
-
     /// Do a blobless clone of the repository
     pub fn git_clone(self) -> Result<Self, Report<Error>> {
-        let remote_with_auth = self.remote_with_auth()?;
-        Self::run_git(&[
+        let args = vec![
             String::from("clone"),
             String::from("--filter=blob:none"),
-            remote_with_auth.as_ref().to_string(),
+            self.transport.endpoint().as_ref().to_string(),
             self.directory.clone(),
-        ])
-        .and_then(|_| {
+        ];
+        self.run_git(args).and_then(|_| {
             let repo = Repository {
                 checkout_type: CheckoutType::Blobless,
                 ..self
@@ -126,9 +71,48 @@ impl Repository {
         })
     }
 
-    fn run_git(args: &[String]) -> Result<Output, Report<Error>> {
+    fn add_default_args(&self, args: &mut Vec<String>) {
+        // full_args.append(String::from(r#"-c credential-help="""#));
+        // let full_args = &args[..];
+        // full_args.push(String::from(r#"-c credential-help="""#));
+        // full_args
+
+        // args.push(String::from(r#"-c credential-helper="""#));
+        let auth = self.transport.auth();
+        match auth {
+            // git -c http.extraHeader="AUTHORIZATION: Basic ${B64_GITHUB_TOKEN}" clone https://github.com/spatten/fanopticon
+            git::Auth::Http(Some(http::Auth::Basic { username, password })) => {
+                let header = format!("{}:{}", username, password.as_ref().expose_secret());
+                let base64_header = general_purpose::STANDARD.encode(header);
+                args.insert(
+                    0,
+                    format!("http.extraHeader=AUTHORIZATION: Basic {}", base64_header),
+                );
+                args.insert(0, String::from("-c"));
+                args.insert(0, String::from("http.version=HTTP/1.1"));
+                args.insert(0, String::from("-c"));
+            }
+            git::Auth::Http(Some(http::Auth::Header(header))) => {
+                args.insert(
+                    0,
+                    format!("http.extraHeader={}", header.as_ref().expose_secret()),
+                );
+                args.insert(0, String::from("-c"));
+            }
+            _ => {}
+        }
+    }
+
+    fn run_git(&self, args: Vec<String>) -> Result<Output, Report<Error>> {
+        let mut full_args = args.clone();
+
+        self.add_default_args(&mut full_args);
+
+        // let env = Self.create_env_vars();
+
+        // let env = Self.create_env_vars();
         let output = Command::new("git")
-            .args(args)
+            .args(full_args)
             .output()
             .into_report()
             .change_context(Error::RunCommand)
@@ -139,7 +123,7 @@ impl Repository {
             return Err(Error::RunCommand).into_report().describe_lazy(|| {
                 format!(
                     "running git command {:?}, status was: {}, stderr: {}",
-                    args, output.status, stderr
+                    args, output.status, stderr,
                 )
             });
         }

@@ -51,4 +51,13 @@ impl Transport {
             Http { endpoint, .. } => endpoint,
         }
     }
+
+    /// returns the auth info for a transport
+    pub fn auth(&self) -> Auth {
+        use Transport::*;
+        match self {
+            Ssh { auth, .. } => Auth::Ssh(auth.clone()),
+            Http { auth, .. } => Auth::Http(auth.clone()),
+        }
+    }
 }
