@@ -3,6 +3,7 @@ use base64::{engine::general_purpose, Engine as _};
 use error_stack::{IntoReport, Report, ResultExt};
 use secrecy::ExposeSecret;
 use std::collections::HashMap;
+use std::ffi::OsStr;
 use std::fs::File;
 use std::io::Write;
 use std::process::{Command, Output};
@@ -75,34 +76,34 @@ impl Repository {
         })
     }
 
-    fn add_default_args(&self, args: &mut Vec<String>) {
-        // full_args.append(String::from(r#"-c credential-help="""#));
-        // let full_args = &args[..];
-        // full_args.push(String::from(r#"-c credential-help="""#));
-        // full_args
+    fn default_args(&self) -> Vec<String> {
+        let mut args = Vec::new();
 
-        // args.push(String::from(r#"-c credential-helper="""#));
         let auth = self.transport.auth();
+        // Credential helpers can override the header provided by http.extraHeader, so we need to get rid of them by setting `credential-helper` to ""
+        // We only want to do this for the case where we are providing the http.extraHeader, so that we can use the credential helper by default
+        let mut credential_helper_args =
+            vec![String::from("-c"), String::from("credential.helper=''")];
         match auth {
-            // git -c http.extraHeader="AUTHORIZATION: Basic ${B64_GITHUB_TOKEN}" clone https://github.com/spatten/fanopticon
+            // git -c credential-helper="" -c http.extraHeader="AUTHORIZATION: Basic ${B64_GITHUB_TOKEN}" clone https://github.com/spatten/fanopticon
             git::Auth::Http(Some(http::Auth::Basic { username, password })) => {
                 let header = format!("{}:{}", username, password.as_ref().expose_secret());
                 let base64_header = general_purpose::STANDARD.encode(header);
-                args.insert(
-                    0,
-                    format!("http.extraHeader=AUTHORIZATION: Basic {}", base64_header),
-                );
-                args.insert(0, String::from("-c"));
+                let full_header =
+                    format!("http.extraHeader=AUTHORIZATION: Basic {}", base64_header);
+                let mut header_args = vec![String::from("-c"), String::from(full_header)];
+                args.append(&mut credential_helper_args);
+                args.append(&mut header_args);
             }
             git::Auth::Http(Some(http::Auth::Header(header))) => {
-                args.insert(
-                    0,
-                    format!("http.extraHeader={}", header.as_ref().expose_secret()),
-                );
-                args.insert(0, String::from("-c"));
+                let full_header = format!("http.extraHeader={}", header.as_ref().expose_secret());
+                let mut header_args = vec![String::from("-c"), String::from(full_header)];
+                args.append(&mut credential_helper_args);
+                args.append(&mut header_args);
             }
             _ => {}
         }
+        args
     }
 
     fn env_vars(&self, ssh_key_file: &mut NamedTempFile<File>) -> HashMap<String, String> {
@@ -133,21 +134,33 @@ impl Repository {
     }
 
     fn run_git(&self, args: Vec<String>) -> Result<Output, Report<Error>> {
-        let mut full_args = args.clone();
+        let mut full_args = self.default_args();
+        full_args.append(&mut args.clone());
 
-        self.add_default_args(&mut full_args);
         // TODO: Handle the error instead of unwrapping
         let mut ssh_key_file = NamedTempFile::new().unwrap();
         let env = self.env_vars(&mut ssh_key_file);
         println!("env vars: {:?}", env);
 
-        let output = Command::new("git")
-            .args(full_args)
+        let mut output = Command::new("git");
+        output.args(full_args);
+        let actual_args: Vec<&OsStr> = output.get_args().collect();
+        println!("Args: {:?}", actual_args);
+
+        let output = output
             .envs(env)
             .output()
             .into_report()
             .change_context(Error::RunCommand)
             .describe_lazy(|| format!("running git command {:?}", args))?;
+
+        // let output = Command::new("git")
+        //     .args(full_args)
+        //     .envs(env)
+        //     .output()
+        //     .into_report()
+        //     .change_context(Error::RunCommand)
+        //     .describe_lazy(|| format!("running git command {:?}", args))?;
 
         if !output.status.success() {
             let stderr = String::from_utf8_lossy(&output.stderr);
