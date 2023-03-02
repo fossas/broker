@@ -1,0 +1,17 @@
+fossa_endpoint: https://app.fossa.com
+fossa_integration_key: abcd1234
+version: 1
+
+debugging:
+  location: /home/me/.fossa/broker/debugging/
+  retention:
+    duration: 7d
+    size: 1048576
+
+integrations:
+  - type: git
+    poll_interval: 1h
+    remote: https://github.com/fossas/broker.git
+    auth:
+      type: none
+      transport: http

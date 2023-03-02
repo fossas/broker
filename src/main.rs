@@ -7,7 +7,8 @@
 
 use broker::{
     config::{self, Config},
-    ext::error_stack::{DescribeContext, ErrorHelper},
+    doc,
+    ext::error_stack::{DescribeContext, ErrorDocReference, ErrorHelper, FatalErrorReport},
 };
 use clap::{Parser, Subcommand};
 use error_stack::{bail, fmt::ColorMode, Report, Result, ResultExt};
@@ -53,7 +54,8 @@ enum Commands {
     Run(config::RawBaseArgs),
 }
 
-fn main() -> Result<(), Error> {
+#[tokio::main]
+async fn main() -> Result<(), Error> {
     // App-wide setup goes here.
     Report::set_color_mode(ColorMode::Color);
 
@@ -63,61 +65,66 @@ fn main() -> Result<(), Error> {
     // Subcommand routing.
     let Opts { command } = Opts::parse();
     match command {
-        Commands::Init => main_init(),
-        Commands::Setup => main_setup(),
-        Commands::Config(args) => main_config(args),
-        Commands::Fix(args) => main_fix(args),
-        Commands::Backup(args) => main_backup(args),
-        Commands::Run(args) => main_run(args),
+        Commands::Init => main_init().await,
+        Commands::Setup => main_setup().await,
+        Commands::Config(args) => main_config(args).await,
+        Commands::Fix(args) => main_fix(args).await,
+        Commands::Backup(args) => main_backup(args).await,
+        Commands::Run(args) => main_run(args).await,
     }
+    .request_support()
     .describe_lazy(|| format!("broker version: {version}"))
 }
 
 /// Initialize Broker configuration.
-fn main_init() -> Result<(), Error> {
+async fn main_init() -> Result<(), Error> {
     bail!(Error::SubcommandUnimplemented)
 }
 
 /// Guided interactive setup.
-fn main_setup() -> Result<(), Error> {
+async fn main_setup() -> Result<(), Error> {
     bail!(Error::SubcommandUnimplemented)
 }
 
 /// Guided interactive configuration changes.
-fn main_config(args: config::RawBaseArgs) -> Result<(), Error> {
-    let conf = load_config(args)?;
+async fn main_config(args: config::RawBaseArgs) -> Result<(), Error> {
+    let conf = load_config(args).await?;
     println!("conf: {conf:?}");
     bail!(Error::SubcommandUnimplemented)
 }
 
 /// Automatically detect problems with Broker and fix them.
 /// If they can't be fixed, generate a debug bundle.
-fn main_fix(args: config::RawBaseArgs) -> Result<(), Error> {
-    let conf = load_config(args)?;
+async fn main_fix(args: config::RawBaseArgs) -> Result<(), Error> {
+    let conf = load_config(args).await?;
     println!("conf: {conf:?}");
     bail!(Error::SubcommandUnimplemented)
 }
 
 /// Back up or restore Broker's current config and database.
-fn main_backup(args: config::RawBaseArgs) -> Result<(), Error> {
-    let conf = load_config(args)?;
+async fn main_backup(args: config::RawBaseArgs) -> Result<(), Error> {
+    let conf = load_config(args).await?;
     println!("conf: {conf:?}");
     bail!(Error::SubcommandUnimplemented)
 }
 
 /// Run Broker with the current config.
-fn main_run(args: config::RawBaseArgs) -> Result<(), Error> {
-    let conf = load_config(args)?;
+async fn main_run(args: config::RawBaseArgs) -> Result<(), Error> {
+    let conf = load_config(args).await?;
     println!("conf: {conf:?}");
     bail!(Error::SubcommandUnimplemented)
 }
 
 /// Parse application args and then load effective config.
-fn load_config(args: config::RawBaseArgs) -> Result<Config, Error> {
+async fn load_config(args: config::RawBaseArgs) -> Result<Config, Error> {
     let args = config::validate_args(args)
+        .await
         .change_context(Error::DetermineEffectiveConfig)
         .help("try running Broker with the '--help' argument to see available options and usage suggestions")?;
 
     // TODO: point the user towards the docs entrypoint for configuration.
-    config::load(&args).change_context(Error::DetermineEffectiveConfig)
+    config::load(&args)
+        .await
+        .change_context(Error::DetermineEffectiveConfig)
+        .documentation_lazy(doc::link::config_file_reference)
 }

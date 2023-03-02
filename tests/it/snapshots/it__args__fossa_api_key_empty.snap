@@ -1,0 +1,12 @@
+---
+source: tests/it/args.rs
+expression: "Key::try_from(input).expect_err(\"must have failed validation\")"
+info: ""
+---
+validate API key
+├╴at {source location}
+│
+╰─▶ provided value is empty
+    ├╴at {source location}
+    ├╴context: provided input: ''
+    ╰╴help: use an API key from FOSSA here: https://app.fossa.com/account/settings/integrations/api_tokens

@@ -169,7 +169,7 @@ Example integration block:
   remote: https://github.com/fossas/broker.git
   auth:
     type: http_header
-    http_header: "Authorization: Bearer abcd1234"
+    header: "Authorization: Bearer abcd1234"
 ```
 
 ### `ssh_key`
@@ -183,7 +183,7 @@ Example integration block:
   remote: git@github.com:fossas/broker.git
   auth:
     type: ssh_key
-    ssh_key: "<key value>"
+    key: "<key value>"
 ```
 
 ### `ssh_key_file`
@@ -197,5 +197,5 @@ Example integration block:
   remote: git@github.com:fossas/broker.git
   auth:
     type: ssh_key_file
-    ssh_key_file: /home/me/.ssh/id_rsa
+    path: /home/me/.ssh/id_rsa
 ```
