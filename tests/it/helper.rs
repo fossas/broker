@@ -61,11 +61,14 @@ macro_rules! load_config {
     };
     ($config_path:expr, $db_path:expr) => {
         async {
-            let base = raw_base_args($config_path, $db_path);
-            let args = config::validate_args(base)
+            let base = crate::args::raw_base_args($config_path, $db_path);
+            let args = broker::config::validate_args(base)
                 .await
                 .expect("must have validated");
-            config::load(&args).await.expect("must have loaded config")
+            let config = broker::config::load(&args)
+                .await
+                .expect("must have loaded config");
+            ($config_path, config)
         }
     };
 }
@@ -74,11 +77,11 @@ macro_rules! load_config {
 macro_rules! load_config_err {
     ($config_path:expr, $db_path:expr) => {
         async {
-            let base = raw_base_args($config_path, $db_path);
-            let args = config::validate_args(base)
+            let base = crate::args::raw_base_args($config_path, $db_path);
+            let args = broker::config::validate_args(base)
                 .await
                 .expect("must have validated args");
-            let err = config::load(&args)
+            let err = broker::config::load(&args)
                 .await
                 .expect_err("must have failed to validate config");
             ($config_path, err)
