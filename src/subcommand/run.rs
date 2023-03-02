@@ -12,8 +12,8 @@ use crate::config::Config;
 pub enum Error {}
 
 /// The primary entrypoint.
-#[tracing::instrument]
-pub async fn main(config: Config) -> Result<(), Report<Error>> {
+#[tracing::instrument(skip_all)]
+pub async fn main(_config: Config) -> Result<(), Report<Error>> {
     info!("Broker will run until it is terminated, but isn't doing anything special: this subcommand is still basically NYI");
     for i in 0.. {
         do_pretend_work_cycle(i).await;

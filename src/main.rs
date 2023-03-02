@@ -12,6 +12,7 @@ use broker::{
 };
 use clap::{Parser, Subcommand};
 use error_stack::{bail, fmt::ColorMode, Report, Result, ResultExt};
+use tracing::info;
 
 #[derive(Debug, thiserror::Error)]
 enum Error {
@@ -119,6 +120,7 @@ async fn main_run(args: config::RawBaseArgs) -> Result<(), Error> {
         .run_tracing_sink()
         .change_context(Error::InternalSetup)?;
 
+    info!("Loaded {conf:?}");
     broker::subcommand::run::main(conf)
         .await
         .change_context(Error::Runtime)
