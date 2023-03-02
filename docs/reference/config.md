@@ -183,7 +183,10 @@ Example integration block:
   remote: git@github.com:fossas/broker.git
   auth:
     type: ssh_key
-    key: "<key value>"
+    key: |
+      -----BEGIN OPENSSH PRIVATE KEY-----
+      key goes here
+      -----END OPENSSH PRIVATE KEY-----
 ```
 
 ### `ssh_key_file`
