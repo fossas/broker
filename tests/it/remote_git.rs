@@ -42,7 +42,7 @@ fn clone_private_repo_with_no_auth() {
     let clone_dir = tempdir().unwrap();
     let clone_path = clone_dir.path().display().to_string();
     let repo = git::repository::Repository {
-        directory: PathBuf::from(clone_path.clone()),
+        directory: PathBuf::from(clone_path),
         checkout_type: git::repository::CheckoutType::None,
         transport: git::transport::Transport::Ssh {
             endpoint,
