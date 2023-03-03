@@ -23,12 +23,14 @@
 //! but still any call to `spawn_blocking` _may_ result in a spawned thread.
 
 use std::{
-    env, fs, iter,
+    env, fmt, fs, iter,
     path::{Path, PathBuf},
 };
 
 use error_stack::{IntoReport, Report, ResultExt};
+use once_cell::sync::OnceCell;
 use tokio::task;
+use tracing::debug;
 
 use crate::ext::{
     error_stack::{DescribeContext, ErrorHelper, IntoContext},
@@ -66,10 +68,11 @@ pub enum Error {
 
 /// Searches configured locations (see [`find`])
 /// for one of several provided names, returning the first one that was found.
+#[tracing::instrument]
 pub async fn find_some<V, S>(names: V) -> Result<PathBuf, Report<Error>>
 where
-    S: AsRef<str>,
-    V: IntoIterator<Item = S>,
+    S: AsRef<str> + fmt::Debug,
+    V: IntoIterator<Item = S> + fmt::Debug,
 {
     let names = names
         .into_iter()
@@ -84,13 +87,15 @@ where
 /// - The current working directory
 /// - On Linux and macOS: `~/.config/fossa/broker/`
 /// - On Windows: `%USERPROFILE%\.config\fossa\broker`
-pub async fn find<S: AsRef<str>>(name: S) -> Result<PathBuf, Report<Error>> {
+#[tracing::instrument]
+pub async fn find<S: AsRef<str> + fmt::Debug>(name: S) -> Result<PathBuf, Report<Error>> {
     let name = name.as_ref().to_string();
     run_background(move || find_sync(name)).await
 }
 
 /// Reads the provided file content to a string.
-pub async fn read_to_string<P: AsRef<Path>>(file: P) -> Result<String, Report<Error>> {
+#[tracing::instrument]
+pub async fn read_to_string<P: AsRef<Path> + fmt::Debug>(file: P) -> Result<String, Report<Error>> {
     let file = file.as_ref().to_path_buf();
     run_background(move || {
         fs::read_to_string(file)
@@ -100,15 +105,34 @@ pub async fn read_to_string<P: AsRef<Path>>(file: P) -> Result<String, Report<Er
     .await
 }
 
+/// The root data directory for Broker.
+/// Broker uses this directory to store working state and to read configuration information.
+#[tracing::instrument]
+pub async fn data_root() -> Result<PathBuf, Report<Error>> {
+    run_background(data_root_sync).await
+}
+
+#[tracing::instrument]
+fn data_root_sync() -> Result<PathBuf, Report<Error>> {
+    home_dir().map(|home| home.join(".config").join("fossa").join("broker"))
+}
+
 /// Internal sync driver for [`find`].
-fn find_sync<S: AsRef<str>>(name: S) -> Result<PathBuf, Report<Error>> {
-    iter::once_with(|| check_cwd(name.as_ref()).and_then(validate_file))
-        .chain_once_with(|| check_home(name.as_ref()).and_then(validate_file))
+#[tracing::instrument]
+fn find_sync<S: AsRef<str> + fmt::Debug>(name: S) -> Result<PathBuf, Report<Error>> {
+    let name = PathBuf::from(name.as_ref());
+    iter::once_with(|| working_dir().map(|d| d.join(&name)).and_then(validate_file))
+        .chain_once_with(|| {
+            data_root_sync()
+                .map(|d| d.join(&name))
+                .and_then(validate_file)
+        })
         .alternative_fold()
         .describe("searches the working directory and '{USER_DIR}/.config/fossa/broker'")
 }
 
 /// Validate that a file path exists and is a regular file.
+#[tracing::instrument]
 fn validate_file(path: PathBuf) -> Result<PathBuf, Report<Error>> {
     let meta = fs::metadata(&path)
         .context(Error::ValidatePath)
@@ -124,23 +148,31 @@ fn validate_file(path: PathBuf) -> Result<PathBuf, Report<Error>> {
     }
 }
 
-/// Validate that the given file name exists in the current working directory.
-fn check_cwd(name: &str) -> Result<PathBuf, Report<Error>> {
-    let cwd = env::current_dir()
-        .context(Error::LocateWorkingDirectory)
-        .describe("on macOS and Linux, this uses the system call 'getcwd'")
-        .describe("on Windows, this uses the Windows API call 'GetCurrentDirectoryW'")
-        .describe("this kind of error is typically caused by the current user not having access to the working directory")?;
-    Ok(cwd.join(name))
+/// Look up the current working directory.
+#[tracing::instrument]
+fn working_dir() -> Result<&'static PathBuf, Report<Error>> {
+    static LAZY: OnceCell<PathBuf> = OnceCell::new();
+    LAZY.get_or_try_init(|| {
+        debug!("Performing uncached lookup of working directory");
+        env::current_dir()
+            .context(Error::LocateWorkingDirectory)
+            .describe("on macOS and Linux, this uses the system call 'getcwd'")
+            .describe("on Windows, this uses the Windows API call 'GetCurrentDirectoryW'")
+            .describe("this kind of error is typically caused by the current user not having access to the working directory")
+    })
 }
 
-/// Validate that the given file name exists in `$HOME/.config/fossa/broker/`.
-fn check_home(name: &str) -> Result<PathBuf, Report<Error>> {
-    let home = dirs::home_dir().ok_or(Error::LocateUserHome).into_report()
-        .describe("on macOS and Linux, this uses the $HOME environment variable or the system call 'getpwuid_r'")
-        .describe("on Windows, this uses the Windows API call 'SHGetKnownFolderPath'")
-        .describe("this is a very rare condition, and it's not likely that Broker will be able to resolve this issue")?;
-    Ok(home.join(".config").join("fossa").join("broker").join(name))
+/// Look up the user's home directory.
+#[tracing::instrument]
+fn home_dir() -> Result<&'static PathBuf, Report<Error>> {
+    static LAZY: OnceCell<PathBuf> = OnceCell::new();
+    LAZY.get_or_try_init(|| {
+        debug!("Performing uncached lookup of home directory");
+        dirs::home_dir().ok_or(Error::LocateUserHome).into_report()
+            .describe("on macOS and Linux, this uses the $HOME environment variable or the system call 'getpwuid_r'")
+            .describe("on Windows, this uses the Windows API call 'SHGetKnownFolderPath'")
+            .describe("this is a very rare condition, and it's not likely that Broker will be able to resolve this issue")
+    })
 }
 
 /// Run the provided blocking closure in the background.
