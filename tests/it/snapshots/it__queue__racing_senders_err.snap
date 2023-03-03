@@ -1,0 +1,17 @@
+---
+source: tests/it/queue.rs
+expression: err
+info: sender
+---
+open queue
+├╴at {source location}
+├╴help: This may be caused by an underlying filesystem error, or the queue may already be open for sending.
+│ If you are certain no other Broker instances are running, deleting the lock file may recover this error.
+├╴context: Queue working state is stored on disk, and relies on a lockfile to guard access.
+│ For this particular queue, this lock file is located at {file path}.
+│
+├─▶ IO layer error
+│   ╰╴at {source location}
+│
+╰─▶ queue {file path} sender side already in use
+    ╰╴at {source location}

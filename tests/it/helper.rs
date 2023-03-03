@@ -38,12 +38,21 @@ macro_rules! assert_error_stack_snapshot {
             // The program state that led to this error.
             info => $context,
             // Don't fail the snapshot on source code location changes.
-            filters => vec![(r"at .*src.+:\d+:\d+", "at {source location}")]
+            filters => vec![
+                // Rust source locations (`at /some/path/to/src/internal/foo.rs:81:82`)
+                (r"at .*src.+:\d+:\d+", "at {source location}"),
+                // Unix-style abs file paths inside common delimiters (`'/Users/jessica/.config/fossa/broker/queue/Echo'`)
+                (r#"['"`](?:/[^/\pC]+)+['"`]"#, "{file path}"),
+                // Windows-style abs file paths inside common delimiters (`'C:\Users\jessica\.config\fossa\broker\queue\Echo'`)
+                (r#"['"`]\PC:(?:\\[^\\\pC]+)+['"`]"#, "{file path}"),
+            ]
         }, {
             insta::assert_debug_snapshot!($inner);
         });
     }};
 }
+
+// (?:["'`])(?:(?:[A-Z]:(?:\\[^\\\pC]+)+)|(?:[\pC]?(?:\/[^\/\pC]+)+))(?:["'`])
 
 /// Convenience macro to load the config inline with the test function (so errors are properly attributed).
 ///

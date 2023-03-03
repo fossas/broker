@@ -6,7 +6,7 @@ info: testdata/config/basic-location-invalid.yml
 failed to configure tracing output location
 ├╴at {source location}
 ├╴help: ensure that the parent directory exists and you have access to it
-├╴context: initialize sink to "/some/place/that/does/not/exist/trace/broker.trace"
+├╴context: initialize sink to {file path}
 │
 ╰─▶ No such file or directory (os error 2)
     ╰╴at {source location}

@@ -25,7 +25,7 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use error_stack::{Report, ResultExt};
+use error_stack::{Context, IntoReport, Report, ResultExt};
 use tokio::task;
 
 use crate::ext::error_stack::{DescribeContext, ErrorHelper, IntoContext};
@@ -116,10 +116,12 @@ pub async fn home_dir() -> Result<&'static PathBuf, Report<Error>> {
 }
 
 /// Run the provided blocking closure in the background.
-async fn run_background<T, F>(work: F) -> Result<T, Report<Error>>
+#[tracing::instrument(skip_all)]
+async fn run_background<T, E, F>(work: F) -> Result<T, Report<Error>>
 where
     T: Send + 'static,
-    F: FnOnce() -> Result<T, Report<sync::Error>> + Send + 'static,
+    E: Context,
+    F: FnOnce() -> Result<T, Report<E>> + Send + 'static,
 {
     task::spawn_blocking(work)
         .await
@@ -127,4 +129,17 @@ where
         .describe("Broker runs some IO actions in a background process, and that thread was unable to be synchronized with the main Broker process.")
         .help("This is unlikely to be resolvable by an end user, although it may be environmental; try restarting Broker.")?
         .change_context(Error::IO)
+}
+
+/// Run the provided blocking closure in the background,
+/// wrapping any error returned in this module's `Error::IO` context.
+#[tracing::instrument(skip_all)]
+pub async fn spawn_blocking<T, E, F>(work: F) -> Result<T, Report<Error>>
+where
+    T: Send + 'static,
+    E: std::error::Error + Sync + Send + 'static,
+    Report<E>: From<E>,
+    F: FnOnce() -> Result<T, E> + Send + 'static,
+{
+    run_background(|| work().into_report()).await
 }
