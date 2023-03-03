@@ -1,0 +1,13 @@
+---
+source: tests/it/remote_git.rs
+expression: "repo.clone().expect_err(\"Could not read from remote repository\")"
+info: cloning private repo with bad auth
+---
+running git command
+├╴at {source location}
+╰╴context: running git command ["clone", "--filter=blob:none", "git@github.com:fossas/basis", "{tmpdir}"], status was: exit status: 128, stderr: Cloning into '{tmpdir}'...
+  git@github.com: Permission denied (publickey).
+  fatal: Could not read from remote repository.
+  
+  Please make sure you have the correct access rights
+  and the repository exists.

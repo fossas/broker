@@ -38,7 +38,7 @@ macro_rules! assert_error_stack_snapshot {
             // The program state that led to this error.
             info => $context,
             // Don't fail the snapshot on source code location changes.
-            filters => vec![(r"src.+:\d+:\d+", "{source location}")]
+            filters => vec![(r"src.+:\d+:\d+", "{source location}"), ("/var/folders[a-zA-Z0-9/_.]+", "{tmpdir}")]
         }, {
             insta::assert_debug_snapshot!($inner);
         });
