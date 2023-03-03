@@ -137,26 +137,26 @@ impl TryFrom<Integration> for remote::Integration {
                 let protocol = match auth {
                     Auth::SshKeyFile { path } => {
                         let auth = ssh::Auth::KeyFile(path);
-                        git::Transport::new_ssh(endpoint, Some(auth))
+                        git::transport::Transport::new_ssh(endpoint, Some(auth))
                     }
                     Auth::SshKey { key } => {
                         let secret = ComparableSecretString::from(key);
                         let auth = ssh::Auth::KeyValue(secret);
-                        git::Transport::new_ssh(endpoint, Some(auth))
+                        git::transport::Transport::new_ssh(endpoint, Some(auth))
                     }
                     Auth::HttpHeader { header } => {
                         let secret = ComparableSecretString::from(header);
                         let auth = http::Auth::new_header(secret);
-                        git::Transport::new_http(endpoint, Some(auth))
+                        git::transport::Transport::new_http(endpoint, Some(auth))
                     }
                     Auth::HttpBasic { username, password } => {
                         let password = ComparableSecretString::from(password);
                         let auth = http::Auth::new_basic(username, password);
-                        git::Transport::new_http(endpoint, Some(auth))
+                        git::transport::Transport::new_http(endpoint, Some(auth))
                     }
                     Auth::None { transport } => match transport.as_str() {
-                        "ssh" => Ok(git::Transport::new_ssh(endpoint, None)),
-                        "http" => Ok(git::Transport::new_http(endpoint, None)),
+                        "ssh" => Ok(git::transport::Transport::new_ssh(endpoint, None)),
+                        "http" => Ok(git::transport::Transport::new_http(endpoint, None)),
                         other => Err(report!(remote::ValidationError::Remote))
                             .help("transport must be 'ssh' or 'http'")
                             .describe_lazy(|| format!("provided transport: {other}")),

@@ -31,7 +31,7 @@ pub struct Repository {
     /// checkout_type is the state of the repository
     pub checkout_type: CheckoutType,
     /// transport contains the info that Broker uses to communicate with the git host
-    pub transport: git::Transport,
+    pub transport: git::transport::Transport,
 }
 
 impl RemoteProvider for Repository {
@@ -77,7 +77,7 @@ impl Repository {
             vec![String::from("-c"), String::from("credential.helper=''")];
         match auth {
             // git -c credential-helper="" -c http.extraHeader="AUTHORIZATION: Basic ${B64_GITHUB_TOKEN}" clone https://github.com/spatten/fanopticon
-            git::Auth::Http(Some(http::Auth::Basic { username, password })) => {
+            git::transport::Auth::Http(Some(http::Auth::Basic { username, password })) => {
                 let header = format!("{}:{}", username, password.as_ref().expose_secret());
                 let base64_header = general_purpose::STANDARD.encode(header);
                 let full_header =
@@ -86,7 +86,7 @@ impl Repository {
                 args.append(&mut credential_helper_args);
                 args.append(&mut header_args);
             }
-            git::Auth::Http(Some(http::Auth::Header(header))) => {
+            git::transport::Auth::Http(Some(http::Auth::Header(header))) => {
                 let full_header = format!("http.extraHeader={}", header.as_ref().expose_secret());
                 let mut header_args = vec![String::from("-c"), full_header];
                 args.append(&mut credential_helper_args);
@@ -106,14 +106,14 @@ impl Repository {
 
         let auth = self.transport.auth();
         match auth {
-            git::Auth::Ssh(Some(ssh::Auth::KeyFile(path))) => {
+            git::transport::Auth::Ssh(Some(ssh::Auth::KeyFile(path))) => {
                 let git_ssh_command = format!(
                     "ssh -i {} -o IdentitiesOnly=yes -o StrictHostKeyChecking=no -F /dev/null",
                     path.display(),
                 );
                 env.insert(String::from("GIT_SSH_COMMAND"), git_ssh_command);
             }
-            git::Auth::Ssh(Some(ssh::Auth::KeyValue(key))) => {
+            git::transport::Auth::Ssh(Some(ssh::Auth::KeyValue(key))) => {
                 // Write the contents of the SSH key to a file so that we can point to it in
                 // GIT_SSH_COMMAND
                 ssh_key_file

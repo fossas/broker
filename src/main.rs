@@ -8,7 +8,7 @@
 use std::path::PathBuf;
 
 use broker::api::remote::{self, RemoteProvider};
-use broker::{config, ext::error_stack::ErrorHelper, git_wrapper};
+use broker::{api::remote::git, config, ext::error_stack::ErrorHelper};
 use broker::{
     config::Config,
     doc,
@@ -144,9 +144,9 @@ async fn main_clone(args: config::RawBaseArgs) -> Result<(), Error> {
     let conf = load_config(args).await?;
     let integration = &conf.integrations().as_ref()[0];
     let remote::Protocol::Git(transport) = integration.protocol().clone();
-    let repo = git_wrapper::Repository {
+    let repo = git::repository::Repository {
         directory: PathBuf::from("/tmp/cloned"),
-        checkout_type: git_wrapper::CheckoutType::None,
+        checkout_type: git::repository::CheckoutType::None,
         transport,
     };
     let res = repo.clone();

@@ -15,4 +15,3 @@ pub mod config;
 pub mod debug;
 pub mod doc;
 pub mod ext;
-pub mod git_wrapper;

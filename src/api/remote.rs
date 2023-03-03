@@ -20,6 +20,7 @@ use url;
 
 use crate::ext::error_stack::{DescribeContext, ErrorHelper};
 
+/// Integrations for git repositories
 pub mod git;
 
 /// Errors that are possibly surfaced during validation of config values.
@@ -95,7 +96,7 @@ pub struct Integration {
 #[derive(Debug, Clone, PartialEq, Eq, From, new)]
 pub enum Protocol {
     /// Integration with a code host using the git protocol.
-    Git(git::Transport),
+    Git(git::transport::Transport),
 }
 
 /// Specifies the maximum age for an observability artifact.
