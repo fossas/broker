@@ -1,15 +1,16 @@
 //! Tests for git remotes
 
-use std::path::PathBuf;
+use std::{
+    fs::{self},
+    path::PathBuf,
+};
 use tempfile::tempdir;
 
 use broker::api::remote::{self, git, RemoteProvider};
 
 #[test]
 fn clone_public_repo_with_no_auth() {
-    let endpoint =
-        remote::Remote::try_from(String::from("http://github.com/spatten/slack-wifi-status"))
-            .unwrap();
+    let endpoint = remote::Remote::try_from(String::from("https://github.com/fossas/one")).unwrap();
 
     let clone_dir = tempdir().unwrap();
     let clone_path = clone_dir.path().display().to_string();
@@ -22,5 +23,10 @@ fn clone_public_repo_with_no_auth() {
         },
     };
     let res = repo.clone().unwrap();
-    assert_eq!(PathBuf::from(clone_path), res);
+    assert_eq!(PathBuf::from(clone_path.clone()), res);
+    let paths: Vec<String> = fs::read_dir(clone_path)
+        .unwrap()
+        .map(|file| String::from(file.unwrap().path().file_name().unwrap().to_str().unwrap()))
+        .collect();
+    assert_eq!(vec![String::from("LICENSE"), String::from(".git")], paths);
 }
