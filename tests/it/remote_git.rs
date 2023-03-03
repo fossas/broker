@@ -25,11 +25,14 @@ fn clone_public_repo_with_no_auth() {
     };
     let res = repo.clone().unwrap();
     assert_eq!(PathBuf::from(clone_path.clone()), res);
-    let paths: Vec<String> = fs::read_dir(clone_path)
+    let mut paths: Vec<String> = fs::read_dir(clone_path)
         .unwrap()
         .map(|file| String::from(file.unwrap().path().file_name().unwrap().to_str().unwrap()))
         .collect();
-    assert_eq!(vec![String::from("LICENSE"), String::from(".git")], paths);
+    paths.sort();
+    let mut expected = vec![String::from("LICENSE"), String::from(".git")];
+    expected.sort();
+    assert_eq!(expected, paths);
 }
 
 #[test]
