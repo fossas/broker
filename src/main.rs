@@ -5,7 +5,9 @@
 #![deny(missing_docs)]
 #![warn(rust_2018_idioms)]
 
-use broker::api::remote::{self};
+use std::path::PathBuf;
+
+use broker::api::remote::{self, RemoteProvider};
 use broker::{config, ext::error_stack::ErrorHelper, git_wrapper};
 use broker::{
     config::Config,
@@ -143,14 +145,14 @@ async fn main_clone(args: config::RawBaseArgs) -> Result<(), Error> {
     let integration = &conf.integrations().as_ref()[0];
     let remote::Protocol::Git(transport) = integration.protocol().clone();
     let repo = git_wrapper::Repository {
-        directory: String::from("/tmp/cloned"),
+        directory: PathBuf::from("/tmp/cloned"),
         checkout_type: git_wrapper::CheckoutType::None,
         transport,
     };
-    let res = repo.git_clone();
+    let res = repo.clone();
     match res {
-        Ok(repo) => {
-            println!("got OK() from git clone, repo = {:?}", repo);
+        Ok(_) => {
+            println!("got OK() from git clone, directory = {:?}", res);
             Ok(())
         }
         Err(err) => {

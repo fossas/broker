@@ -5,21 +5,12 @@ use secrecy::ExposeSecret;
 use std::collections::HashMap;
 use std::fs::File;
 use std::io::Write;
+use std::path::PathBuf;
 use std::process::{Command, Output};
 use tempfile::NamedTempFile;
 
+use crate::api::remote::{RemoteProvider, RemoteProviderError};
 use crate::{api::http, api::remote::git, api::ssh, ext::error_stack::DescribeContext};
-
-/// Errors that are encountered while shelling out to git.
-#[derive(Debug, thiserror::Error)]
-pub enum Error {
-    /// We encountered an error while shelling out to git
-    #[error("running git command")]
-    RunCommand,
-    /// We encountered an error while parsing the repository's URL
-    #[error("parsing url")]
-    ParseUrl,
-}
 
 /// The checkout type of the repository
 #[derive(Debug)]
@@ -36,14 +27,14 @@ pub enum CheckoutType {
 #[derive(Debug)]
 pub struct Repository {
     /// directory is the location on disk where the repository resides or will reside
-    pub directory: String,
+    pub directory: PathBuf,
     /// checkout_type is the state of the repository
     pub checkout_type: CheckoutType,
     /// transport contains the info that Broker uses to communicate with the git host
     pub transport: git::Transport,
 }
 
-impl Repository {
+impl RemoteProvider for Repository {
     // mkdir <directory>
     // git init
     // git remote add origin <url>
@@ -59,19 +50,23 @@ impl Repository {
     // }
 
     /// Do a blobless clone of the repository
-    pub fn git_clone(self) -> Result<Self, Report<Error>> {
+    fn clone(self) -> Result<PathBuf, Report<RemoteProviderError>> {
+        let directory = self.directory.to_string_lossy().to_string();
         let args = vec![
             String::from("clone"),
             String::from("--filter=blob:none"),
             self.transport.endpoint().as_ref().to_string(),
-            self.directory.clone(),
+            directory.clone(),
         ];
         self.run_git(args).map(|_| Repository {
             checkout_type: CheckoutType::Blobless,
             ..self
-        })
+        })?;
+        Ok(PathBuf::from(directory))
     }
+}
 
+impl Repository {
     fn default_args(&self) -> Vec<String> {
         let mut args = Vec::new();
 
@@ -105,7 +100,7 @@ impl Repository {
     fn env_vars(
         &self,
         ssh_key_file: &mut NamedTempFile<File>,
-    ) -> Result<HashMap<String, String>, Report<Error>> {
+    ) -> Result<HashMap<String, String>, Report<RemoteProviderError>> {
         let mut env = HashMap::new();
         env.insert(String::from("GIT_TERMINAL_PROMPT"), String::from("0"));
 
@@ -125,7 +120,7 @@ impl Repository {
                     .write_all(key.as_ref().expose_secret().as_bytes())
                     .into_report()
                     .describe("writing ssh key to file")
-                    .change_context(Error::RunCommand)?;
+                    .change_context(RemoteProviderError::RunCommand)?;
 
                 let git_ssh_command = format!(
                     "ssh -i {} -o IdentitiesOnly=yes -o StrictHostKeyChecking=no -F /dev/null",
@@ -138,13 +133,13 @@ impl Repository {
         Ok(env)
     }
 
-    fn run_git(&self, args: Vec<String>) -> Result<Output, Report<Error>> {
+    fn run_git(&self, args: Vec<String>) -> Result<Output, Report<RemoteProviderError>> {
         let mut full_args = self.default_args();
         full_args.append(&mut args.clone());
 
         let mut ssh_key_file = NamedTempFile::new()
             .into_report()
-            .change_context(Error::RunCommand)
+            .change_context(RemoteProviderError::RunCommand)
             .describe("creating temp file")?;
         let env = self.env_vars(&mut ssh_key_file)?;
 
@@ -153,17 +148,19 @@ impl Repository {
             .envs(env)
             .output()
             .into_report()
-            .change_context(Error::RunCommand)
+            .change_context(RemoteProviderError::RunCommand)
             .describe_lazy(|| format!("running git command {:?}", args))?;
 
         if !output.status.success() {
             let stderr = String::from_utf8_lossy(&output.stderr);
-            return Err(Error::RunCommand).into_report().describe_lazy(|| {
-                format!(
-                    "running git command {:?}, status was: {}, stderr: {}",
-                    args, output.status, stderr,
-                )
-            });
+            return Err(RemoteProviderError::RunCommand)
+                .into_report()
+                .describe_lazy(|| {
+                    format!(
+                        "running git command {:?}, status was: {}, stderr: {}",
+                        args, output.status, stderr,
+                    )
+                });
         }
         Ok(output)
     }

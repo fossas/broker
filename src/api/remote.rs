@@ -1,4 +1,3 @@
-//! This module provides functionality for integrating with "remotes", which are external code hosts.
 //!
 //! # "Remote" as a concept
 //!
@@ -10,7 +9,7 @@
 //! [`Protocol`], which is usually wrapped inside an [`Integration`], forming the primary interaction
 //! point for this module.
 
-use std::time::Duration;
+use std::{path::PathBuf, time::Duration};
 
 use derive_more::{AsRef, Display, From};
 use derive_new::new;
@@ -113,4 +112,18 @@ impl TryFrom<String> for PollInterval {
             .describe_lazy(|| format!("provided value: {value}"))
             .map(PollInterval)
     }
+}
+
+/// Errors encountered while working with remotes
+#[derive(Debug, thiserror::Error)]
+pub enum RemoteProviderError {
+    /// We encountered an error while shelling out to git
+    #[error("running git command")]
+    RunCommand,
+}
+
+/// RemoteProvider are code hosts that we get code from
+pub trait RemoteProvider {
+    /// clone from the RemoteProvider
+    fn clone(self) -> Result<PathBuf, Report<RemoteProviderError>>;
 }
