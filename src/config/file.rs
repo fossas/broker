@@ -45,7 +45,7 @@ use crate::{
     ext::error_stack::{DescribeContext, ErrorHelper, IntoContext},
 };
 
-use super::io;
+use crate::ext::io;
 
 mod v1;
 

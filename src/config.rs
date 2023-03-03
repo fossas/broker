@@ -6,7 +6,6 @@ use error_stack::{Result, ResultExt};
 // To re-export a symbol, just `pub use`.
 mod args;
 mod file;
-mod io;
 
 pub use args::{BaseArgs, RawBaseArgs};
 pub use file::Config;
