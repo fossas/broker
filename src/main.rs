@@ -155,5 +155,13 @@ async fn main_clone(args: config::RawBaseArgs) -> Result<(), Error> {
         directory: PathBuf::from("/tmp/cloned"),
         transport: transport.clone(),
     };
-    repo.fetch().change_context(Error::GitWrapper).map(|_| ())
+    repo.fetch().change_context(Error::GitWrapper).map(|_| ())?;
+
+    let repo = git::repository::Repository {
+        directory: PathBuf::from("/tmp/cloned"),
+        transport,
+    };
+    repo.ls_remote()
+        .change_context(Error::GitWrapper)
+        .map(|_| ())
 }

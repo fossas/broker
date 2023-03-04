@@ -55,6 +55,19 @@ impl RemoteProvider for Repository {
         self.run_git(args)?;
         Ok(())
     }
+
+    fn ls_remote(self) -> Result<(), Report<RemoteProviderError>> {
+        let args = vec![String::from("ls-remote"), String::from("--quiet")];
+
+        let output = self.run_git(args)?;
+        // TODO parse this output
+        let s = String::from_utf8(output.stdout)
+            .into_report()
+            .describe("reading output of 'git ls-remote --quiet'")
+            .change_context(RemoteProviderError::RunCommand)?;
+        println!("output from ls-remote --quiet: {:?}", s);
+        Ok(())
+    }
 }
 
 impl Repository {

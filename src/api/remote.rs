@@ -130,4 +130,7 @@ pub trait RemoteProvider {
 
     /// fetch updates from the RemoteProvider
     fn fetch(self) -> Result<(), Report<RemoteProviderError>>;
+
+    /// list branches and tags on the RemoteProvide
+    fn ls_remote(self) -> Result<(), Report<RemoteProviderError>>;
 }
