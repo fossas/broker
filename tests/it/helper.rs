@@ -63,8 +63,6 @@ macro_rules! assert_error_stack_snapshot {
     }};
 }
 
-// (?:["'`])(?:(?:[A-Z]:(?:\\[^\\\pC]+)+)|(?:[\pC]?(?:\/[^\/\pC]+)+))(?:["'`])
-
 /// Convenience macro to load the config inline with the test function (so errors are properly attributed).
 ///
 /// Default paths are:
