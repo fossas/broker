@@ -12,24 +12,11 @@ use tempfile::NamedTempFile;
 use crate::api::remote::{RemoteProvider, RemoteProviderError};
 use crate::{api::http, api::remote::git, api::ssh, ext::error_stack::DescribeContext};
 
-/// The checkout type of the repository
-#[derive(Debug)]
-pub enum CheckoutType {
-    /// not checked out yet
-    None,
-    /// initialized with git init; git remote add origin <url>
-    Inited,
-    /// Blobless clone
-    Blobless,
-}
-
 /// A git repository
 #[derive(Debug)]
 pub struct Repository {
     /// directory is the location on disk where the repository resides or will reside
     pub directory: PathBuf,
-    /// checkout_type is the state of the repository
-    pub checkout_type: CheckoutType,
     /// transport contains the info that Broker uses to communicate with the git host
     pub transport: git::transport::Transport,
 }
@@ -58,10 +45,7 @@ impl RemoteProvider for Repository {
             self.transport.endpoint().as_ref().to_string(),
             directory.clone(),
         ];
-        self.run_git(args).map(|_| Repository {
-            checkout_type: CheckoutType::Blobless,
-            ..self
-        })?;
+        self.run_git(args)?;
         Ok(PathBuf::from(directory))
     }
 }

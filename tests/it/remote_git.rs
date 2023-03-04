@@ -17,7 +17,6 @@ fn clone_public_repo_with_no_auth() {
     let clone_path = clone_dir.path().display().to_string();
     let repo = git::repository::Repository {
         directory: PathBuf::from(clone_path.clone()),
-        checkout_type: git::repository::CheckoutType::None,
         transport: git::transport::Transport::Http {
             endpoint,
             auth: None,
@@ -43,7 +42,6 @@ fn clone_private_repo_with_no_auth() {
     let clone_path = clone_dir.path().display().to_string();
     let repo = git::repository::Repository {
         directory: PathBuf::from(clone_path),
-        checkout_type: git::repository::CheckoutType::None,
         transport: git::transport::Transport::Ssh {
             endpoint,
             auth: None,
