@@ -148,15 +148,6 @@ async fn main_clone(args: config::RawBaseArgs) -> Result<(), Error> {
         directory: PathBuf::from("/tmp/cloned"),
         transport,
     };
-    let res = repo.clone();
-    match res {
-        Ok(_) => {
-            println!("got OK() from git clone, directory = {:?}", res);
-            Ok(())
-        }
-        Err(err) => {
-            // println!("git clone err: {}", err);
-            Err(err).change_context(Error::GitWrapper)
-        }
-    }
+
+    repo.clone().change_context(Error::GitWrapper).map(|_| ())
 }
