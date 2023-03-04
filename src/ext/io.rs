@@ -50,6 +50,8 @@ pub enum Error {
 ///
 /// - On Linux and macOS: `~/.config/fossa/broker/`
 /// - On Windows: `%USERPROFILE%\.config\fossa\broker`
+///
+/// Users may also customize this root via the [`DATA_ROOT_VAR`] environment variable.
 #[tracing::instrument]
 pub async fn data_root() -> Result<PathBuf, Report<Error>> {
     run_background(sync::data_root).await

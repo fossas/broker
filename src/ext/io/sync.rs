@@ -27,7 +27,7 @@ use std::{
 
 use error_stack::{IntoReport, Report, ResultExt};
 use once_cell::sync::OnceCell;
-use tracing::debug;
+use tracing::{debug, info};
 
 use crate::ext::{
     error_stack::{DescribeContext, ErrorHelper, IntoContext},
@@ -67,9 +67,12 @@ pub enum Error {
 ///
 /// - On Linux and macOS: `~/.config/fossa/broker/`
 /// - On Windows: `%USERPROFILE%\.config\fossa\broker`
+///
+/// Users may also customize this root via the [`DATA_ROOT_VAR`] environment variable.
 #[tracing::instrument]
 pub fn data_root() -> Result<PathBuf, Report<Error>> {
     if let Ok(user_set_root) = std::env::var(DATA_ROOT_VAR) {
+        info!("User customized data root via '{DATA_ROOT_VAR}' to '{user_set_root}'");
         Ok(PathBuf::from(user_set_root))
     } else {
         home_dir().map(|home| home.join(".config").join("fossa").join("broker"))
