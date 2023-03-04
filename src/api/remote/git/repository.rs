@@ -107,11 +107,10 @@ impl Repository {
         let auth = self.transport.auth();
         match auth {
             git::transport::Auth::Ssh(Some(ssh::Auth::KeyFile(path))) => {
-                let git_ssh_command = format!(
-                    "ssh -i {} -o IdentitiesOnly=yes -o StrictHostKeyChecking=no -F /dev/null",
-                    path.display(),
+                env.insert(
+                    String::from("GIT_SSH_COMMAND"),
+                    Self::git_ssh_command(path.display().to_string()),
                 );
-                env.insert(String::from("GIT_SSH_COMMAND"), git_ssh_command);
             }
             git::transport::Auth::Ssh(Some(ssh::Auth::KeyValue(key))) => {
                 // Write the contents of the SSH key to a file so that we can point to it in
@@ -122,15 +121,26 @@ impl Repository {
                     .describe("writing ssh key to file")
                     .change_context(RemoteProviderError::RunCommand)?;
 
-                let git_ssh_command = format!(
-                    "ssh -i {} -o IdentitiesOnly=yes -o StrictHostKeyChecking=no -F /dev/null",
-                    ssh_key_file.path().display(),
+                env.insert(
+                    String::from("GIT_SSH_COMMAND"),
+                    Self::git_ssh_command(ssh_key_file.path().display().to_string()),
                 );
-                env.insert(String::from("GIT_SSH_COMMAND"), git_ssh_command);
             }
             _ => {}
         }
         Ok(env)
+    }
+
+    // git_ssh_command is passed into the GIT_SSH_COMMAND env variable. This makes git use this command
+    // when it tries to make an SSH connection.
+    // "-o IdentitiesOnly=yes" means "only use the identity file pointed to by the -i arg"
+    // "-o StrictHostKeyChecking=no" avoids errors when the host is not in ssh's knownHosts file
+    // "-F /dev/null" means "start with an empty ssh config"
+    fn git_ssh_command(path: String) -> String {
+        format!(
+            "ssh -i {} -o IdentitiesOnly=yes -o StrictHostKeyChecking=no -F /dev/null",
+            path,
+        )
     }
 
     fn run_git(&self, args: Vec<String>) -> Result<Output, Report<RemoteProviderError>> {
