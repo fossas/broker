@@ -31,6 +31,7 @@ use tokio::task;
 use crate::ext::error_stack::{DescribeContext, ErrorHelper, IntoContext};
 
 pub mod sync;
+pub use sync::DATA_ROOT_VAR;
 
 /// Errors that are possibly surfaced during IO actions.
 #[derive(Debug, thiserror::Error)]

@@ -34,6 +34,9 @@ use crate::ext::{
     iter::{AlternativeIter, ChainOnceWithIter},
 };
 
+/// The variable used to control Broker's data root.
+pub const DATA_ROOT_VAR: &str = "DATA_ROOT";
+
 /// Errors that are possibly surfaced during IO actions.
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
@@ -66,7 +69,11 @@ pub enum Error {
 /// - On Windows: `%USERPROFILE%\.config\fossa\broker`
 #[tracing::instrument]
 pub fn data_root() -> Result<PathBuf, Report<Error>> {
-    home_dir().map(|home| home.join(".config").join("fossa").join("broker"))
+    if let Ok(user_set_root) = std::env::var(DATA_ROOT_VAR) {
+        Ok(PathBuf::from(user_set_root))
+    } else {
+        home_dir().map(|home| home.join(".config").join("fossa").join("broker"))
+    }
 }
 
 /// Searches configured locations for the file with the provided name.

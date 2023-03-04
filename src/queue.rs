@@ -1,13 +1,14 @@
 //! Async work queue implementation.
 
-use std::{fmt::Debug, path::PathBuf};
+use std::{fmt::Debug, ops::Deref, path::PathBuf};
 
+use derive_more::From;
 use error_stack::{Report, ResultExt};
 use indoc::{formatdoc, indoc};
 use strum::Display;
 
 use crate::ext::{
-    error_stack::{DescribeContext, ErrorHelper},
+    error_stack::{DescribeContext, ErrorHelper, IntoContext},
     io,
 };
 
@@ -72,6 +73,18 @@ impl Sender {
         Self::open_internal(path).await
     }
 
+    /// Sends some data into the queue. One send is always atomic. This function is
+    /// `async` because the queue might be full and so we need to `.await` the
+    /// receiver to consume enough segments to clear the queue.
+    ///
+    /// # Errors
+    ///
+    /// This function returns any underlying errors encountered while writing or
+    /// flushing the queue.
+    pub async fn send(&mut self, data: &[u8]) -> Result<(), Report<Error>> {
+        self.0.send(data).await.context(Error::IO)
+    }
+
     async fn open_internal(path: PathBuf) -> Result<Self, Report<Error>> {
         let lock_path = path.join("send.lock");
         io::spawn_blocking(move || yaque::Sender::open(path))
@@ -120,6 +133,22 @@ impl Receiver {
         Self::open_internal(path).await
     }
 
+    /// Retrieves an element from the queue. The returned value is a
+    /// guard that will only commit state changes to the queue when dropped.
+    ///
+    /// This operation is atomic. If the returned future is not polled to
+    /// completion, as, e.g., when calling `select`, the operation will be
+    /// undone.
+    ///
+    /// # Panics
+    ///
+    /// This function will panic if it has to start reading a new segment and
+    /// it is not able to set up the notification handler to watch for file
+    /// changes.
+    pub async fn recv(&mut self) -> Result<RecvGuard<'_>, Report<Error>> {
+        self.0.recv().await.context(Error::IO).map(RecvGuard::from)
+    }
+
     async fn open_internal(path: PathBuf) -> Result<Self, Report<Error>> {
         let lock_path = path.join("recv.lock");
         io::spawn_blocking(move || yaque::Receiver::open(path))
@@ -134,6 +163,41 @@ impl Receiver {
             For this particular queue, this lock file is located at {lock_path:?}.
             "})
             .map(Self)
+    }
+}
+
+/// A guard that will only log changes on the queue state when dropped.
+///
+/// If it is dropped without a call to `RecvGuard::commit`, changes will be
+/// rolled back in a "best effort" policy: if any IO error is encountered
+/// during rollback, the state will be committed. If you *can* do something
+/// with the IO error, you may use `RecvGuard::rollback` explicitly to catch
+/// the error.
+#[derive(From)]
+pub struct RecvGuard<'a>(yaque::queue::RecvGuard<'a, Vec<u8>>);
+
+impl<'a> RecvGuard<'a> {
+    /// Commits the changes to the queue, consuming this `RecvGuard`.
+    pub fn commit(self) -> Result<(), Report<Error>> {
+        self.0.commit().context(Error::IO)
+    }
+
+    /// Rolls the reader back to the previous point, negating the changes made
+    /// on the queue. This is also done on drop. However, on drop, the possible
+    /// IO error is ignored (but logged as an error) because we cannot have
+    /// errors inside drops. Use this if you want to control errors at rollback.
+    ///
+    /// # Errors
+    ///
+    /// If there is some error while moving the reader back, this error will be
+    /// return.
+    pub fn rollback(self) -> Result<(), Report<Error>> {
+        self.0.rollback().context(Error::IO)
+    }
+
+    /// Returns a reference to the element received.
+    pub fn data(&self) -> &[u8] {
+        self.0.deref()
     }
 }
 
