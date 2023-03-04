@@ -48,6 +48,13 @@ impl RemoteProvider for Repository {
         self.run_git(args)?;
         Ok(PathBuf::from(directory))
     }
+
+    fn fetch(self) -> Result<(), Report<RemoteProviderError>> {
+        let args = vec![String::from("fetch"), String::from("origin")];
+
+        self.run_git(args)?;
+        Ok(())
+    }
 }
 
 impl Repository {

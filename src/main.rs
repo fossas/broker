@@ -146,8 +146,14 @@ async fn main_clone(args: config::RawBaseArgs) -> Result<(), Error> {
     let remote::Protocol::Git(transport) = integration.protocol().clone();
     let repo = git::repository::Repository {
         directory: PathBuf::from("/tmp/cloned"),
-        transport,
+        transport: transport.clone(),
     };
 
-    repo.clone().change_context(Error::GitWrapper).map(|_| ())
+    repo.clone().change_context(Error::GitWrapper).map(|_| ())?;
+
+    let repo = git::repository::Repository {
+        directory: PathBuf::from("/tmp/cloned"),
+        transport: transport.clone(),
+    };
+    repo.fetch().change_context(Error::GitWrapper).map(|_| ())
 }

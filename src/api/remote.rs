@@ -127,4 +127,7 @@ pub enum RemoteProviderError {
 pub trait RemoteProvider {
     /// clone from the RemoteProvider
     fn clone(self) -> Result<PathBuf, Report<RemoteProviderError>>;
+
+    /// fetch updates from the RemoteProvider
+    fn fetch(self) -> Result<(), Report<RemoteProviderError>>;
 }
