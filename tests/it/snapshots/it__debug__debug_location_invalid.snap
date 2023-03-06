@@ -3,10 +3,10 @@ source: tests/it/debug.rs
 expression: err
 info: testdata/config/basic-location-invalid.yml
 ---
-failed to configure tracing output location
+failed to create tracing output location
 ├╴at {source location}
-├╴help: ensure that the parent directory exists and you have access to it
-├╴context: initialize sink to {file path}
+├╴help: this location is set in the config file
+├╴context: debug info is configured to be stored in "/some/place/that/does/not/exist/trace"
 │
-╰─▶ No such file or directory (os error 2)
+╰─▶ Read-only file system (os error 30)
     ╰╴at {source location}
