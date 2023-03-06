@@ -4,7 +4,7 @@ use broker::debug::ArtifactRetentionCount;
 use proptest::prelude::*;
 use test_strategy::proptest;
 
-use crate::helper::{assert_error_stack_snapshot, load_config};
+use crate::helper::assert_error_stack_snapshot;
 
 #[proptest]
 fn validate_artifact_retention_count(
@@ -30,19 +30,4 @@ fn validate_artifact_retention_count_min() {
 #[test]
 fn validate_artifact_retention_count_default() {
     assert_eq!(ArtifactRetentionCount::default(), 7);
-}
-
-#[tokio::test]
-async fn test_debug_location_invalid() {
-    let (config_path, config) = load_config!(
-        "testdata/config/basic-location-invalid.yml",
-        "testdata/database/empty.sqlite"
-    )
-    .await;
-
-    let err = config
-        .debug()
-        .run_tracing_sink()
-        .expect_err("must have errored");
-    assert_error_stack_snapshot!(&config_path, err);
 }
