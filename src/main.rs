@@ -161,7 +161,8 @@ async fn main_clone(args: config::RawBaseArgs) -> Result<(), Error> {
         directory: PathBuf::from("/tmp/cloned"),
         transport,
     };
-    repo.ls_remote()
-        .change_context(Error::GitWrapper)
-        .map(|_| ())
+    let references = repo.get_references().change_context(Error::GitWrapper)?;
+
+    println!("references: {:?}", references);
+    Ok(())
 }

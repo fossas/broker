@@ -9,7 +9,9 @@ use std::path::PathBuf;
 use std::process::{Command, Output};
 use tempfile::NamedTempFile;
 
-use crate::api::remote::{RemoteProvider, RemoteProviderError};
+use crate::api::remote::{
+    Commit, Reference, ReferenceType, RemoteProvider, RemoteProviderError, RemoteReference,
+};
 use crate::{api::http, api::remote::git, api::ssh, ext::error_stack::DescribeContext};
 
 /// A git repository
@@ -19,35 +21,6 @@ pub struct Repository {
     pub directory: PathBuf,
     /// transport contains the info that Broker uses to communicate with the git host
     pub transport: git::transport::Transport,
-}
-
-/// A git commit SHA
-#[derive(Debug)]
-pub struct Commit(String);
-
-/// A git reference
-#[derive(Debug)]
-pub struct Reference(String);
-
-/// A git reference's type (branch or tag)
-#[derive(Debug)]
-pub enum GitRefType {
-    /// A Git branch
-    Branch,
-
-    /// A Git tag
-    Tag,
-}
-/// A git ref. It will look like ""
-#[derive(Debug)]
-pub struct GitRef {
-    /// The reference type. Branch or Tag.
-    ref_type: GitRefType,
-
-    /// The reference's commit
-    commit: Commit,
-
-    reference: Reference,
 }
 
 impl RemoteProvider for Repository {
@@ -85,7 +58,7 @@ impl RemoteProvider for Repository {
         Ok(())
     }
 
-    fn ls_remote(self) -> Result<(), Report<RemoteProviderError>> {
+    fn get_references(self) -> Result<Vec<RemoteReference>, Report<RemoteProviderError>> {
         let args = vec![String::from("ls-remote"), String::from("--quiet")];
 
         let output = self.run_git(args)?;
@@ -93,10 +66,7 @@ impl RemoteProvider for Repository {
             .into_report()
             .describe("reading output of 'git ls-remote --quiet'")
             .change_context(RemoteProviderError::RunCommand)?;
-        println!("output from ls-remote --quiet: {:?}", output);
-        let references = Self::parse_ls_remote(output);
-        println!("references: {:?}", references);
-        Ok(())
+        Self::parse_ls_remote(output)
     }
 }
 
@@ -228,8 +198,10 @@ impl Repository {
     /// ffb878b5eb456e7e1725606192765dcb6c7e78b8        refs/tags/v0.0.1^{}
     ///
     /// We only want the branches (which start with `refs/head/` and the tags (which start with `refs/tags`))
-    fn parse_ls_remote(output: String) -> Result<Vec<GitRef>, Report<RemoteProviderError>> {
-        let results: Vec<GitRef> = output
+    fn parse_ls_remote(
+        output: String,
+    ) -> Result<Vec<RemoteReference>, Report<RemoteProviderError>> {
+        let results: Vec<RemoteReference> = output
             .split("\n")
             .map(|line| Self::line_to_git_ref(line))
             .filter(|r| r.is_some())
@@ -238,23 +210,23 @@ impl Repository {
         Ok(results)
     }
 
-    fn line_to_git_ref(line: &str) -> Option<GitRef> {
+    fn line_to_git_ref(line: &str) -> Option<RemoteReference> {
         let mut parsed = line.split_whitespace();
         let commit = parsed.next()?;
         let commit = String::from(commit);
         let reference = parsed.next()?;
 
         if let Some(tag) = reference.strip_prefix("refs/tags/") {
-            return Some(GitRef {
-                ref_type: GitRefType::Tag,
+            return Some(RemoteReference {
+                ref_type: ReferenceType::Tag,
                 commit: Commit(commit),
                 reference: Reference(String::from(tag.clone())),
             });
         }
 
         if let Some(branch) = reference.strip_prefix("refs/heads/") {
-            return Some(GitRef {
-                ref_type: GitRefType::Branch,
+            return Some(RemoteReference {
+                ref_type: ReferenceType::Branch,
                 commit: Commit(commit),
                 reference: Reference(String::from(branch.clone())),
             });
