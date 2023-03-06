@@ -187,6 +187,7 @@ where
 
     type Err = E;
 
+    #[track_caller]
     fn context(self, context: C) -> Result<T, Report<C>> {
         self.into_report().change_context(context)
     }
