@@ -31,3 +31,16 @@ where
         self.map(|_| Default::default())
     }
 }
+
+/// Wrap anything into `Ok`
+pub trait IntoOk<T, E> {
+    /// Wrap self in an `Ok`, returning the `Ok` variant
+    /// of a result inferred by the destination type.
+    fn ok(self) -> Result<T, E>;
+}
+
+impl<T, E> IntoOk<T, E> for T {
+    fn ok(self) -> Result<T, E> {
+        Ok(self)
+    }
+}

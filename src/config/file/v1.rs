@@ -14,6 +14,7 @@ use crate::{
     debug,
     ext::{
         error_stack::{DescribeContext, ErrorHelper, IntoContext},
+        result::IntoOk,
         secrecy::ComparableSecretString,
     },
 };
@@ -72,7 +73,7 @@ fn validate(config: RawConfigV1) -> Result<super::Config, Report<Error>> {
         .change_context(Error::Validate)
         .map(remote::Config::new)?;
 
-    Ok(super::Config::new(api, debugging, integrations))
+    super::Config::new(api, debugging, integrations).ok()
 }
 
 #[derive(Debug, Deserialize)]
@@ -89,7 +90,7 @@ impl TryFrom<Debugging> for debug::Config {
     fn try_from(value: Debugging) -> Result<Self, Self::Error> {
         let root = debug::Root::from(value.location);
         let retention = debug::Retention::try_from(value.retention)?;
-        Ok(Self::new(root, retention))
+        Self::new(root, retention).ok()
     }
 }
 
@@ -110,12 +111,11 @@ impl TryFrom<DebuggingRetention> for debug::Retention {
     type Error = Report<debug::ValidationError>;
 
     fn try_from(value: DebuggingRetention) -> Result<Self, Self::Error> {
-        let days = value
+        value
             .days
             .try_into()
-            .describe("validate 'retention.days'")?;
-
-        Ok(Self::new(days))
+            .describe("validate 'retention.days'")
+            .map(Self::new)
     }
 }
 
@@ -173,7 +173,7 @@ impl TryFrom<Integration> for remote::Integration {
                     }?,
                 };
 
-                Ok(remote::Integration::new(poll_interval, protocol.into()))
+                remote::Integration::new(poll_interval, protocol.into()).ok()
             }
         }
     }

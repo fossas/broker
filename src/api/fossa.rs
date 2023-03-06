@@ -9,6 +9,7 @@ use url::Url;
 
 use crate::ext::{
     error_stack::{DescribeContext, ErrorHelper, IntoContext},
+    result::IntoOk,
     secrecy::ComparableSecretString,
 };
 
@@ -78,8 +79,7 @@ impl TryFrom<String> for Key {
                 .help("use an API key from FOSSA here: https://app.fossa.com/account/settings/integrations/api_tokens")
                 .change_context(ValidationError::ApiKey)
         } else {
-            let secret = ComparableSecretString::from(input);
-            Ok(Key(secret))
+            Key(ComparableSecretString::from(input)).ok()
         }
     }
 }
