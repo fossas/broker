@@ -31,6 +31,11 @@ pub enum Error {
     /// When configuring tracing log output, it's possible for the rolling appender to fail.
     #[error("failed to configure tracing output location")]
     TraceConfig,
+
+    /// When configuring tracing, we ensure that the tracing root directory exists.
+    /// If it didn't exist and can't be created, this error is returned.
+    #[error("failed to create tracing output location")]
+    EnsureTraceRoot,
 }
 
 /// Errors that are possibly surfaced during validation of config values.
@@ -59,12 +64,22 @@ impl Config {
     /// run it as soon as possible.
     #[must_use = "This guard must be stored in a variable that is retained; if it is dropped the tracing sink will stop running"]
     pub fn run_tracing_sink(&self) -> Result<WorkerGuard, Report<Error>> {
+        self.ensure_tracing_root_exists()?;
         self.initialize_tracing_sink()
     }
 
     /// The path to the directory containing trace files.
     fn tracing_root(&self) -> PathBuf {
         self.location().as_ref().join("trace")
+    }
+
+    /// Ensure the tracing root exists.
+    fn ensure_tracing_root_exists(&self) -> Result<(), Report<Error>> {
+        let root = self.tracing_root();
+        std::fs::create_dir_all(&root)
+            .context(Error::EnsureTraceRoot)
+            .help("this location is set in the config file")
+            .describe_lazy(|| format!("debug info is configured to be stored in {root:?}"))
     }
 
     /// Initialize tracing sinks:
