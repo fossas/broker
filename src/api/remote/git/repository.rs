@@ -21,6 +21,35 @@ pub struct Repository {
     pub transport: git::transport::Transport,
 }
 
+/// A git commit SHA
+#[derive(Debug)]
+pub struct Commit(String);
+
+/// A git reference
+#[derive(Debug)]
+pub struct Reference(String);
+
+/// A git reference's type (branch or tag)
+#[derive(Debug)]
+pub enum GitRefType {
+    /// A Git branch
+    Branch,
+
+    /// A Git tag
+    Tag,
+}
+/// A git ref. It will look like ""
+#[derive(Debug)]
+pub struct GitRef {
+    /// The reference type. Branch or Tag.
+    ref_type: GitRefType,
+
+    /// The reference's commit
+    commit: Commit,
+
+    reference: Reference,
+}
+
 impl RemoteProvider for Repository {
     // mkdir <directory>
     // git init
@@ -60,12 +89,13 @@ impl RemoteProvider for Repository {
         let args = vec![String::from("ls-remote"), String::from("--quiet")];
 
         let output = self.run_git(args)?;
-        // TODO parse this output
-        let s = String::from_utf8(output.stdout)
+        let output = String::from_utf8(output.stdout)
             .into_report()
             .describe("reading output of 'git ls-remote --quiet'")
             .change_context(RemoteProviderError::RunCommand)?;
-        println!("output from ls-remote --quiet: {:?}", s);
+        println!("output from ls-remote --quiet: {:?}", output);
+        let references = Self::parse_ls_remote(output);
+        println!("references: {:?}", references);
         Ok(())
     }
 }
@@ -177,5 +207,59 @@ impl Repository {
                 });
         }
         Ok(output)
+    }
+
+    /// parse the output from `git ls-remote --quiet`
+    /// The output will look something like this:
+    ///
+    /// git ls-remote --quiet
+    /// 9e9834e875bcc07745495b05fe7e73d85d8962b9        HEAD
+    /// 55aa4f2fc908b42aa1d3e958d115a32a55126a73        refs/heads/add-git-wrapper
+    /// bb6d81b3591502b87d77e9ee3e32ad741cb8fa53        refs/heads/async-work-queue
+    /// 9e9834e875bcc07745495b05fe7e73d85d8962b9        refs/heads/main
+    /// dc575604056303cb16131c1e468077392470b1a6        refs/heads/tracing-logging
+    /// cb234292277e66703399bf90c841cdffd42db1cf        refs/heads/tracing-retention
+    /// 038f86242d02089bb3c7c0fd8c408e624de9f664        refs/pull/1/head
+    /// 55aa4f2fc908b42aa1d3e958d115a32a55126a73        refs/pull/10/head
+    /// a79998dec9c9732c9f5e49767e1064ebc2375089        refs/pull/10/merge
+    /// dc575604056303cb16131c1e468077392470b1a6        refs/pull/11/head
+    /// 6845f2dc4db87996d7b22b586357bd7513d50803        refs/pull/11/merge
+    /// b72eb52c09df108c81e755bc3a083ce56d7e4197        refs/tags/v0.0.1
+    /// ffb878b5eb456e7e1725606192765dcb6c7e78b8        refs/tags/v0.0.1^{}
+    ///
+    /// We only want the branches (which start with `refs/head/` and the tags (which start with `refs/tags`))
+    fn parse_ls_remote(output: String) -> Result<Vec<GitRef>, Report<RemoteProviderError>> {
+        let results: Vec<GitRef> = output
+            .split("\n")
+            .map(|line| Self::line_to_git_ref(line))
+            .filter(|r| r.is_some())
+            .map(|r| r.unwrap())
+            .collect();
+        Ok(results)
+    }
+
+    fn line_to_git_ref(line: &str) -> Option<GitRef> {
+        let mut parsed = line.split_whitespace();
+        let commit = parsed.next()?;
+        let commit = String::from(commit);
+        let reference = parsed.next()?;
+
+        if let Some(tag) = reference.strip_prefix("refs/tags/") {
+            return Some(GitRef {
+                ref_type: GitRefType::Tag,
+                commit: Commit(commit),
+                reference: Reference(String::from(tag.clone())),
+            });
+        }
+
+        if let Some(branch) = reference.strip_prefix("refs/heads/") {
+            return Some(GitRef {
+                ref_type: GitRefType::Branch,
+                commit: Commit(commit),
+                reference: Reference(String::from(branch.clone())),
+            });
+        }
+
+        None
     }
 }
