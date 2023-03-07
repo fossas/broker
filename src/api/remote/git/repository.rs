@@ -26,88 +26,12 @@ pub struct Repository {
 }
 
 impl RemoteProvider for Repository {
-    // mkdir <directory>
-    // git init
-    // git remote add origin <url>
-    // git ls-remote
-    // fn init(repo: Repository) -> Option<Repository> {
-    //     if repo.checkout_type != None {
-    //         return None;
-    //     }
-
-    //     let repo = init_repo(repo);
-    //     let repo = set_remote(repo);
-    //     check_remote(repo)
-    // }
-
-    /// Do a blobless clone of the repository, checking out the Reference if it exists
-    fn clone(self, reference: Option<&Reference>) -> Result<PathBuf, Report<RemoteProviderError>> {
-        let directory = self.directory.to_string_lossy().to_string();
-        let mut args = vec![String::from("clone"), String::from("--filter=blob:none")];
-        if let Some(reference) = reference {
-            args.append(&mut vec![
-                String::from("--branch"),
-                reference.as_ref().to_string(),
-            ]);
-        }
-        args.append(&mut vec![
-            self.transport.endpoint().as_ref().to_string(),
-            directory.clone(),
-        ]);
-        self.run_git(args)?;
-        Ok(PathBuf::from(directory))
-    }
-
-    fn fetch(self) -> Result<(), Report<RemoteProviderError>> {
-        let args = vec![String::from("fetch"), String::from("origin")];
-
-        self.run_git(args)?;
-        Ok(())
-    }
-
-    fn get_references(
-        integration: &Integration,
-    ) -> Result<Vec<RemoteReference>, Report<RemoteProviderError>> {
-        // First, we need to make a temp directory and run `git init` in it
-        let tmpdir = tempdir()
-            .into_report()
-            .change_context(RemoteProviderError::RunCommand)
-            .describe("creating temp directory in get_reference")?;
-
-        let remote::Protocol::Git(transport) = integration.protocol().clone();
-        let repo = Repository {
-            directory: PathBuf::from(tmpdir.path()),
-            transport: transport.clone(),
-        };
-        // initialize the repo
-        let args = vec![String::from("init")];
-        repo.run_git(args)?;
-
-        // Now that we have an initialized repo, we can get our references with `git ls-remote`
-        let args = vec![String::from("ls-remote"), String::from("--quiet")];
-
-        let output = repo.run_git(args)?;
-        let output = String::from_utf8(output.stdout)
-            .into_report()
-            .describe("reading output of 'git ls-remote --quiet'")
-            .change_context(RemoteProviderError::RunCommand)?;
-        let references = Self::parse_ls_remote(output)?;
-
-        // Tags sometimes get duplicated in the output from `git ls-remote`, like this:
-        // b72eb52c09df108c81e755bc3a083ce56d7e4197        refs/tags/v0.0.1
-        // ffb878b5eb456e7e1725606192765dcb6c7e78b8        refs/tags/v0.0.1^{}
-        //
-        // We can use either of these (the commit resolves to the ^{} version when we check it out), but we need to
-        // de-dupe it
-        let references = references.into_iter().unique().collect();
-        Ok(references)
-    }
-
     fn update_clones(
         root_dir: PathBuf,
         integration: &Integration,
     ) -> Result<Vec<PathBuf>, Report<RemoteProviderError>> {
         let references = Self::get_references(integration)?;
+        // TODO: Filter these references to only the references that need updating
         let cloned_references: Vec<Result<PathBuf, Report<RemoteProviderError>>> = references
             .iter()
             .map(|reference| Self::clone_and_update(reference, integration, root_dir.clone()))
@@ -122,6 +46,7 @@ impl RemoteProvider for Repository {
             return Ok(path_bufs);
         }
 
+        // We have some errors, so merge all of the errors into one report
         let mut report: Option<Report<RemoteProviderError>> = None;
         for reference in cloned_references
             .into_iter()
@@ -143,6 +68,71 @@ impl RemoteProvider for Repository {
 }
 
 impl Repository {
+    /// Do a blobless clone of the repository, checking out the Reference if it exists
+    fn clone(self, reference: Option<&Reference>) -> Result<PathBuf, Report<RemoteProviderError>> {
+        let directory = self.directory.to_string_lossy().to_string();
+        let mut args = vec![String::from("clone"), String::from("--filter=blob:none")];
+        if let Some(reference) = reference {
+            args.append(&mut vec![
+                String::from("--branch"),
+                reference.as_ref().to_string(),
+            ]);
+        }
+        args.append(&mut vec![
+            self.transport.endpoint().as_ref().to_string(),
+            directory.clone(),
+        ]);
+        self.run_git(args, None)?;
+        Ok(PathBuf::from(directory))
+    }
+
+    fn get_references(
+        integration: &Integration,
+    ) -> Result<Vec<RemoteReference>, Report<RemoteProviderError>> {
+        // First, we need to make a temp directory and run `git init` in it
+        let tmpdir = tempdir()
+            .into_report()
+            .change_context(RemoteProviderError::RunCommand)
+            .describe("creating temp directory in get_reference")?;
+
+        let remote::Protocol::Git(transport) = integration.protocol().clone();
+        let repo = Repository {
+            directory: PathBuf::from(tmpdir.path()),
+            transport: transport.clone(),
+        };
+        // initialize the repo
+        let args = vec![String::from("init")];
+        repo.run_git(args, Some(repo.directory.clone()))?;
+
+        // add the remote
+        let args = vec![
+            String::from("remote"),
+            String::from("add"),
+            String::from("origin"),
+            transport.endpoint().to_string(),
+        ];
+        repo.run_git(args, Some(repo.directory.clone()))?;
+
+        // Now that we have an initialized repo, we can get our references with `git ls-remote`
+        let args = vec![String::from("ls-remote"), String::from("--quiet")];
+
+        let output = repo.run_git(args, Some(repo.directory.clone()))?;
+        let output = String::from_utf8(output.stdout)
+            .into_report()
+            .describe("reading output of 'git ls-remote --quiet'")
+            .change_context(RemoteProviderError::RunCommand)?;
+        let references = Self::parse_ls_remote(output)?;
+
+        // Tags sometimes get duplicated in the output from `git ls-remote`, like this:
+        // b72eb52c09df108c81e755bc3a083ce56d7e4197        refs/tags/v0.0.1
+        // ffb878b5eb456e7e1725606192765dcb6c7e78b8        refs/tags/v0.0.1^{}
+        //
+        // We can use either of these (the commit resolves to the ^{} version when we check it out), but we need to
+        // de-dupe it
+        let references = references.into_iter().unique().collect();
+        Ok(references)
+    }
+
     fn clone_and_update(
         remote_reference: &RemoteReference,
         integration: &Integration,
@@ -240,7 +230,11 @@ impl Repository {
         )
     }
 
-    fn run_git(&self, args: Vec<String>) -> Result<Output, Report<RemoteProviderError>> {
+    fn run_git(
+        &self,
+        args: Vec<String>,
+        cwd: Option<PathBuf>,
+    ) -> Result<Output, Report<RemoteProviderError>> {
         let mut full_args = self.default_args();
         full_args.append(&mut args.clone());
 
@@ -250,9 +244,13 @@ impl Repository {
             .describe("creating temp file")?;
         let env = self.env_vars(&mut ssh_key_file)?;
 
-        let output = Command::new("git")
-            .args(full_args)
-            .envs(env)
+        let mut command = Command::new("git");
+        command.args(full_args).envs(env);
+        println!("running git {:?} in directory {:?}", args, cwd);
+        if let Some(directory) = cwd {
+            command.current_dir(directory);
+        }
+        let output = command
             .output()
             .into_report()
             .change_context(RemoteProviderError::RunCommand)

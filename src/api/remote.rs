@@ -157,17 +157,6 @@ pub struct RemoteReference {
 
 /// RemoteProvider are code hosts that we get code from
 pub trait RemoteProvider {
-    /// clone from the RemoteProvider
-    fn clone(self, reference: Option<&Reference>) -> Result<PathBuf, Report<RemoteProviderError>>;
-
-    /// fetch updates from the RemoteProvider
-    fn fetch(self) -> Result<(), Report<RemoteProviderError>>;
-
-    /// list branches and tags on the RemoteProvider
-    fn get_references(
-        integration: &Integration,
-    ) -> Result<Vec<RemoteReference>, Report<RemoteProviderError>>;
-
     /// Ensure that a clone exists for every branch and tag on the RemoteProvider
     /// and update that clone to the latest commit
     fn update_clones(
