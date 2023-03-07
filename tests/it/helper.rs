@@ -42,6 +42,7 @@ macro_rules! assert_error_stack_snapshot {
                 (r"src.+:\d+:\d+", "{source location}"),
                 ("/var/folders[a-zA-Z0-9/_.]+", "{tmpdir}"), // Macos tmp folders
                 ("/tmp/.[a-zA-Z-0-9/_.]+", "{tmpdir}"), // Unix tmp folders
+                (r"(Permission denied \(publickey\)|Repository not found)", "{permission denied}") // github gives different errors depending on whether you are logged in or not
             ]
         }, {
             insta::assert_debug_snapshot!($inner);

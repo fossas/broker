@@ -5,7 +5,7 @@ info: cloning private repo with bad auth
 ---
 running git command
 ├╴at {source location}
-╰╴context: running git command ["ls-remote", "--quiet"], status was: exit status: 128, stderr: ERROR: Repository not found.
+╰╴context: running git command ["ls-remote", "--quiet"], status was: exit status: 128, stderr: ERROR: {permission denied}.
   fatal: Could not read from remote repository.
   
   Please make sure you have the correct access rights
