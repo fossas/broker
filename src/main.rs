@@ -7,7 +7,7 @@
 
 use std::path::PathBuf;
 
-use broker::api::remote::{self, RemoteProvider};
+use broker::api::remote::RemoteProvider;
 use broker::{api::remote::git, config, ext::error_stack::ErrorHelper};
 use broker::{
     config::Config,
@@ -147,20 +147,7 @@ async fn main_clone(args: config::RawBaseArgs) -> Result<(), Error> {
     let conf = load_config(args).await?;
     let integration = &conf.integrations().as_ref()[0];
     let dir = PathBuf::from("/tmp/cloned");
-    let repos = git::repository::Repository::update_clones(dir, integration);
-    // let remote::Protocol::Git(transport) = integration.protocol().clone();
-
-    // // Get the list of branches and tags from the remote
-    // let references = git::repository::Repository::get_references(integration)
-    //     .change_context(Error::GitWrapper)?;
-
-    // let repo = git::repository::Repository {
-    //     directory: PathBuf::from("/tmp/cloned"),
-    //     transport: transport.clone(),
-    // };
-
-    // repo.fetch().change_context(Error::GitWrapper).map(|_| ())?;
-
-    println!("repos: {:?}", repos);
+    git::repository::Repository::update_clones(dir, integration)
+        .change_context(Error::GitWrapper)?;
     Ok(())
 }

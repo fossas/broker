@@ -1,7 +1,6 @@
 //! Wrapper for Git
 use base64::{engine::general_purpose, Engine as _};
 use error_stack::{IntoReport, Report, ResultExt};
-use getset::Getters;
 use itertools::Itertools;
 use secrecy::ExposeSecret;
 use std::collections::HashMap;
@@ -12,8 +11,8 @@ use std::process::{Command, Output};
 use tempfile::{tempdir, NamedTempFile};
 
 use crate::api::remote::{
-    self, Commit, Integration, Reference, ReferenceType, Remote, RemoteProvider,
-    RemoteProviderError, RemoteReference,
+    self, Commit, Integration, Reference, ReferenceType, RemoteProvider, RemoteProviderError,
+    RemoteReference,
 };
 use crate::{api::http, api::remote::git, api::ssh, ext::error_stack::DescribeContext};
 
