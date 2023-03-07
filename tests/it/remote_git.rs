@@ -1,5 +1,5 @@
 //! Tests for git remotes
-
+use crate::helper::assert_error_stack_snapshot;
 use crate::{args::raw_base_args, helper::load_config};
 use broker::api::remote::RemoteProvider;
 use std::path::PathBuf;
@@ -22,15 +22,19 @@ async fn update_clones_on_public_repo_with_no_auth() {
         .expect("no integration loaded from config");
     let tmpdir = tempdir().expect("creating tmpdir");
     let path = PathBuf::from(tmpdir.path());
-    let res = git::repository::Repository::update_clones(path, integration)
-        .expect("no results returned from update_clones on a public repo!");
-    let mut master_path = PathBuf::from(tmpdir.path());
-    master_path.push(String::from("master"));
-    let master_res = res
+    let mut expected_clone_paths: Vec<PathBuf> = vec!["master", "other-branch", "1.1"]
         .into_iter()
-        .find(|p| p.as_path() == master_path.as_path())
-        .expect("no master path found");
-    assert_eq!(master_res, master_path);
+        .map(|reference| {
+            let mut path = PathBuf::from(tmpdir.path());
+            path.push(String::from(reference));
+            path
+        })
+        .collect();
+    expected_clone_paths.sort();
+    let mut clone_paths = git::repository::Repository::update_clones(path, integration)
+        .expect("no results returned from update_clones on a public repo!");
+    clone_paths.sort();
+    assert_eq!(expected_clone_paths, clone_paths);
 }
 
 #[tokio::test]
@@ -45,6 +49,10 @@ async fn clone_private_repo_with_no_auth() {
     let integration = integrations.next().unwrap();
     let tmpdir = tempdir().unwrap();
     let path = PathBuf::from(tmpdir.path());
-    let res = git::repository::Repository::update_clones(path, integration);
-    assert!(res.is_err());
+    let context = String::from("cloning private repo with bad auth");
+    assert_error_stack_snapshot!(
+        &context,
+        git::repository::Repository::update_clones(path, integration)
+            .expect_err("Could not read from remote repository")
+    );
 }
