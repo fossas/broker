@@ -124,15 +124,15 @@ pub enum RemoteProviderError {
 }
 
 /// A git commit SHA
-#[derive(Debug)]
+#[derive(Debug, Hash, PartialEq, Eq, Clone)]
 pub struct Commit(String);
 
 /// A git reference
-#[derive(Debug, AsRef, PartialEq, Eq, Hash)]
+#[derive(Debug, AsRef, PartialEq, Eq, Hash, Clone)]
 pub struct Reference(String);
 
 /// A git reference's type (branch or tag)
-#[derive(Debug)]
+#[derive(Debug, Clone, Hash, Eq, PartialEq)]
 pub enum ReferenceType {
     /// A branch
     Branch,
@@ -142,7 +142,8 @@ pub enum ReferenceType {
 }
 
 /// A remote ref
-#[derive(Debug)]
+#[derive(Debug, Getters, Clone, Hash, Eq, PartialEq)]
+#[getset(get = "pub")]
 pub struct RemoteReference {
     /// The reference type. Branch or Tag.
     ref_type: ReferenceType,
@@ -150,6 +151,7 @@ pub struct RemoteReference {
     /// The reference's commit
     commit: Commit,
 
+    /// A reference
     reference: Reference,
 }
 

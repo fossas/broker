@@ -1,6 +1,8 @@
 //! Wrapper for Git
 use base64::{engine::general_purpose, Engine as _};
 use error_stack::{IntoReport, Report, ResultExt};
+use getset::Getters;
+use itertools::Itertools;
 use secrecy::ExposeSecret;
 use std::collections::HashMap;
 use std::fs::File;
@@ -90,7 +92,16 @@ impl RemoteProvider for Repository {
             .into_report()
             .describe("reading output of 'git ls-remote --quiet'")
             .change_context(RemoteProviderError::RunCommand)?;
-        Self::parse_ls_remote(output)
+        let references = Self::parse_ls_remote(output)?;
+
+        // Tags sometimes get duplicated in the output from `git ls-remote`, like this:
+        // b72eb52c09df108c81e755bc3a083ce56d7e4197        refs/tags/v0.0.1
+        // ffb878b5eb456e7e1725606192765dcb6c7e78b8        refs/tags/v0.0.1^{}
+        //
+        // We can use either of these (the commit resolves to the ^{} version when we check it out), but we need to
+        // de-dupe it
+        let references = references.into_iter().unique().collect();
+        Ok(references)
     }
 
     fn update_clones(
@@ -112,24 +123,23 @@ impl RemoteProvider for Repository {
             return Ok(path_bufs);
         }
 
-        // TODO: deal with the errors here
-        Err(RemoteProviderError::RunCommand).into_report()
-        // for reference in cloned_references
-        //     .iter()
-        //     .filter_map(|reference| reference.err())
-        // {
-        //     let err = reference.as_ref().unwrap_err();
-        //     if let Some(report) = report {
-        //         report.extend_one(*err);
-        //     } else {
-        //         report = Some(*err)
-        //     }
-        // }
-        // if let Some(report) = report {
-        //     Err(report)
-        // } else {
-        //     Err(RemoteProviderError::RunCommand).into_report()
-        // }
+        let mut report: Option<Report<RemoteProviderError>> = None;
+        for reference in cloned_references
+            .into_iter()
+            .filter_map(|reference| reference.err())
+        {
+            if let Some(mut rep) = report {
+                rep.extend_one(reference);
+                report = Some(rep);
+            } else {
+                report = Some(reference)
+            }
+        }
+        if let Some(report) = report {
+            Err(report)
+        } else {
+            Err(RemoteProviderError::RunCommand).into_report()
+        }
     }
 }
 

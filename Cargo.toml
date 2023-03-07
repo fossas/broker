@@ -30,6 +30,7 @@ tokio = { version = "1.26.0", features = ["full"] }
 url = "2.3.1"
 base64 = "0.21.0"
 tempfile = "3.4.0"
+itertools = "0.10.5"
 
 [dev-dependencies]
 insta = { version = "1.28.0", features = ["filters", "json", "yaml"] }
