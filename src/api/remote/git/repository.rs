@@ -41,7 +41,12 @@ impl RemoteProvider for Repository {
             let path_bufs = cloned_references
                 .iter()
                 // .filter(|reference| reference.is_ok())
-                .map(|reference| reference.as_ref().unwrap().clone())
+                .map(|reference| {
+                    reference
+                        .as_ref()
+                        .expect("found an error when errors have all been filtered out")
+                        .clone()
+                })
                 .collect();
             return Ok(path_bufs);
         }
@@ -139,19 +144,19 @@ impl Repository {
         root_dir: PathBuf,
     ) -> Result<PathBuf, Report<RemoteProviderError>> {
         let remote::Protocol::Git(transport) = integration.protocol().clone();
-        let mut path = root_dir.clone();
+        let mut path = root_dir;
         path.push(remote_reference.reference.as_ref());
 
         let repo = Repository {
             directory: path.clone(),
-            transport: transport,
+            transport,
         };
         println!(
             "Cloning reference {:?} into path {:?}",
             remote_reference, path
         );
         repo.clone(Some(&remote_reference.reference))?;
-        Ok(PathBuf::from(path))
+        Ok(path)
     }
 
     fn default_args(&self) -> Vec<String> {
@@ -295,10 +300,10 @@ impl Repository {
         output: String,
     ) -> Result<Vec<RemoteReference>, Report<RemoteProviderError>> {
         let results: Vec<RemoteReference> = output
-            .split("\n")
-            .map(|line| Self::line_to_git_ref(line))
+            .split('\n')
+            .map(Self::line_to_git_ref)
             .filter(|r| r.is_some())
-            .map(|r| r.unwrap())
+            .flatten()
             .collect();
         Ok(results)
     }
@@ -324,7 +329,7 @@ impl Repository {
             return Some(RemoteReference {
                 ref_type: ReferenceType::Branch,
                 commit: Commit(commit),
-                reference: Reference(String::from(branch.clone())),
+                reference: Reference(String::from(branch)),
             });
         }
 

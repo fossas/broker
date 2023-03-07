@@ -17,10 +17,13 @@ async fn update_clones_on_public_repo_with_no_auth() {
     .await;
 
     let mut integrations = conf.integrations().as_ref().iter();
-    let integration = integrations.next().unwrap();
-    let tmpdir = tempdir().unwrap();
+    let integration = integrations
+        .next()
+        .expect("no integration loaded from config");
+    let tmpdir = tempdir().expect("creating tmpdir");
     let path = PathBuf::from(tmpdir.path());
-    let res = git::repository::Repository::update_clones(path, integration).unwrap();
+    let res = git::repository::Repository::update_clones(path, integration)
+        .expect("no results returned from update_clones on a public repo!");
     let mut master_path = PathBuf::from(tmpdir.path());
     master_path.push(String::from("master"));
     let master_res = res
