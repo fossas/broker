@@ -128,8 +128,9 @@ pub enum RemoteProviderError {
 pub struct Commit(String);
 
 /// A git reference
-#[derive(Debug)]
+#[derive(Debug, AsRef, PartialEq, Eq, Hash)]
 pub struct Reference(String);
+
 /// A git reference's type (branch or tag)
 #[derive(Debug)]
 pub enum ReferenceType {
@@ -155,11 +156,20 @@ pub struct RemoteReference {
 /// RemoteProvider are code hosts that we get code from
 pub trait RemoteProvider {
     /// clone from the RemoteProvider
-    fn clone(self) -> Result<PathBuf, Report<RemoteProviderError>>;
+    fn clone(self, reference: Option<&Reference>) -> Result<PathBuf, Report<RemoteProviderError>>;
 
     /// fetch updates from the RemoteProvider
     fn fetch(self) -> Result<(), Report<RemoteProviderError>>;
 
-    /// list branches and tags on the RemoteProvide
-    fn get_references(self) -> Result<Vec<RemoteReference>, Report<RemoteProviderError>>;
+    /// list branches and tags on the RemoteProvider
+    fn get_references(
+        integration: &Integration,
+    ) -> Result<Vec<RemoteReference>, Report<RemoteProviderError>>;
+
+    /// Ensure that a clone exists for every branch and tag on the RemoteProvider
+    /// and update that clone to the latest commit
+    fn update_clones(
+        root_dir: PathBuf,
+        integration: &Integration,
+    ) -> Result<Vec<PathBuf>, Report<RemoteProviderError>>;
 }

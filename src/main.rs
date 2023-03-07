@@ -140,29 +140,27 @@ async fn load_config(args: config::RawBaseArgs) -> Result<Config, Error> {
         .documentation_lazy(doc::link::config_file_reference)
 }
 
+/// Workflow:
+/// 1. get a list of remotes
+/// 2. For each remote, clone it into a directory and check out the tag or branch
 async fn main_clone(args: config::RawBaseArgs) -> Result<(), Error> {
     let conf = load_config(args).await?;
     let integration = &conf.integrations().as_ref()[0];
-    let remote::Protocol::Git(transport) = integration.protocol().clone();
-    let repo = git::repository::Repository {
-        directory: PathBuf::from("/tmp/cloned"),
-        transport: transport.clone(),
-    };
+    let dir = PathBuf::from("/tmp/cloned");
+    let repos = git::repository::Repository::update_clones(dir, integration);
+    // let remote::Protocol::Git(transport) = integration.protocol().clone();
 
-    repo.clone().change_context(Error::GitWrapper).map(|_| ())?;
+    // // Get the list of branches and tags from the remote
+    // let references = git::repository::Repository::get_references(integration)
+    //     .change_context(Error::GitWrapper)?;
 
-    let repo = git::repository::Repository {
-        directory: PathBuf::from("/tmp/cloned"),
-        transport: transport.clone(),
-    };
-    repo.fetch().change_context(Error::GitWrapper).map(|_| ())?;
+    // let repo = git::repository::Repository {
+    //     directory: PathBuf::from("/tmp/cloned"),
+    //     transport: transport.clone(),
+    // };
 
-    let repo = git::repository::Repository {
-        directory: PathBuf::from("/tmp/cloned"),
-        transport,
-    };
-    let references = repo.get_references().change_context(Error::GitWrapper)?;
+    // repo.fetch().change_context(Error::GitWrapper).map(|_| ())?;
 
-    println!("references: {:?}", references);
+    println!("repos: {:?}", repos);
     Ok(())
 }
