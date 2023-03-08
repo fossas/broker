@@ -11,7 +11,7 @@ debugging:
 integrations:
   - type: git
     poll_interval: 1h
-    remote: git@github.com:fossas/one.git
+    remote: https://github.com/fossas/one.git
     auth:
       type: none
       transport: http
