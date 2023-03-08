@@ -1,6 +1,7 @@
 //! Extensions to `error_stack`.
 
 use colored::Colorize;
+use error_stack::Report;
 use error_stack::ResultExt;
 
 use crate::doc;
@@ -151,4 +152,20 @@ impl<T, C> FatalErrorReport for error_stack::Result<T, C> {
 
 fn support_literal() -> String {
     "support:".bold().red().to_string()
+}
+
+/// Take a vec of results and merge all reports into one
+pub fn merge_error_stacks<T, U>(
+    vec: Vec<Result<T, Report<U>>>,
+) -> Option<Result<Vec<T>, Report<U>>> {
+    let mut errors = vec.into_iter().filter_map(|result| result.err());
+    let report = errors.next();
+    if let Some(mut report) = report {
+        for error in errors {
+            report.extend_one(error);
+        }
+        Some(Err(report))
+    } else {
+        None
+    }
 }

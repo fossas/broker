@@ -14,7 +14,12 @@ use crate::api::remote::{
     self, Commit, Integration, Reference, ReferenceType, RemoteProvider, RemoteProviderError,
     RemoteReference,
 };
-use crate::{api::http, api::remote::git, api::ssh, ext::error_stack::DescribeContext};
+use crate::{
+    api::http,
+    api::remote::git,
+    api::ssh,
+    ext::error_stack::{merge_error_stacks, DescribeContext},
+};
 
 /// A git repository
 #[derive(Debug)]
@@ -52,23 +57,9 @@ impl RemoteProvider for Repository {
         }
 
         // We have some errors, so merge all of the errors into one report
-        let mut report: Option<Report<RemoteProviderError>> = None;
-        for reference in cloned_references
-            .into_iter()
-            .filter_map(|reference| reference.err())
-        {
-            if let Some(mut rep) = report {
-                rep.extend_one(reference);
-                report = Some(rep);
-            } else {
-                report = Some(reference)
-            }
-        }
-        if let Some(report) = report {
-            Err(report)
-        } else {
-            Err(RemoteProviderError::RunCommand).into_report()
-        }
+        merge_error_stacks(cloned_references)
+            .or_else(|| Some(Err(RemoteProviderError::RunCommand).into_report()))
+            .expect("merging error stacks in update_clones")
     }
 }
 
