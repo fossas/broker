@@ -137,12 +137,12 @@ impl TryFrom<Integration> for remote::Integration {
                 let protocol = match auth {
                     Auth::SshKeyFile { path } => {
                         let auth = ssh::Auth::KeyFile(path);
-                        git::transport::Transport::new_ssh(endpoint, Some(auth))
+                        git::transport::Transport::new_ssh(endpoint, auth)
                     }
                     Auth::SshKey { key } => {
                         let secret = ComparableSecretString::from(key);
                         let auth = ssh::Auth::KeyValue(secret);
-                        git::transport::Transport::new_ssh(endpoint, Some(auth))
+                        git::transport::Transport::new_ssh(endpoint, auth)
                     }
                     Auth::HttpHeader { header } => {
                         let secret = ComparableSecretString::from(header);
@@ -155,7 +155,9 @@ impl TryFrom<Integration> for remote::Integration {
                         git::transport::Transport::new_http(endpoint, Some(auth))
                     }
                     Auth::None { transport } => match transport.as_str() {
-                        "ssh" => Ok(git::transport::Transport::new_ssh(endpoint, None)),
+                        "ssh" => Err(report!(remote::ValidationError::Remote))
+                            .help("ssh must have an authentication method")
+                            .describe_lazy(|| format!("provided transport: {transport}")),
                         "http" => Ok(git::transport::Transport::new_http(endpoint, None)),
                         other => Err(report!(remote::ValidationError::Remote))
                             .help("transport must be 'ssh' or 'http'")

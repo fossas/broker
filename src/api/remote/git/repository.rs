@@ -185,17 +185,18 @@ impl Repository {
         ssh_key_file: &mut NamedTempFile<File>,
     ) -> Result<HashMap<String, String>, Report<RemoteProviderError>> {
         let mut env = HashMap::new();
+        // Turn off terminal prompts if auth fails.
         env.insert(String::from("GIT_TERMINAL_PROMPT"), String::from("0"));
 
         let auth = self.transport.auth();
         match auth {
-            git::transport::Auth::Ssh(Some(ssh::Auth::KeyFile(path))) => {
+            git::transport::Auth::Ssh(ssh::Auth::KeyFile(path)) => {
                 env.insert(
                     String::from("GIT_SSH_COMMAND"),
                     Self::git_ssh_command(path.display().to_string()),
                 );
             }
-            git::transport::Auth::Ssh(Some(ssh::Auth::KeyValue(key))) => {
+            git::transport::Auth::Ssh(ssh::Auth::KeyValue(key)) => {
                 // Write the contents of the SSH key to a file so that we can point to it in
                 // GIT_SSH_COMMAND
                 ssh_key_file

@@ -20,8 +20,8 @@ pub enum Transport {
         /// The URL to the remote code host.
         endpoint: Remote,
 
-        /// Authentication to that host, if applicable.
-        auth: Option<ssh::Auth>,
+        /// Authentication to that host. This is not an Option<> because ssh without auth never works
+        auth: ssh::Auth,
     },
 
     /// Specifies that the remote code host is configured to use the HTTP protocol.
@@ -37,7 +37,7 @@ pub enum Transport {
 /// Auth types available for a transport
 pub enum Auth {
     /// SSH
-    Ssh(Option<ssh::Auth>),
+    Ssh(ssh::Auth),
     /// HTTP
     Http(Option<http::Auth>),
 }
