@@ -39,7 +39,7 @@ impl RemoteProvider for Repository {
         root_dir: PathBuf,
         remote_reference: &RemoteReference,
     ) -> Result<PathBuf, Report<RemoteProviderError>> {
-        let mut path = root_dir.clone();
+        let mut path = root_dir;
         path.push(remote_reference.reference.as_ref());
 
         let repo = Repository {
@@ -136,7 +136,7 @@ impl Repository {
         let filtered_references: Vec<RemoteReference> = references
             .into_iter()
             .filter(|reference| {
-                repo.reference_needs_scanning(&reference, PathBuf::from(tmpdir.path()))
+                repo.reference_needs_scanning(reference, PathBuf::from(tmpdir.path()))
                     .unwrap_or(false)
             })
             .collect();
@@ -181,7 +181,7 @@ impl Repository {
         let date_strings = String::from_utf8_lossy(&output.stdout);
         println!(
             "author and committer date for {}: {}",
-            reference.reference.as_ref().to_string(),
+            reference.reference.as_ref(),
             date_strings
         );
         let mut dates = date_strings.split(":::");
