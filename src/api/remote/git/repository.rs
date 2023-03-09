@@ -1,5 +1,6 @@
 //! Wrapper for Git
 use base64::{engine::general_purpose, Engine as _};
+use chrono;
 use error_stack::{IntoReport, Report, ResultExt};
 use itertools::Itertools;
 use secrecy::ExposeSecret;
@@ -27,6 +28,43 @@ pub struct Repository {
 
 impl RemoteProvider for Repository {
     fn get_references_that_need_scanning(
+        integration: &Integration,
+    ) -> Result<Vec<RemoteReference>, Report<RemoteProviderError>> {
+        let references = Self::get_all_references(integration)?;
+        Self::references_that_need_scanning(references, integration)
+    }
+
+    fn clone_branch_or_tag(
+        integration: &Integration,
+        root_dir: PathBuf,
+        remote_reference: &RemoteReference,
+    ) -> Result<PathBuf, Report<RemoteProviderError>> {
+        let mut path = root_dir.clone();
+        path.push(remote_reference.reference.as_ref());
+
+        let repo = Repository {
+            directory: path.clone(),
+            integration: integration.clone(),
+        };
+        println!(
+            "Cloning reference {:?} into path {:?}",
+            remote_reference, path
+        );
+        repo.clone(Some(&remote_reference.reference))?;
+        Ok(path)
+    }
+}
+
+impl Repository {
+    /// Get a list of all branches and tags for the given integration
+    /// This is done by doing this:
+    ///
+    /// git init
+    /// git remote add origin <URL to git repo>
+    /// git ls-remote --quiet
+    ///
+    /// and then parsing the results of git ls-remote
+    fn get_all_references(
         integration: &Integration,
     ) -> Result<Vec<RemoteReference>, Report<RemoteProviderError>> {
         // First, we need to make a temp directory and run `git init` in it
@@ -72,28 +110,105 @@ impl RemoteProvider for Repository {
         Ok(references)
     }
 
-    fn clone_branch_or_tag(
+    /// Filter references by looking at the date of their head commit and only including repos
+    /// that have been updated in the last 30 days
+    /// To do this we need a cloned repository so that we can run
+    /// `git log <some format string that includes that date of the commit> <branch_or_tag_name>`
+    /// in the cloned repo for each branch or tag
+    fn references_that_need_scanning(
+        references: Vec<RemoteReference>,
         integration: &Integration,
-        root_dir: PathBuf,
-        remote_reference: &RemoteReference,
-    ) -> Result<PathBuf, Report<RemoteProviderError>> {
-        let mut path = root_dir.clone();
-        path.push(remote_reference.reference.as_ref());
+    ) -> Result<Vec<RemoteReference>, Report<RemoteProviderError>> {
+        let tmpdir = tempdir()
+            .into_report()
+            .change_context(RemoteProviderError::RunCommand)
+            .describe("creating temp directory in references_that_need_scanning")?;
 
         let repo = Repository {
-            directory: path.clone(),
+            directory: PathBuf::from(tmpdir.path()),
             integration: integration.clone(),
         };
-        println!(
-            "Cloning reference {:?} into path {:?}",
-            remote_reference, path
-        );
-        repo.clone(Some(&remote_reference.reference))?;
-        Ok(path)
-    }
-}
+        repo.clone(None)
+            .change_context(RemoteProviderError::RunCommand)
+            .describe("cloning into temp directory in references_that_need_scanning")?;
 
-impl Repository {
+        let initial_len = references.len();
+        let filtered_references: Vec<RemoteReference> = references
+            .into_iter()
+            .filter(|reference| {
+                repo.reference_needs_scanning(&reference, PathBuf::from(tmpdir.path()))
+                    .unwrap_or(false)
+            })
+            .collect();
+        println!(
+            "there were {} references, and {} of them should be scanned\n{:?}",
+            initial_len,
+            filtered_references.len(),
+            filtered_references,
+        );
+
+        Ok(filtered_references)
+    }
+
+    /// A reference needs scanning if its head commit is less than 30 days old
+    fn reference_needs_scanning(
+        &self,
+        reference: &RemoteReference,
+        cloned_repo_dir: PathBuf,
+    ) -> Result<bool, Report<RemoteProviderError>> {
+        let mut reference_string = reference.reference.as_ref().to_string();
+        if reference.ref_type == ReferenceType::Branch {
+            reference_string = format!("origin/{reference_string}");
+        }
+        let args = vec![
+            "log".to_string(),
+            "-n".to_string(),
+            "1".to_string(),
+            "--format=%aI:::%cI".to_string(),
+            reference_string,
+        ];
+        // git log -n 1 --format="%aI:::%cI" <name of tag or branch>
+        // This will return one line containing the author date and committer date separated by ":::". E.g.:
+        // The "I" in "aI" and "cI" forces the date to be in strict ISO-8601 format
+        //
+        // git log -n 1 --format="%ai:::%ci" parse-config-file
+        // 2023-02-17 17:14:52 -0800:::2023-02-17 17:14:52 -0800
+        //
+        // The author and committer dates are almost always the same, but we'll parse both and take the most
+        // recent, just to be super safe
+
+        let output = self.run_git(args, Some(cloned_repo_dir))?;
+        let date_strings = String::from_utf8_lossy(&output.stdout);
+        println!(
+            "author and committer date for {}: {}",
+            reference.reference.as_ref().to_string(),
+            date_strings
+        );
+        let mut dates = date_strings.split(":::");
+        let earliest_commit_date_that_needs_to_be_scanned =
+            chrono::Utc::now() - chrono::Duration::days(30);
+
+        let author_date = dates
+            .next()
+            .map(|d| d.parse::<chrono::DateTime<chrono::Utc>>());
+        if let Some(Ok(author_date)) = author_date {
+            if author_date > earliest_commit_date_that_needs_to_be_scanned {
+                return Ok(true);
+            }
+        }
+
+        let committer_date = dates
+            .next()
+            .map(|d| d.parse::<chrono::DateTime<chrono::Utc>>());
+        if let Some(Ok(committer_date)) = committer_date {
+            if committer_date > earliest_commit_date_that_needs_to_be_scanned {
+                return Ok(true);
+            }
+        }
+
+        Ok(false)
+    }
+
     /// The transport for this repository's integration
     fn transport(&self) -> git::transport::Transport {
         let remote::Protocol::Git(transport) = self.integration.protocol().clone();
@@ -101,7 +216,7 @@ impl Repository {
     }
 
     /// Do a blobless clone of the repository, checking out the Reference if it exists
-    fn clone(self, reference: Option<&Reference>) -> Result<PathBuf, Report<RemoteProviderError>> {
+    fn clone(&self, reference: Option<&Reference>) -> Result<PathBuf, Report<RemoteProviderError>> {
         let directory = self.directory.to_string_lossy().to_string();
         let mut args = vec![String::from("clone"), String::from("--filter=blob:none")];
         if let Some(reference) = reference {
