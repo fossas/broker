@@ -14,75 +14,19 @@ use crate::api::remote::{
     self, Commit, Integration, Reference, ReferenceType, RemoteProvider, RemoteProviderError,
     RemoteReference,
 };
-use crate::{
-    api::http,
-    api::remote::git,
-    api::ssh,
-    ext::error_stack::{merge_error_stacks, DescribeContext},
-};
+use crate::{api::http, api::remote::git, api::ssh, ext::error_stack::DescribeContext};
 
 /// A git repository
 #[derive(Debug)]
 pub struct Repository {
     /// directory is the location on disk where the repository resides or will reside
     pub directory: PathBuf,
-    /// transport contains the info that Broker uses to communicate with the git host
-    pub transport: git::transport::Transport,
+    /// integration contains the info that Broker uses to communicate with the git host
+    pub integration: Integration,
 }
 
 impl RemoteProvider for Repository {
-    fn update_clones(
-        root_dir: PathBuf,
-        integration: &Integration,
-    ) -> Result<Vec<PathBuf>, Report<RemoteProviderError>> {
-        let references = Self::get_references(integration)?;
-        // TODO: Filter these references to only the references that need updating
-        let cloned_references: Vec<Result<PathBuf, Report<RemoteProviderError>>> = references
-            .iter()
-            .map(|reference| Self::clone_and_update(reference, integration, root_dir.clone()))
-            .collect();
-        let all_ok = cloned_references.iter().all(|reference| reference.is_ok());
-        if all_ok {
-            let path_bufs = cloned_references
-                .iter()
-                // .filter(|reference| reference.is_ok())
-                .map(|reference| {
-                    reference
-                        .as_ref()
-                        .expect("found an error when errors have all been filtered out")
-                        .clone()
-                })
-                .collect();
-            return Ok(path_bufs);
-        }
-
-        // We have some errors, so merge all of the errors into one report
-        merge_error_stacks(cloned_references)
-            .or_else(|| Some(Err(RemoteProviderError::RunCommand).into_report()))
-            .expect("merging error stacks in update_clones")
-    }
-}
-
-impl Repository {
-    /// Do a blobless clone of the repository, checking out the Reference if it exists
-    fn clone(self, reference: Option<&Reference>) -> Result<PathBuf, Report<RemoteProviderError>> {
-        let directory = self.directory.to_string_lossy().to_string();
-        let mut args = vec![String::from("clone"), String::from("--filter=blob:none")];
-        if let Some(reference) = reference {
-            args.append(&mut vec![
-                String::from("--branch"),
-                reference.as_ref().to_string(),
-            ]);
-        }
-        args.append(&mut vec![
-            self.transport.endpoint().as_ref().to_string(),
-            directory.clone(),
-        ]);
-        self.run_git(args, None)?;
-        Ok(PathBuf::from(directory))
-    }
-
-    fn get_references(
+    fn get_references_that_need_scanning(
         integration: &Integration,
     ) -> Result<Vec<RemoteReference>, Report<RemoteProviderError>> {
         // First, we need to make a temp directory and run `git init` in it
@@ -91,10 +35,9 @@ impl Repository {
             .change_context(RemoteProviderError::RunCommand)
             .describe("creating temp directory in get_reference")?;
 
-        let remote::Protocol::Git(transport) = integration.protocol().clone();
         let repo = Repository {
             directory: PathBuf::from(tmpdir.path()),
-            transport: transport.clone(),
+            integration: integration.clone(),
         };
         // initialize the repo
         let args = vec![String::from("init")];
@@ -105,7 +48,7 @@ impl Repository {
             String::from("remote"),
             String::from("add"),
             String::from("origin"),
-            transport.endpoint().to_string(),
+            repo.transport().endpoint().to_string(),
         ];
         repo.run_git(args, Some(repo.directory.clone()))?;
 
@@ -129,18 +72,17 @@ impl Repository {
         Ok(references)
     }
 
-    fn clone_and_update(
-        remote_reference: &RemoteReference,
+    fn clone_branch_or_tag(
         integration: &Integration,
         root_dir: PathBuf,
+        remote_reference: &RemoteReference,
     ) -> Result<PathBuf, Report<RemoteProviderError>> {
-        let remote::Protocol::Git(transport) = integration.protocol().clone();
-        let mut path = root_dir;
+        let mut path = root_dir.clone();
         path.push(remote_reference.reference.as_ref());
 
         let repo = Repository {
             directory: path.clone(),
-            transport,
+            integration: integration.clone(),
         };
         println!(
             "Cloning reference {:?} into path {:?}",
@@ -149,11 +91,37 @@ impl Repository {
         repo.clone(Some(&remote_reference.reference))?;
         Ok(path)
     }
+}
+
+impl Repository {
+    /// The transport for this repository's integration
+    fn transport(&self) -> git::transport::Transport {
+        let remote::Protocol::Git(transport) = self.integration.protocol().clone();
+        transport
+    }
+
+    /// Do a blobless clone of the repository, checking out the Reference if it exists
+    fn clone(self, reference: Option<&Reference>) -> Result<PathBuf, Report<RemoteProviderError>> {
+        let directory = self.directory.to_string_lossy().to_string();
+        let mut args = vec![String::from("clone"), String::from("--filter=blob:none")];
+        if let Some(reference) = reference {
+            args.append(&mut vec![
+                String::from("--branch"),
+                reference.as_ref().to_string(),
+            ]);
+        }
+        args.append(&mut vec![
+            self.transport().endpoint().as_ref().to_string(),
+            directory.clone(),
+        ]);
+        self.run_git(args, None)?;
+        Ok(PathBuf::from(directory))
+    }
 
     fn default_args(&self) -> Vec<String> {
         let mut args = Vec::new();
 
-        let auth = self.transport.auth();
+        let auth = self.transport().auth();
         // Credential helpers can override the header provided by http.extraHeader, so we need to get rid of them by setting `credential-helper` to ""
         // We only want to do this for the case where we are providing the http.extraHeader, so that we can use the credential helper by default
         let mut credential_helper_args =
@@ -188,7 +156,7 @@ impl Repository {
         // Turn off terminal prompts if auth fails.
         env.insert(String::from("GIT_TERMINAL_PROMPT"), String::from("0"));
 
-        let auth = self.transport.auth();
+        let auth = self.transport().auth();
         match auth {
             git::transport::Auth::Ssh(ssh::Auth::KeyFile(path)) => {
                 env.insert(
