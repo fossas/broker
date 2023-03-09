@@ -50,7 +50,7 @@ impl RemoteProvider for Repository {
             "Cloning reference {:?} into path {:?}",
             remote_reference, path
         );
-        repo.clone(Some(&remote_reference.reference))?;
+        repo.blobless_clone(Some(&remote_reference.reference))?;
         Ok(path)
     }
 }
@@ -128,7 +128,7 @@ impl Repository {
             directory: PathBuf::from(tmpdir.path()),
             integration: integration.clone(),
         };
-        repo.clone(None)
+        repo.blobless_clone(None)
             .change_context(RemoteProviderError::RunCommand)
             .describe("cloning into temp directory in references_that_need_scanning")?;
 
@@ -216,7 +216,10 @@ impl Repository {
     }
 
     /// Do a blobless clone of the repository, checking out the Reference if it exists
-    fn clone(&self, reference: Option<&Reference>) -> Result<PathBuf, Report<RemoteProviderError>> {
+    fn blobless_clone(
+        &self,
+        reference: Option<&Reference>,
+    ) -> Result<PathBuf, Report<RemoteProviderError>> {
         let directory = self.directory.to_string_lossy().to_string();
         let mut args = vec![String::from("clone"), String::from("--filter=blob:none")];
         if let Some(reference) = reference {
