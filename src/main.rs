@@ -147,9 +147,12 @@ async fn main_clone(args: config::RawBaseArgs) -> Result<(), Error> {
     let conf = load_config(args).await?;
     let integration = &conf.integrations().as_ref()[0];
     let directory = PathBuf::from("/tmp/cloned");
-    let references = git::repository::Repository::get_references_that_need_scanning(integration)
+    let mut references = git::repository::Repository::get_references_that_need_scanning(integration)
         .change_context(Error::GitWrapper)
         .help("try running Broker with the '--help' argument to see available options and usage suggestions")?;
+
+    // clone the first 5 references that need to be scanned
+    references.truncate(5);
     for reference in references {
         git::repository::Repository::clone_branch_or_tag(
             integration,
