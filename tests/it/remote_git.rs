@@ -64,8 +64,8 @@ async fn clone_public_repo_with_no_auth() {
     let path = PathBuf::from(tmpdir.path());
     let remote_reference = RemoteReference::new(
         ReferenceType::Tag,
-        Commit(String::from("onetwothree")),
-        Reference(String::from("master")),
+        Commit::new(String::from("onetwothree")),
+        Reference::new(String::from("master")),
     );
     let cloned_path = git::repository::Repository::clone_branch_or_tag(
         integration,

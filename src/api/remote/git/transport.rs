@@ -2,10 +2,16 @@
 
 use derive_more::From;
 use derive_new::new;
+use error_stack::{Report, ResultExt};
+use tempfile::TempDir;
 
-use crate::api::{http, ssh};
+use crate::api::{
+    http,
+    remote::{RemoteProvider, RemoteProviderError},
+    ssh,
+};
 
-use super::super::Remote;
+use super::{super::Remote, repository};
 
 /// Code hosts speaking the git protocol may support downloading a given repository
 /// using any, or a subset, of the below transport.
@@ -59,5 +65,20 @@ impl Transport {
             Ssh { auth, .. } => Auth::Ssh(auth.clone()),
             Http { auth, .. } => Auth::Http(auth.clone()),
         }
+    }
+}
+
+impl RemoteProvider for Transport {
+    type Reference = super::Reference;
+
+    fn clone_reference(
+        &self,
+        reference: &Self::Reference,
+    ) -> Result<TempDir, Report<RemoteProviderError>> {
+        repository::clone_reference(self, reference).change_context(RemoteProviderError::RunCommand)
+    }
+
+    fn references(&self) -> Result<Vec<Self::Reference>, Report<RemoteProviderError>> {
+        repository::list_references(self).change_context(RemoteProviderError::RunCommand)
     }
 }

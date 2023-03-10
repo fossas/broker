@@ -9,14 +9,14 @@
 //! [`Protocol`], which is usually wrapped inside an [`Integration`], forming the primary interaction
 //! point for this module.
 
-use std::{path::PathBuf, time::Duration};
+use std::time::Duration;
 
 use derive_more::{AsRef, Display, From};
 use derive_new::new;
 use error_stack::{report, IntoReport, Report, ResultExt};
 use getset::{CopyGetters, Getters};
 use humantime::parse_duration;
-use url;
+use tempfile::TempDir;
 
 use crate::ext::error_stack::{DescribeContext, ErrorHelper};
 
@@ -48,9 +48,9 @@ pub struct Config(Vec<Integration>);
 pub struct Remote(String);
 
 impl Remote {
-    /// parses a Remote and returns a Result<Url>
-    pub fn parse(&self) -> Result<url::Url, url::ParseError> {
-        url::Url::parse(&self.0)
+    /// Check whether the remote, rendered into string form, starts with a substring.
+    pub fn starts_with(&self, test: &str) -> bool {
+        self.0.starts_with(test)
     }
 }
 
@@ -118,65 +118,56 @@ impl TryFrom<String> for PollInterval {
 /// Errors encountered while working with remotes
 #[derive(Debug, thiserror::Error)]
 pub enum RemoteProviderError {
-    /// We encountered an error while shelling out to git
-    #[error("running git command")]
+    /// We encountered an error while shelling out to an external command
+    #[error("run external command")]
     RunCommand,
 }
 
-/// A git commit SHA
-#[derive(Debug, Hash, PartialEq, Eq, Clone)]
-pub struct Commit(pub String);
-
-/// A git reference
-#[derive(Debug, AsRef, PartialEq, Eq, Hash, Clone)]
-pub struct Reference(pub String);
-
-/// A git reference's type (branch or tag)
+/// Remotes can reference specific points in time on a remote unit of code.
 #[derive(Debug, Clone, Hash, Eq, PartialEq)]
-pub enum ReferenceType {
-    /// A branch
-    Branch,
-
-    /// A tag
-    Tag,
-}
-
-/// A remote ref takes a ref_type (Branch or Tag), a commit and a reference (the branch or tag name)
-#[derive(Debug, Getters, Clone, Hash, Eq, PartialEq)]
-#[getset(get = "pub")]
-pub struct RemoteReference {
-    /// The reference type. Branch or Tag.
-    ref_type: ReferenceType,
-
-    /// The reference's commit
-    commit: Commit,
-
-    /// A reference
-    reference: Reference,
-}
-
-impl RemoteReference {
-    /// Constructor for RemoteReference
-    pub fn new(ref_type: ReferenceType, commit: Commit, reference: Reference) -> RemoteReference {
-        RemoteReference {
-            ref_type,
-            commit,
-            reference,
-        }
-    }
+pub enum Reference {
+    /// Git remotes have their own reference format.
+    Git(git::Reference),
 }
 
 /// RemoteProvider are code hosts that we get code from
 pub trait RemoteProvider {
-    /// clone a branch or tag from the RemoteProvider, placing it in root_dir/<branch or tag name>
-    fn clone_branch_or_tag(
-        integration: &Integration,
-        root_dir: PathBuf,
-        reference: &RemoteReference,
-    ) -> Result<PathBuf, Report<RemoteProviderError>>;
+    /// The reference type used for this implementation.
+    type Reference;
 
-    /// list branches and tags on the RemoteProvider that need to be scanned
-    fn get_references_that_need_scanning(
-        integration: &Integration,
-    ) -> Result<Vec<RemoteReference>, Report<RemoteProviderError>>;
+    /// Clone a [`Reference`] into a temporary directory.
+    fn clone_reference(
+        &self,
+        reference: &Self::Reference,
+    ) -> Result<TempDir, Report<RemoteProviderError>>;
+
+    /// List references that have been updated in the last 30 days.
+    fn references(&self) -> Result<Vec<Self::Reference>, Report<RemoteProviderError>>;
+}
+
+impl RemoteProvider for Integration {
+    type Reference = Reference;
+
+    fn clone_reference(
+        &self,
+        reference: &Self::Reference,
+    ) -> Result<TempDir, Report<RemoteProviderError>> {
+        match self.protocol() {
+            // This is a little awkward because these two types are _semantically related_,
+            // but are not related in the code.
+            // Right now we're considering this not worth fixing,
+            // but as we add more protocols/references it's probably worth revisiting.
+            Protocol::Git(transport) => match reference {
+                Reference::Git(reference) => transport.clone_reference(reference),
+            },
+        }
+    }
+
+    fn references(&self) -> Result<Vec<Self::Reference>, Report<RemoteProviderError>> {
+        match self.protocol() {
+            Protocol::Git(proto) => proto
+                .references()
+                .map(|refs| refs.into_iter().map(Reference::Git).collect()),
+        }
+    }
 }
