@@ -78,20 +78,16 @@ impl Repository {
             integration: integration.clone(),
         };
         // initialize the repo
-        let args = vec![String::from("init")];
+        let args = vec!["init"];
         repo.run_git(args, Some(repo.directory.clone()))?;
+        let endpoint = repo.transport().endpoint().to_string();
 
         // add the remote
-        let args = vec![
-            String::from("remote"),
-            String::from("add"),
-            String::from("origin"),
-            repo.transport().endpoint().to_string(),
-        ];
+        let args = vec!["remote", "add", "origin", &endpoint[..]];
         repo.run_git(args, Some(repo.directory.clone()))?;
 
         // Now that we have an initialized repo, we can get our references with `git ls-remote`
-        let args = vec![String::from("ls-remote"), String::from("--quiet")];
+        let args = vec!["ls-remote", "--quiet"];
 
         let output = repo.run_git(args, Some(repo.directory.clone()))?;
         let output = String::from_utf8(output.stdout)
@@ -161,11 +157,11 @@ impl Repository {
             reference_string = format!("origin/{reference_string}");
         }
         let args = vec![
-            "log".to_string(),
-            "-n".to_string(),
-            "1".to_string(),
-            "--format=%aI:::%cI".to_string(),
-            reference_string,
+            "log",
+            "-n",
+            "1",
+            "--format=%aI:::%cI",
+            &reference_string[..],
         ];
         // git log -n 1 --format="%aI:::%cI" <name of tag or branch>
         // This will return one line containing the author date and committer date separated by ":::". E.g.:
@@ -313,13 +309,18 @@ impl Repository {
         )
     }
 
-    fn run_git(
+    fn run_git<I, S>(
         &self,
-        args: Vec<String>,
+        args: I,
         cwd: Option<PathBuf>,
-    ) -> Result<Output, Report<RemoteProviderError>> {
+    ) -> Result<Output, Report<RemoteProviderError>>
+    where
+        I: IntoIterator<Item = S>,
+        std::string::String: From<S>,
+    {
         let mut full_args = self.default_args();
-        full_args.append(&mut args.clone());
+        let mut args_as_vec = args.into_iter().map(String::from).collect();
+        full_args.append(&mut args_as_vec);
 
         let mut ssh_key_file = NamedTempFile::new()
             .into_report()
@@ -329,7 +330,7 @@ impl Repository {
 
         let mut command = Command::new("git");
         command.args(full_args).envs(env);
-        println!("running git {:?} in directory {:?}", args, cwd);
+        println!("running git {:?} in directory {:?}", args_as_vec, cwd);
         if let Some(directory) = cwd {
             command.current_dir(directory);
         }
@@ -337,7 +338,7 @@ impl Repository {
             .output()
             .into_report()
             .change_context(RemoteProviderError::RunCommand)
-            .describe_lazy(|| format!("running git command {:?}", args))?;
+            .describe_lazy(|| format!("running git command {:?}", args_as_vec))?;
 
         if !output.status.success() {
             let stderr = String::from_utf8_lossy(&output.stderr);
@@ -346,7 +347,7 @@ impl Repository {
                 .describe_lazy(|| {
                     format!(
                         "running git command {:?}, status was: {}, stderr: {}",
-                        args, output.status, stderr,
+                        args_as_vec, output.status, stderr,
                     )
                 });
         }
