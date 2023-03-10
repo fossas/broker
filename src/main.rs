@@ -22,14 +22,11 @@ enum Error {
     #[error("determine effective configuration")]
     DetermineEffectiveConfig,
 
-    #[error("git command")]
-    GitWrapper,
-
     #[error("this subcommand is not implemented")]
     SubcommandUnimplemented,
 
     #[error("a fatal error occurred at runtime")]
-    _Runtime,
+    Runtime,
 }
 
 #[derive(Debug, Parser)]
@@ -149,7 +146,7 @@ async fn main_clone(args: config::RawBaseArgs) -> Result<(), Error> {
     let integration = &conf.integrations().as_ref()[0];
     let directory = PathBuf::from("/tmp/cloned");
     let mut references = git::repository::Repository::get_references_that_need_scanning(integration)
-        .change_context(Error::GitWrapper)
+        .change_context(Error::Runtime)
         .help("try running Broker with the '--help' argument to see available options and usage suggestions")?;
 
     // clone the first 5 references that need to be scanned
@@ -160,7 +157,7 @@ async fn main_clone(args: config::RawBaseArgs) -> Result<(), Error> {
             directory.clone(),
             &reference,
         )
-        .change_context(Error::GitWrapper)?;
+        .change_context(Error::Runtime)?;
     }
     Ok(())
 }
