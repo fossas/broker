@@ -6,7 +6,7 @@ info: testdata/config/basic-location-invalid.yml
 failed to create tracing output location
 ├╴at {source location}
 ├╴help: this location is set in the config file
-├╴context: debug info is configured to be stored in "/some/place/that/does/not/exist/trace"
+├╴context: debug info is configured to be stored in {file path}
 │
 ╰─▶ Read-only file system (os error 30)
     ╰╴at {source location}
