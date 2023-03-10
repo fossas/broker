@@ -1,11 +1,12 @@
 ---
 source: tests/it/remote_git.rs
-expression: "git::repository::Repository::update_clones(path,\n        integration).expect_err(\"Could not read from remote repository\")"
+expression: "git::repository::Repository::clone_branch_or_tag(integration, path,\n        &remote_reference).expect_err(\"Could not read from remote repository\")"
 info: cloning private repo with bad auth
 ---
 running git command
 ├╴at {source location}
-╰╴context: running git command ["ls-remote", "--quiet"], status was: exit status: 128, stderr: {permission denied}.
+╰╴context: running git command ["clone", "--filter=blob:none", "--branch", "main", "git@github.com:github/doesnotexist.git", "{tmpdir}"], status was: exit status: 128, stderr: Cloning into '{tmpdir}'...
+  {permission denied}.
   fatal: Could not read from remote repository.
   
   Please make sure you have the correct access rights

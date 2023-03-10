@@ -125,11 +125,11 @@ pub enum RemoteProviderError {
 
 /// A git commit SHA
 #[derive(Debug, Hash, PartialEq, Eq, Clone)]
-pub struct Commit(String);
+pub struct Commit(pub String);
 
 /// A git reference
 #[derive(Debug, AsRef, PartialEq, Eq, Hash, Clone)]
-pub struct Reference(String);
+pub struct Reference(pub String);
 
 /// A git reference's type (branch or tag)
 #[derive(Debug, Clone, Hash, Eq, PartialEq)]
@@ -153,6 +153,17 @@ pub struct RemoteReference {
 
     /// A reference
     reference: Reference,
+}
+
+impl RemoteReference {
+    /// Constructor for RemoteReference
+    pub fn new(ref_type: ReferenceType, commit: Commit, reference: Reference) -> RemoteReference {
+        RemoteReference {
+            ref_type,
+            commit,
+            reference,
+        }
+    }
 }
 
 /// RemoteProvider are code hosts that we get code from
