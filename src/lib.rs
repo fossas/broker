@@ -15,3 +15,5 @@ pub mod config;
 pub mod debug;
 pub mod doc;
 pub mod ext;
+pub mod queue;
+pub mod subcommand;

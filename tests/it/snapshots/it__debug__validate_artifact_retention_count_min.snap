@@ -1,0 +1,9 @@
+---
+source: tests/it/debug.rs
+expression: "ArtifactRetentionCount::try_from(input).expect_err(\"must have failed validation\")"
+info: 0
+---
+retention value is too small
+├╴at {source location}
+├╴help: must specify at least '1'
+╰╴context: provided value: 0

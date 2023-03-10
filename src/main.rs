@@ -12,6 +12,7 @@ use broker::{
 };
 use clap::{Parser, Subcommand};
 use error_stack::{bail, fmt::ColorMode, Report, Result, ResultExt};
+use tracing::info;
 
 #[derive(Debug, thiserror::Error)]
 enum Error {
@@ -21,8 +22,11 @@ enum Error {
     #[error("this subcommand is not implemented")]
     SubcommandUnimplemented,
 
+    #[error("a fatal error occurred during internal configuration")]
+    InternalSetup,
+
     #[error("a fatal error occurred at runtime")]
-    _Runtime,
+    Runtime,
 }
 
 #[derive(Debug, Parser)]
@@ -111,8 +115,15 @@ async fn main_backup(args: config::RawBaseArgs) -> Result<(), Error> {
 /// Run Broker with the current config.
 async fn main_run(args: config::RawBaseArgs) -> Result<(), Error> {
     let conf = load_config(args).await?;
-    println!("conf: {conf:?}");
-    bail!(Error::SubcommandUnimplemented)
+    let _tracing_guard = conf
+        .debug()
+        .run_tracing_sink()
+        .change_context(Error::InternalSetup)?;
+
+    info!("Loaded {conf:?}");
+    broker::subcommand::run::main(conf)
+        .await
+        .change_context(Error::Runtime)
 }
 
 /// Parse application args and then load effective config.
@@ -122,7 +133,6 @@ async fn load_config(args: config::RawBaseArgs) -> Result<Config, Error> {
         .change_context(Error::DetermineEffectiveConfig)
         .help("try running Broker with the '--help' argument to see available options and usage suggestions")?;
 
-    // TODO: point the user towards the docs entrypoint for configuration.
     config::load(&args)
         .await
         .change_context(Error::DetermineEffectiveConfig)

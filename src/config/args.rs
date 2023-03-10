@@ -8,9 +8,10 @@ use error_stack::{Report, ResultExt};
 use getset::{CopyGetters, Getters};
 use serde::Serialize;
 
-use crate::ext::error_stack::{DescribeContext, ErrorHelper};
-
-use super::io;
+use crate::ext::{
+    error_stack::{merge_error_stacks, DescribeContext, ErrorHelper},
+    io,
+};
 
 /// Errors that are possibly surfaced during validation of config values.
 #[derive(Debug, thiserror::Error)]
@@ -115,10 +116,7 @@ impl RawBaseArgs {
             }),
             (Ok(_), Err(err)) => Err(err),
             (Err(err), Ok(_)) => Err(err),
-            (Err(mut first), Err(second)) => {
-                first.extend_one(second);
-                Err(first)
-            }
+            (Err(first), Err(second)) => Err(merge_error_stacks!(first, second)),
         }
     }
 }

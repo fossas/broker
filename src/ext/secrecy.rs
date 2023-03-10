@@ -1,6 +1,8 @@
 //! Extensions to the `secrecy` crate. Specifically, to make secrets comparable.
 
-use derive_more::AsRef;
+use std::fmt::{Debug, Display};
+
+use delegate::delegate;
 use secrecy::{ExposeSecret, Secret};
 use subtle::ConstantTimeEq;
 
@@ -10,8 +12,29 @@ use subtle::ConstantTimeEq;
 /// It's not possible to "take ownership" of a `&str`, so it's not supported.
 /// It's recommended to not use `.clone()` to work around this; instead convert the secret
 /// and work with it as this type.
-#[derive(Debug, Clone, AsRef)]
+#[derive(Clone)]
 pub struct ComparableSecretString(Secret<String>);
+
+impl ComparableSecretString {
+    delegate! {
+        to self.0 {
+            /// Expose the secret, viewing it as a standard string.
+            pub fn expose_secret(&self) -> &str;
+        }
+    }
+}
+
+impl Debug for ComparableSecretString {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("ComparableSecret(REDACTED)")
+    }
+}
+
+impl Display for ComparableSecretString {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("<REDACTED>")
+    }
+}
 
 impl PartialEq for ComparableSecretString {
     fn eq(&self, other: &Self) -> bool {

@@ -14,3 +14,20 @@ impl<T, E> FlipResult<T, E> for Result<T, E> {
         }
     }
 }
+
+/// Discard the successful result, instead returning the default value expected for the destination type.
+pub trait DiscardResult<T, E> {
+    /// Discard the successful result, instead returning the default value expected for the destination type.
+    /// This method relies on type inference for the intended return type.
+    fn discard_ok(self) -> Result<T, E>;
+}
+
+/// This set of types allows mapping `Result<I, E>` into `Result<O, E>` by supplying a default for `O`.
+impl<I, O, E> DiscardResult<O, E> for Result<I, E>
+where
+    O: Default,
+{
+    fn discard_ok(self) -> Result<O, E> {
+        self.map(|_| Default::default())
+    }
+}

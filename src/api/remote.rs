@@ -14,11 +14,11 @@ use std::time::Duration;
 
 use derive_more::{AsRef, Display, From};
 use derive_new::new;
-use error_stack::{report, IntoReport, Report, ResultExt};
+use error_stack::{report, Report, ResultExt};
 use getset::{CopyGetters, Getters};
 use humantime::parse_duration;
 
-use crate::ext::error_stack::{DescribeContext, ErrorHelper};
+use crate::ext::error_stack::{DescribeContext, ErrorHelper, IntoContext};
 
 pub mod git;
 
@@ -100,8 +100,7 @@ impl TryFrom<String> for PollInterval {
 
     fn try_from(value: String) -> Result<Self, Self::Error> {
         parse_duration(&value)
-            .into_report()
-            .change_context(ValidationError::PollInterval)
+            .context(ValidationError::PollInterval)
             .describe_lazy(|| format!("provided value: {value}"))
             .map(PollInterval)
     }
