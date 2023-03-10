@@ -141,7 +141,7 @@ pub enum ReferenceType {
     Tag,
 }
 
-/// A remote ref
+/// A remote ref takes a ref_type (Branch or Tag), a commit and a reference (the branch or tag name)
 #[derive(Debug, Getters, Clone, Hash, Eq, PartialEq)]
 #[getset(get = "pub")]
 pub struct RemoteReference {

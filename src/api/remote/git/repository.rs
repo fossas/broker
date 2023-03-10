@@ -319,8 +319,8 @@ impl Repository {
         std::string::String: From<S>,
     {
         let mut full_args = self.default_args();
-        let mut args_as_vec = args.into_iter().map(String::from).collect();
-        full_args.append(&mut args_as_vec);
+        let args_as_vec: Vec<String> = args.into_iter().map(String::from).collect();
+        full_args.append(&mut args_as_vec.clone());
 
         let mut ssh_key_file = NamedTempFile::new()
             .into_report()
