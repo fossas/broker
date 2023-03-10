@@ -61,6 +61,7 @@ enum Commands {
     Run(config::RawBaseArgs),
 
     /// Attempt to do a git clone.
+    #[clap(hide)]
     Clone(config::RawBaseArgs),
 }
 
