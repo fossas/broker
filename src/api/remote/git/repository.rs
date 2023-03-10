@@ -284,8 +284,10 @@ impl Repository {
                 ssh_key_file
                     .write_all(key.as_ref().expose_secret().as_bytes())
                     .into_report()
-                    .describe("writing ssh key to file")
-                    .change_context(RemoteProviderError::RunCommand)?;
+                    .change_context(RemoteProviderError::RunCommand)
+                    .describe(
+                        "Error encountered while writing SSH key from config to a temporary file",
+                    )?;
 
                 env.insert(
                     String::from("GIT_SSH_COMMAND"),
@@ -325,12 +327,12 @@ impl Repository {
         let mut ssh_key_file = NamedTempFile::new()
             .into_report()
             .change_context(RemoteProviderError::RunCommand)
-            .describe("creating temp file")?;
+            .describe("creating temp file to write SSH key into in run_git")?;
         let env = self.env_vars(&mut ssh_key_file)?;
 
         let mut command = Command::new("git");
-        command.args(full_args).envs(env);
-        println!("running git {:?} in directory {:?}", args_as_vec, cwd);
+        command.args(full_args.clone()).envs(env);
+        println!("running git {:?} in directory {:?}", full_args, cwd);
         if let Some(directory) = cwd {
             command.current_dir(directory);
         }
@@ -338,7 +340,7 @@ impl Repository {
             .output()
             .into_report()
             .change_context(RemoteProviderError::RunCommand)
-            .describe_lazy(|| format!("running git command {:?}", args_as_vec))?;
+            .describe_lazy(|| format!("running git command {:?}", full_args))?;
 
         if !output.status.success() {
             let stderr = String::from_utf8_lossy(&output.stderr);
@@ -347,7 +349,7 @@ impl Repository {
                 .describe_lazy(|| {
                     format!(
                         "running git command {:?}, status was: {}, stderr: {}",
-                        args_as_vec, output.status, stderr,
+                        full_args, output.status, stderr,
                     )
                 });
         }
