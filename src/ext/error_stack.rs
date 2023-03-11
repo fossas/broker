@@ -1,10 +1,20 @@
 //! Extensions to `error_stack`.
 
 use colored::Colorize;
-use error_stack::Report;
-use error_stack::ResultExt;
+use error_stack::{Context, IntoReport, Report, ResultExt};
 
 use crate::doc;
+
+/// Merge multiple error stacks together into a single combined stack.
+macro_rules! merge_error_stacks {
+    ($initial:expr, $( $other:expr ),*) => {{
+        let mut merged = $initial;
+        $( merged.extend_one($other); )*
+        merged
+    }};
+}
+
+pub(crate) use merge_error_stacks;
 
 /// Used to provide help text to an error.
 ///
@@ -154,18 +164,31 @@ fn support_literal() -> String {
     "support:".bold().red().to_string()
 }
 
-/// Take a vec of results and merge all reports into one
-pub fn merge_error_stacks<T, U>(
-    vec: Vec<Result<T, Report<U>>>,
-) -> Option<Result<Vec<T>, Report<U>>> {
-    let mut errors = vec.into_iter().filter_map(|result| result.err());
-    let report = errors.next();
-    if let Some(mut report) = report {
-        for error in errors {
-            report.extend_one(error);
-        }
-        Some(Err(report))
-    } else {
-        None
+/// Extends [`Result`] to convert the [`Err`] variant to a [`Report`]
+/// and immediately change the context.
+pub trait IntoContext<C> {
+    /// Type of the [`Ok`] value in the [`Result`]
+    type Ok;
+
+    /// Type of the resulting [`Err`] variant wrapped inside a [`Report<E>`].
+    type Err;
+
+    /// Converts the [`Err`] variant of the [`Result`] to a [`Report`],
+    /// then immediately changes its context.
+    fn context(self, context: C) -> Result<Self::Ok, Report<C>>;
+}
+
+impl<T, E, C> IntoContext<C> for core::result::Result<T, E>
+where
+    Report<E>: From<E>,
+    C: Context,
+{
+    type Ok = T;
+
+    type Err = E;
+
+    #[track_caller]
+    fn context(self, context: C) -> Result<T, Report<C>> {
+        self.into_report().change_context(context)
     }
 }

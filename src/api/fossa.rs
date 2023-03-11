@@ -1,13 +1,14 @@
 //! Interactions and data types for the FOSSA API live here.
 
+use delegate::delegate;
 use derive_more::{AsRef, Display, From};
 use derive_new::new;
-use error_stack::{IntoReport, Report, ResultExt};
+use error_stack::{Report, ResultExt};
 use getset::Getters;
 use url::Url;
 
 use crate::ext::{
-    error_stack::{DescribeContext, ErrorHelper},
+    error_stack::{DescribeContext, ErrorHelper, IntoContext},
     secrecy::ComparableSecretString,
 };
 
@@ -47,17 +48,25 @@ impl TryFrom<String> for Endpoint {
 
     fn try_from(input: String) -> Result<Self, Self::Error> {
         Url::parse(&input)
-            .into_report()
+            .context(ValidationError::Endpoint)
             .describe_lazy(|| format!("provided input: '{input}'"))
             .help("the url provided must be absolute and must contain the protocol, for example 'https://app.fossa.com'")
-            .change_context(ValidationError::Endpoint)
             .map(Endpoint)
     }
 }
 
 /// The FOSSA API key.
-#[derive(Debug, Clone, PartialEq, Eq, AsRef, From, new)]
+#[derive(Debug, Clone, PartialEq, Eq, From, new)]
 pub struct Key(ComparableSecretString);
+
+impl Key {
+    delegate! {
+        to self.0 {
+            /// Expose the key, viewing it as a standard string.
+            pub fn expose_secret(&self) -> &str;
+        }
+    }
+}
 
 impl TryFrom<String> for Key {
     type Error = Report<ValidationError>;

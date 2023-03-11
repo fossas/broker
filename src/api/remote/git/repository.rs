@@ -2,7 +2,6 @@
 use base64::{engine::general_purpose, Engine as _};
 use error_stack::{ensure, report, IntoReport, Report, ResultExt};
 use itertools::Itertools;
-use secrecy::ExposeSecret;
 use std::collections::HashMap;
 use std::env;
 use std::fs::File;
@@ -290,13 +289,13 @@ fn default_args(transport: &Transport) -> Result<Vec<String>, Report<Error>> {
     let header_args = match transport.auth() {
         // git -c credential-helper="" -c http.extraHeader="AUTHORIZATION: Basic ${B64_GITHUB_TOKEN}" clone https://github.com/spatten/fanopticon
         git::transport::Auth::Http(Some(http::Auth::Basic { username, password })) => {
-            let header = format!("{}:{}", username, password.as_ref().expose_secret());
+            let header = format!("{}:{}", username, password.expose_secret());
             let base64_header = general_purpose::STANDARD.encode(header);
             let full_header = format!("http.extraHeader=AUTHORIZATION: Basic {}", base64_header);
             vec![String::from("-c"), full_header]
         }
         git::transport::Auth::Http(Some(http::Auth::Header(header))) => {
-            let full_header = format!("http.extraHeader={}", header.as_ref().expose_secret());
+            let full_header = format!("http.extraHeader={}", header.expose_secret());
             vec![String::from("-c"), full_header]
         }
         _ => vec![],
@@ -324,7 +323,7 @@ fn env_vars(
             // Write the contents of the SSH key to a file so that we can point to it in
             // GIT_SSH_COMMAND
             ssh_key_file
-                .write_all(key.as_ref().expose_secret().as_bytes())
+                .write_all(key.expose_secret().as_bytes())
                 .into_report()
                 .change_context(Error::SshKeyFileCreation)?;
 

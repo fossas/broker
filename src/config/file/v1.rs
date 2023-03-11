@@ -2,7 +2,7 @@
 
 use std::path::PathBuf;
 
-use error_stack::{report, IntoReport, Report, ResultExt};
+use error_stack::{report, Report, ResultExt};
 use serde::Deserialize;
 
 use crate::{
@@ -13,7 +13,7 @@ use crate::{
     },
     debug,
     ext::{
-        error_stack::{DescribeContext, ErrorHelper},
+        error_stack::{DescribeContext, ErrorHelper, IntoContext},
         secrecy::ComparableSecretString,
     },
 };
@@ -42,18 +42,20 @@ pub fn load(content: String) -> Result<super::Config, Report<Error>> {
 struct RawConfigV1 {
     #[serde(rename = "fossa_endpoint")]
     endpoint: String,
+
     #[serde(rename = "fossa_integration_key")]
     integration_key: String,
-    debugging: Debugging,
+
+    #[serde(default)]
     integrations: Vec<Integration>,
+
+    debugging: Debugging,
 }
 
 impl RawConfigV1 {
     /// Parse config from the provided file on disk.
     pub fn parse(content: String) -> std::result::Result<Self, Report<Error>> {
-        serde_yaml::from_str(&content)
-            .into_report()
-            .change_context(Error::Parse)
+        serde_yaml::from_str(&content).context(Error::Parse)
     }
 }
 
@@ -76,6 +78,8 @@ fn validate(config: RawConfigV1) -> Result<super::Config, Report<Error>> {
 #[derive(Debug, Deserialize)]
 pub(super) struct Debugging {
     location: PathBuf,
+
+    #[serde(default)]
     retention: DebuggingRetention,
 }
 
@@ -91,23 +95,27 @@ impl TryFrom<Debugging> for debug::Config {
 
 #[derive(Debug, Deserialize)]
 pub(super) struct DebuggingRetention {
-    duration: Option<String>,
-    size: Option<u64>,
+    days: usize,
+}
+
+impl Default for DebuggingRetention {
+    fn default() -> Self {
+        Self {
+            days: debug::ArtifactRetentionCount::default().into(),
+        }
+    }
 }
 
 impl TryFrom<DebuggingRetention> for debug::Retention {
     type Error = Report<debug::ValidationError>;
 
     fn try_from(value: DebuggingRetention) -> Result<Self, Self::Error> {
-        let age = value
-            .duration
-            .map(debug::ArtifactMaxAge::try_from)
-            .transpose()?;
-        let size = value
-            .size
-            .map(debug::ArtifactMaxSize::try_from)
-            .transpose()?;
-        Ok(debug::Retention::new(age, size))
+        let days = value
+            .days
+            .try_into()
+            .describe("validate 'retention.days'")?;
+
+        Ok(Self::new(days))
     }
 }
 

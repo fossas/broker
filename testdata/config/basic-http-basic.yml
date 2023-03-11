@@ -5,8 +5,7 @@ version: 1
 debugging:
   location: /home/me/.config/fossa/broker/debugging/
   retention:
-    duration: 7d
-    size: 1048576
+    days: 3
 
 integrations:
   - type: git

@@ -4,8 +4,19 @@
 //! as such each macro in this file must be independent of location.
 //! Mostly this just means "if the macro calls something else, it needs to reference it by fully qualified path".
 
+use tempfile::TempDir;
+
 pub mod duration;
 pub mod gen;
+
+/// Usually Broker uses a central location for its data root: see [`broker::ext::io::sync::data_root`] for details.
+/// This macro sets the data root to a temporary location for the duration of a test.
+#[must_use = "This temporary directory is deleted when this variable is dropped"]
+pub(crate) fn set_temp_data_root() -> TempDir {
+    let tmp = tempfile::tempdir().expect("must create temporary directory");
+    std::env::set_var(broker::ext::io::DATA_ROOT_VAR, tmp.path());
+    tmp
+}
 
 /// Tests are run independently by cargo nextest, so this macro configures settings used in snapshot tests.
 ///
@@ -40,9 +51,18 @@ macro_rules! assert_error_stack_snapshot {
             // Don't fail the snapshot on source code location changes.
             filters => vec![
                 (r"src.+:\d+:\d+", "{source location}"),
-                ("/var/folders[a-zA-Z0-9/_.]+", "{tmpdir}"), // Macos tmp folders
-                ("/tmp/.[a-zA-Z-0-9/_.]+", "{tmpdir}"), // Unix tmp folders
-                (r"(git@github.com|ERROR): (Permission denied \(publickey\)|Repository not found)", "{permission denied}") // github gives different errors depending on whether you are logged in or not
+                // Macos tmp folders
+                ("/var/folders[a-zA-Z0-9/_.]+", "{tmpdir}"),
+                // Unix tmp folders
+                ("/tmp/.[a-zA-Z-0-9/_.]+", "{tmpdir}"),
+                // github gives different errors depending on whether you are logged in or not
+                (r"(git@github.com|ERROR): (Permission denied \(publickey\)|Repository not found)", "{permission denied}")
+                // Rust source locations (`at /some/path/to/src/internal/foo.rs:81:82`)
+                (r"at .*src.+:\d+:\d+", "at {source location}"),
+                // Unix-style abs file paths inside common delimiters (`'/Users/jessica/.config/fossa/broker/queue/Echo'`)
+                (r#"['"`](?:/[^/\pC]+)+['"`]"#, "{file path}"),
+                // Windows-style abs file paths inside common delimiters (`'C:\Users\jessica\.config\fossa\broker\queue\Echo'`)
+                (r#"['"`]\PC:(?:\\[^\\\pC]+)+['"`]"#, "{file path}"),
             ]
         }, {
             insta::assert_debug_snapshot!($inner);
@@ -66,15 +86,35 @@ macro_rules! load_config {
     };
     ($config_path:expr, $db_path:expr) => {
         async {
-            let base = raw_base_args($config_path, $db_path);
-            let args = config::validate_args(base)
+            let base = crate::args::raw_base_args($config_path, $db_path);
+            let args = broker::config::validate_args(base)
                 .await
                 .expect("must have validated");
-            config::load(&args).await.expect("must have loaded config")
+            let config = broker::config::load(&args)
+                .await
+                .expect("must have loaded config");
+            ($config_path, config)
+        }
+    };
+}
+
+/// Convenience macro to load a failing config inline with the test function (so errors are properly attributed).
+macro_rules! load_config_err {
+    ($config_path:expr, $db_path:expr) => {
+        async {
+            let base = crate::args::raw_base_args($config_path, $db_path);
+            let args = broker::config::validate_args(base)
+                .await
+                .expect("must have validated args");
+            let err = broker::config::load(&args)
+                .await
+                .expect_err("must have failed to validate config");
+            ($config_path, err)
         }
     };
 }
 
 pub(crate) use assert_error_stack_snapshot;
 pub(crate) use load_config;
+pub(crate) use load_config_err;
 pub(crate) use set_snapshot_vars;
