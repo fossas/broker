@@ -170,12 +170,7 @@ fn references_that_need_scanning(
     transport: &Transport,
     references: Vec<Reference>,
 ) -> Result<Vec<Reference>, Report<Error>> {
-    let tmpdir = tempdir()
-        .into_report()
-        .change_context(Error::TempDirCreation)
-        .describe("creating temp directory in references_that_need_scanning")?;
-
-    blobless_clone(transport, None)
+    let tmpdir = blobless_clone(transport, None)
         .describe("cloning into temp directory in references_that_need_scanning")?;
 
     let initial_len = references.len();
