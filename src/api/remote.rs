@@ -1,4 +1,3 @@
-//! This module provides functionality for integrating with "remotes", which are external code hosts.
 //!
 //! # "Remote" as a concept
 //!
@@ -17,9 +16,11 @@ use derive_new::new;
 use error_stack::{report, Report, ResultExt};
 use getset::{CopyGetters, Getters};
 use humantime::parse_duration;
+use tempfile::TempDir;
 
 use crate::ext::error_stack::{DescribeContext, ErrorHelper, IntoContext};
 
+/// Integrations for git repositories
 pub mod git;
 
 /// Errors that are possibly surfaced during validation of config values.
@@ -45,6 +46,13 @@ pub struct Config(Vec<Integration>);
 /// Validated remote location for a code host.
 #[derive(Debug, Clone, PartialEq, Eq, AsRef, Display, new)]
 pub struct Remote(String);
+
+impl Remote {
+    /// Check whether the remote, rendered into string form, starts with a substring.
+    pub fn starts_with(&self, test: &str) -> bool {
+        self.0.starts_with(test)
+    }
+}
 
 impl TryFrom<String> for Remote {
     type Error = Report<ValidationError>;
@@ -88,7 +96,7 @@ pub struct Integration {
 #[derive(Debug, Clone, PartialEq, Eq, From, new)]
 pub enum Protocol {
     /// Integration with a code host using the git protocol.
-    Git(git::Transport),
+    Git(git::transport::Transport),
 }
 
 /// Specifies the maximum age for an observability artifact.
@@ -103,5 +111,62 @@ impl TryFrom<String> for PollInterval {
             .context(ValidationError::PollInterval)
             .describe_lazy(|| format!("provided value: {value}"))
             .map(PollInterval)
+    }
+}
+
+/// Errors encountered while working with remotes
+#[derive(Debug, thiserror::Error)]
+pub enum RemoteProviderError {
+    /// We encountered an error while shelling out to an external command
+    #[error("run external command")]
+    RunCommand,
+}
+
+/// Remotes can reference specific points in time on a remote unit of code.
+#[derive(Debug, Clone, Hash, Eq, PartialEq)]
+pub enum Reference {
+    /// Git remotes have their own reference format.
+    Git(git::Reference),
+}
+
+/// RemoteProvider are code hosts that we get code from
+pub trait RemoteProvider {
+    /// The reference type used for this implementation.
+    type Reference;
+
+    /// Clone a [`Reference`] into a temporary directory.
+    fn clone_reference(
+        &self,
+        reference: &Self::Reference,
+    ) -> Result<TempDir, Report<RemoteProviderError>>;
+
+    /// List references that have been updated in the last 30 days.
+    fn references(&self) -> Result<Vec<Self::Reference>, Report<RemoteProviderError>>;
+}
+
+impl RemoteProvider for Integration {
+    type Reference = Reference;
+
+    fn clone_reference(
+        &self,
+        reference: &Self::Reference,
+    ) -> Result<TempDir, Report<RemoteProviderError>> {
+        match self.protocol() {
+            // This is a little awkward because these two types are _semantically related_,
+            // but are not related in the code.
+            // Right now we're considering this not worth fixing,
+            // but as we add more protocols/references it's probably worth revisiting.
+            Protocol::Git(transport) => match reference {
+                Reference::Git(reference) => transport.clone_reference(reference),
+            },
+        }
+    }
+
+    fn references(&self) -> Result<Vec<Self::Reference>, Report<RemoteProviderError>> {
+        match self.protocol() {
+            Protocol::Git(proto) => proto
+                .references()
+                .map(|refs| refs.into_iter().map(Reference::Git).collect()),
+        }
     }
 }

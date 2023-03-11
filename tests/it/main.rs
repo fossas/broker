@@ -15,3 +15,4 @@ mod args;
 mod config;
 mod debug;
 mod queue;
+mod remote_git;

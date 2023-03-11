@@ -5,10 +5,12 @@
 #![deny(missing_docs)]
 #![warn(rust_2018_idioms)]
 
+use broker::api::remote::RemoteProvider;
+use broker::{config, ext::error_stack::ErrorHelper};
 use broker::{
-    config::{self, Config},
+    config::Config,
     doc,
-    ext::error_stack::{DescribeContext, ErrorDocReference, ErrorHelper, FatalErrorReport},
+    ext::error_stack::{DescribeContext, ErrorDocReference, FatalErrorReport},
 };
 use clap::{Parser, Subcommand};
 use error_stack::{bail, fmt::ColorMode, Report, Result, ResultExt};
@@ -56,6 +58,10 @@ enum Commands {
 
     /// Run Broker with the current config.
     Run(config::RawBaseArgs),
+
+    /// Attempt to do a git clone.
+    #[clap(hide = true)]
+    Clone(config::RawBaseArgs),
 }
 
 #[tokio::main]
@@ -75,6 +81,7 @@ async fn main() -> Result<(), Error> {
         Commands::Fix(args) => main_fix(args).await,
         Commands::Backup(args) => main_backup(args).await,
         Commands::Run(args) => main_run(args).await,
+        Commands::Clone(args) => main_clone(args).await,
     }
     .request_support()
     .describe_lazy(|| format!("broker version: {version}"))
@@ -137,4 +144,24 @@ async fn load_config(args: config::RawBaseArgs) -> Result<Config, Error> {
         .await
         .change_context(Error::DetermineEffectiveConfig)
         .documentation_lazy(doc::link::config_file_reference)
+}
+
+/// Workflow:
+/// 1. get a list of remotes
+/// 2. For each remote, clone it into a directory and check out the tag or branch
+async fn main_clone(args: config::RawBaseArgs) -> Result<(), Error> {
+    let conf = load_config(args).await?;
+    let integration = &conf.integrations().as_ref()[0];
+    let mut references = integration.references()
+        .change_context(Error::Runtime)
+        .help("try running Broker with the '--help' argument to see available options and usage suggestions")?;
+
+    // clone the first 5 references that need to be scanned
+    references.truncate(5);
+    for reference in references {
+        integration
+            .clone_reference(&reference)
+            .change_context(Error::Runtime)?;
+    }
+    Ok(())
 }

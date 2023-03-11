@@ -5,12 +5,13 @@ version: 1
 debugging:
   location: /home/me/.config/fossa/broker/debugging/
   retention:
-    days: 3
+    days: 7
+    size: 1048576
 
 integrations:
   - type: git
     poll_interval: 1h
-    remote: git@github.com:fossas/broker.git
+    remote: http://github.com/github/doesnotexist.git
     auth:
       type: none
-      transport: ssh
+      transport: http

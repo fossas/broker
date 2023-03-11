@@ -1,0 +1,12 @@
+---
+source: tests/it/remote_git.rs
+expression: "integration.clone_reference(&reference).expect_err(\"Could not read from remote repository\")"
+info: cloning private repo with bad auth
+---
+run external command
+├╴at {source location}
+│
+╰─▶ git execution failed
+    ├╴at {source location}
+    ╰╴context: running git command ["-c", "credential.helper=", "clone", "--filter=blob:none", "--branch", "main", "http://github.com/github/doesnotexist.git", {file path}...
+      fatal: could not read Username for 'https://github.com': terminal prompts disabled
