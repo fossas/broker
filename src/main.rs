@@ -5,10 +5,8 @@
 #![deny(missing_docs)]
 #![warn(rust_2018_idioms)]
 
-use std::path::PathBuf;
-
 use broker::api::remote::RemoteProvider;
-use broker::{api::remote::git, config, ext::error_stack::ErrorHelper};
+use broker::{config, ext::error_stack::ErrorHelper};
 use broker::{
     config::Config,
     doc,
@@ -58,7 +56,7 @@ enum Commands {
     Run(config::RawBaseArgs),
 
     /// Attempt to do a git clone.
-    #[clap(hide)]
+    #[clap(hide = true)]
     Clone(config::RawBaseArgs),
 }
 
@@ -144,20 +142,16 @@ async fn load_config(args: config::RawBaseArgs) -> Result<Config, Error> {
 async fn main_clone(args: config::RawBaseArgs) -> Result<(), Error> {
     let conf = load_config(args).await?;
     let integration = &conf.integrations().as_ref()[0];
-    let directory = PathBuf::from("/tmp/cloned");
-    let mut references = git::repository::Repository::get_references_that_need_scanning(integration)
+    let mut references = integration.references()
         .change_context(Error::Runtime)
         .help("try running Broker with the '--help' argument to see available options and usage suggestions")?;
 
     // clone the first 5 references that need to be scanned
     references.truncate(5);
     for reference in references {
-        git::repository::Repository::clone_branch_or_tag(
-            integration,
-            directory.clone(),
-            &reference,
-        )
-        .change_context(Error::Runtime)?;
+        integration
+            .clone_reference(&reference)
+            .change_context(Error::Runtime)?;
     }
     Ok(())
 }
