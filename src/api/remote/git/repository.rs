@@ -119,8 +119,8 @@ where
     String: From<S>,
 {
     let mut full_args = default_args(transport)?;
-    let args_as_vec: Vec<String> = args.into_iter().map(String::from).collect();
-    full_args.append(&mut args_as_vec.clone());
+    let mut args_as_vec: Vec<String> = args.into_iter().map(String::from).collect();
+    full_args.append(&mut args_as_vec);
 
     let mut ssh_key_file = NamedTempFile::new()
         .into_report()
@@ -313,7 +313,7 @@ fn env_vars(
     transport: &Transport,
     ssh_key_file: &mut NamedTempFile<File>,
 ) -> Result<HashMap<String, String>, Report<Error>> {
-    let s = |input| String::from(input);
+    let s = String::from;
 
     let custom_command = match transport.auth() {
         git::transport::Auth::Ssh(ssh::Auth::KeyFile(path)) => {
@@ -390,13 +390,12 @@ fn line_to_git_ref(line: &str) -> Option<Reference> {
     let commit = parsed.next()?;
     let commit = String::from(commit);
     let reference = parsed.next()?;
-
     if let Some(tag) = reference.strip_prefix("refs/tags/") {
         let tag = tag.strip_suffix("^{}").unwrap_or(tag);
         Some(Reference::new_tag(tag.to_string(), commit))
-    } else if let Some(branch) = reference.strip_prefix("refs/heads/") {
-        Some(Reference::new_branch(branch.to_string(), commit))
     } else {
-        None
+        reference
+            .strip_prefix("refs/heads/")
+            .map(|branch| Reference::new_branch(branch.to_string(), commit))
     }
 }
