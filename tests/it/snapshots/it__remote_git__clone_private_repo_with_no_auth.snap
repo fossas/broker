@@ -1,13 +1,13 @@
 ---
 source: tests/it/remote_git.rs
-expression: "git::repository::Repository::clone_branch_or_tag(integration, path,\n        &remote_reference).expect_err(\"Could not read from remote repository\")"
+expression: "integration.clone_reference(&reference).expect_err(\"Could not read from remote repository\")"
 info: cloning private repo with bad auth
 ---
-running git command
+run external command
 ├╴at {source location}
-╰╴context: running git command ["clone", "--filter=blob:none", "--branch", "main", "git@github.com:github/doesnotexist.git", "{tmpdir}"], status was: exit status: 128, stderr: Cloning into '{tmpdir}'...
-  {permission denied}.
-  fatal: Could not read from remote repository.
-  
-  Please make sure you have the correct access rights
-  and the repository exists.
+│
+╰─▶ git execution failed
+    ├╴at {source location}
+    ╰╴context: running git command ["-c", "credential.helper=", "clone", "--filter=blob:none", "--branch", "main", "http://github.com/github/doesnotexist.git", "{tmpdir}"], status was: exit status: 128, stderr: Cloning into '{tmpdir}'...
+      remote: Invalid username or password.
+      fatal: Authentication failed for 'https://github.com/github/doesnotexist.git/'

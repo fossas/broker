@@ -11,7 +11,7 @@ debugging:
 integrations:
   - type: git
     poll_interval: 1h
-    remote: git@github.com:github/doesnotexist.git
+    remote: http://github.com/github/doesnotexist.git
     auth:
       type: none
       transport: http
