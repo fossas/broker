@@ -333,7 +333,10 @@ fn env_vars(
     };
 
     // Turn off terminal prompts if auth fails.
-    let disable_prompt = vec![(s("GIT_TERMINAL_PROMPT"), s("0"))];
+    let disable_prompt = vec![
+        (s("GIT_TERMINAL_PROMPT"), s("0")),
+        (s("GCM_INTERACTIVE"), s("never")),
+    ];
     Ok(disable_prompt.into_iter().chain(custom_command).collect())
 }
 
