@@ -50,13 +50,8 @@ macro_rules! assert_error_stack_snapshot {
             info => $context,
             // Don't fail the snapshot on source code location changes.
             filters => vec![
-                (r"src.+:\d+:\d+", "{source location}"),
-                // Macos tmp folders
-                ("/var/folders[a-zA-Z0-9/_.]+", "{tmpdir}"),
-                // Unix tmp folders
-                ("/tmp/.[a-zA-Z-0-9/_.]+", "{tmpdir}"),
                 // github gives different errors depending on whether you are logged in or not
-                (r"(git@github.com|ERROR): (Permission denied \(publickey\)|Repository not found)", "{permission denied}")
+                (r"(git@github.com|ERROR): (Permission denied \(publickey\)|Repository not found)", "{permission denied}"),
                 // Rust source locations (`at /some/path/to/src/internal/foo.rs:81:82`)
                 (r"at .*src.+:\d+:\d+", "at {source location}"),
                 // Unix-style abs file paths inside common delimiters (`'/Users/jessica/.config/fossa/broker/queue/Echo'`)

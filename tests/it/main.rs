@@ -14,6 +14,5 @@ mod api_code;
 mod args;
 mod config;
 mod debug;
-mod helper;
 mod queue;
 mod remote_git;

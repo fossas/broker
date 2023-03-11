@@ -8,5 +8,5 @@ run external command
 │
 ╰─▶ git execution failed
     ├╴at {source location}
-    ╰╴context: running git command ["-c", "credential.helper=", "clone", "--filter=blob:none", "--branch", "main", "http://github.com/github/doesnotexist.git", "{tmpdir}"], status was: exit status: 128, stderr: Cloning into '{tmpdir}'...
+    ╰╴context: running git command ["-c", "credential.helper=", "clone", "--filter=blob:none", "--branch", "main", "http://github.com/github/doesnotexist.git", {file path}...
       fatal: could not read Username for 'https://github.com': terminal prompts disabled
