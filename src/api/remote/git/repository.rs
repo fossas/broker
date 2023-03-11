@@ -302,7 +302,7 @@ fn default_args(transport: &Transport) -> Result<Vec<String>, Report<Error>> {
     };
 
     // Credential helpers can override the header provided by http.extraHeader, so we need to get rid of them by setting `credential-helper` to "".
-    let credential_helper_args = vec![String::from("-c"), String::from("credential.helper=''")];
+    let credential_helper_args = vec![String::from("-c"), String::from("credential.helper=")];
     Ok(credential_helper_args
         .into_iter()
         .chain(header_args.into_iter())
