@@ -1,6 +1,5 @@
 //! Wrapper for Git
 use base64::{engine::general_purpose, Engine as _};
-use chrono;
 use error_stack::{ensure, report, IntoReport, Report, ResultExt};
 use itertools::Itertools;
 use secrecy::ExposeSecret;
@@ -12,6 +11,7 @@ use std::path::{Path, PathBuf};
 use std::process::{Command, Output};
 use tempfile::{tempdir, NamedTempFile, TempDir};
 use thiserror::Error;
+use time::{ext::NumericalDuration, format_description::well_known::Iso8601, OffsetDateTime};
 
 use super::Reference;
 use crate::ext::error_stack::ErrorHelper;
@@ -227,11 +227,12 @@ fn reference_needs_scanning(
     );
     let mut dates = date_strings.split(":::");
     let earliest_commit_date_that_needs_to_be_scanned =
-        chrono::Utc::now() - chrono::Duration::days(30);
+        OffsetDateTime::checked_sub(OffsetDateTime::now_utc(), 30.days())
+            .ok_or_else(|| report!(Error::ParseGitOutput))?;
 
     let author_date = dates
         .next()
-        .map(|d| d.parse::<chrono::DateTime<chrono::Utc>>());
+        .map(|d| OffsetDateTime::parse(d, &Iso8601::DEFAULT));
     if let Some(Ok(author_date)) = author_date {
         if author_date > earliest_commit_date_that_needs_to_be_scanned {
             return Ok(true);
@@ -240,7 +241,7 @@ fn reference_needs_scanning(
 
     let committer_date = dates
         .next()
-        .map(|d| d.parse::<chrono::DateTime<chrono::Utc>>());
+        .map(|d| OffsetDateTime::parse(d, &Iso8601::DEFAULT));
     if let Some(Ok(committer_date)) = committer_date {
         if committer_date > earliest_commit_date_that_needs_to_be_scanned {
             return Ok(true);
