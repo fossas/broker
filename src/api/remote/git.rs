@@ -6,10 +6,21 @@ use derive_new::new;
 #[derive(Debug, Clone, Hash, Eq, PartialEq, new)]
 pub enum Reference {
     /// A branch
-    Branch { name: String, head: String },
+    Branch {
+        /// The name of the branch
+        name: String,
+
+        /// The head commit of the branch
+        head: String,
+    },
 
     /// A tag
-    Tag { name: String, commit: String },
+    Tag {
+        /// The name of the tag
+        name: String,
+        /// The commit that the tag points at
+        commit: String,
+    },
 }
 
 impl Reference {

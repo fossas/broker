@@ -57,11 +57,13 @@ pub enum Error {
     PathNotValidUtf8,
 }
 
+/// List references that have been updated in the last 30 days.
 pub fn list_references(transport: &Transport) -> Result<Vec<Reference>, Report<Error>> {
     let references = get_all_references(transport)?;
     references_that_need_scanning(transport, references)
 }
 
+/// Clone a [`Reference`] into a temporary directory.
 pub fn clone_reference(
     transport: &Transport,
     reference: &Reference,
