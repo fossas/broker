@@ -9,4 +9,4 @@ run external command
 ╰─▶ git execution failed
     ├╴at {source location}
     ╰╴context: running git command ["-c", "credential.helper=", "ls-remote", "--quiet"], status was: exit status: 128, stderr: remote: Repository not found.
-      fatal: repository 'https://github.com/github/doesnotexist.git/' not found
+      fatal: Authentication failed for 'https://github.com/github/doesnotexist.git/'
