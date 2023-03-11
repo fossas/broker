@@ -1,13 +1,13 @@
 //! Tests for git remotes
 use crate::helper::assert_error_stack_snapshot;
-use crate::{args::raw_base_args, helper::load_config};
+use crate::helper::load_config;
 use broker::api::remote::{Reference, RemoteProvider};
 
-use broker::{self, api::remote::git, config};
+use broker::{self, api::remote::git};
 
 #[tokio::test]
 async fn references_on_public_repo_with_no_auth() {
-    let conf = load_config!(
+    let (_, conf) = load_config!(
         "testdata/config/fossa-one-http-no-auth.yml",
         "testdata/database/empty.sqlite"
     )
@@ -26,11 +26,12 @@ async fn references_on_public_repo_with_no_auth() {
 
 #[tokio::test]
 async fn references_on_private_repo_with_no_auth() {
-    let conf = load_config!(
+    let (_, conf) = load_config!(
         "testdata/config/private-repo-http-no-auth.yml",
         "testdata/database/empty.sqlite"
     )
     .await;
+
     let mut integrations = conf.integrations().as_ref().iter();
     let integration = integrations
         .next()
@@ -47,7 +48,7 @@ async fn references_on_private_repo_with_no_auth() {
 
 #[tokio::test]
 async fn clone_public_repo_with_no_auth() {
-    let conf = load_config!(
+    let (_, conf) = load_config!(
         "testdata/config/fossa-one-http-no-auth.yml",
         "testdata/database/empty.sqlite"
     )
@@ -69,7 +70,7 @@ async fn clone_public_repo_with_no_auth() {
 
 #[tokio::test]
 async fn clone_private_repo_with_no_auth() {
-    let conf = load_config!(
+    let (_, conf) = load_config!(
         "testdata/config/private-repo-http-no-auth.yml",
         "testdata/database/empty.sqlite"
     )
