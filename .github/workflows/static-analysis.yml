@@ -58,9 +58,12 @@ jobs:
     - uses: Swatinem/rust-cache@v2
     - run: cargo build
 
-  # Ensure dependencies are up to date
+  # Ensure dependencies are up to date.
   # Only run this on PRs; this check is advisory and we shouldn't have red x's in commit history.
-  updated (advisory):
+  #
+  # If you're getting this error in CI, it's just letting you know that there are dependency updates available;
+  # ideally update them but feel free to leave them for later as well.
+  updated-advisory:
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     steps:
