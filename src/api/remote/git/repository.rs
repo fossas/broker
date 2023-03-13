@@ -196,7 +196,7 @@ fn references_that_need_scanning(
         DAYS_UNTIL_STALE,
     );
 
-    if filtered_references.len() > 0 {
+    if !filtered_references.is_empty() {
         info!("\n{}", table);
     }
 
