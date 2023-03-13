@@ -14,7 +14,7 @@ use crate::{
     debug,
     ext::{
         error_stack::{DescribeContext, ErrorHelper, IntoContext},
-        result::IntoOk,
+        result::{WrapErr, WrapOk},
         secrecy::ComparableSecretString,
     },
 };
@@ -73,7 +73,7 @@ fn validate(config: RawConfigV1) -> Result<super::Config, Report<Error>> {
         .change_context(Error::Validate)
         .map(remote::Config::new)?;
 
-    super::Config::new(api, debugging, integrations).ok()
+    super::Config::new(api, debugging, integrations).wrap_ok()
 }
 
 #[derive(Debug, Deserialize)]
@@ -90,7 +90,7 @@ impl TryFrom<Debugging> for debug::Config {
     fn try_from(value: Debugging) -> Result<Self, Self::Error> {
         let root = debug::Root::from(value.location);
         let retention = debug::Retention::try_from(value.retention)?;
-        Self::new(root, retention).ok()
+        Self::new(root, retention).wrap_ok()
     }
 }
 
@@ -163,17 +163,19 @@ impl TryFrom<Integration> for remote::Integration {
                         git::transport::Transport::new_http(endpoint, Some(auth))
                     }
                     Auth::None { transport } => match transport.as_str() {
-                        "ssh" => Err(report!(remote::ValidationError::Remote))
+                        "ssh" => report!(remote::ValidationError::Remote)
+                            .wrap_err()
                             .help("ssh must have an authentication method")
                             .describe_lazy(|| format!("provided transport: {transport}")),
-                        "http" => Ok(git::transport::Transport::new_http(endpoint, None)),
-                        other => Err(report!(remote::ValidationError::Remote))
+                        "http" => git::transport::Transport::new_http(endpoint, None).wrap_ok(),
+                        other => report!(remote::ValidationError::Remote)
+                            .wrap_err()
                             .help("transport must be 'ssh' or 'http'")
                             .describe_lazy(|| format!("provided transport: {other}")),
                     }?,
                 };
 
-                remote::Integration::new(poll_interval, protocol.into()).ok()
+                remote::Integration::new(poll_interval, protocol.into()).wrap_ok()
             }
         }
     }

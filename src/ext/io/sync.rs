@@ -32,7 +32,7 @@ use tracing::{debug, info};
 use crate::ext::{
     error_stack::{DescribeContext, ErrorHelper, IntoContext},
     iter::{AlternativeIter, ChainOnceWithIter},
-    result::IntoOk,
+    result::{WrapErr, WrapOk},
 };
 
 /// The variable used to control Broker's data root.
@@ -74,7 +74,7 @@ pub enum Error {
 pub fn data_root() -> Result<PathBuf, Report<Error>> {
     if let Ok(user_set_root) = std::env::var(DATA_ROOT_VAR) {
         info!("User customized data root via '{DATA_ROOT_VAR}' to '{user_set_root}'");
-        PathBuf::from(user_set_root).ok()
+        PathBuf::from(user_set_root).wrap_ok()
     } else {
         home_dir().map(|home| home.join(".config").join("fossa").join("broker"))
     }
@@ -123,9 +123,10 @@ pub fn validate_file(path: PathBuf) -> Result<PathBuf, Report<Error>> {
         .help("validate that you have access to the file and that it exists")?;
 
     if meta.is_file() {
-        Ok(path)
+        path.wrap_ok()
     } else {
-        Err(Error::NotRegularFile)
+        Error::NotRegularFile
+            .wrap_err()
             .into_report()
             .attach_printable_lazy(|| format!("validate file: {path:?}"))
     }

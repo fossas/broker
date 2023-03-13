@@ -11,7 +11,7 @@ use serde::Serialize;
 use crate::ext::{
     error_stack::{merge_error_stacks, DescribeContext, ErrorHelper},
     io,
-    result::IntoOk,
+    result::WrapOk,
 };
 
 /// Errors that are possibly surfaced during validation of config values.
@@ -69,7 +69,7 @@ impl RawBaseArgs {
     /// or errors if they are not able to be found.
     pub async fn validate(self) -> Result<BaseArgs, Report<Error>> {
         let config_path = if let Some(provided_path) = self.config_file_path {
-            ConfigFilePath::from(provided_path).ok()
+            ConfigFilePath::from(provided_path).wrap_ok()
         } else {
             ConfigFilePath::discover()
                 .await
@@ -77,7 +77,7 @@ impl RawBaseArgs {
         };
 
         let database_path = if let Some(provided_path) = self.database_file_path {
-            DatabaseFilePath::from(provided_path).ok()
+            DatabaseFilePath::from(provided_path).wrap_ok()
         } else {
             DatabaseFilePath::discover()
                 .await

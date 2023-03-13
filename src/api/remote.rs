@@ -18,7 +18,10 @@ use getset::{CopyGetters, Getters};
 use humantime::parse_duration;
 use tempfile::TempDir;
 
-use crate::ext::error_stack::{DescribeContext, ErrorHelper, IntoContext};
+use crate::ext::{
+    error_stack::{DescribeContext, ErrorHelper, IntoContext},
+    result::{WrapErr, WrapOk},
+};
 
 /// Integrations for git repositories
 pub mod git;
@@ -62,10 +65,11 @@ impl TryFrom<String> for Remote {
         // we can't guarantee this is actually a well formatted URL.
         // Just validate that it's not empty.
         if input.is_empty() {
-            Err(report!(ValidationError::ValueEmpty))
+            report!(ValidationError::ValueEmpty)
+                .wrap_err()
                 .describe_lazy(|| format!("provided input: '{input}'"))
         } else {
-            Ok(Remote(input))
+            Remote(input).wrap_ok()
         }
         .help("the remote location may not be empty")
         .change_context(ValidationError::Remote)
