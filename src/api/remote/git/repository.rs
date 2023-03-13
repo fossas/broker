@@ -11,7 +11,7 @@ use std::process::{Command, Output};
 use tempfile::{tempdir, NamedTempFile, TempDir};
 use thiserror::Error;
 use time::{ext::NumericalDuration, format_description::well_known::Iso8601, OffsetDateTime};
-use tracing::info;
+use tracing::{debug, info};
 
 use super::Reference;
 use crate::ext::error_stack::{ErrorHelper, IntoContext};
@@ -118,7 +118,10 @@ where
 {
     let mut full_args = default_args(transport)?;
     let mut args_as_vec: Vec<String> = args.into_iter().map(String::from).collect();
+    info!("running git {:?} in directory {:?}", args_as_vec, cwd);
     full_args.append(&mut args_as_vec);
+    // full_args includes authentication info.
+    debug!("running git {:?} in directory {:?}", full_args, cwd);
 
     let mut ssh_key_file = NamedTempFile::new()
         .context(Error::SshKeyFileCreation)
@@ -127,7 +130,6 @@ where
 
     let mut command = Command::new("git");
     command.args(full_args.clone()).envs(env);
-    info!("running git {:?} in directory {:?}", full_args, cwd);
     if let Some(directory) = cwd {
         command.current_dir(directory);
     }
