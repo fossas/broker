@@ -171,16 +171,15 @@ fn references_that_need_scanning(
     transport: &Transport,
     references: Vec<Reference>,
 ) -> Result<Vec<Reference>, Report<Error>> {
-    info!("Finding references that may need scanning");
     let tmpdir = blobless_clone(transport, None)
         .describe("cloning into temp directory in references_that_need_scanning")?;
 
     let initial_len = references.len();
-    let (branches, tags): &(Vec<Reference>, Vec<Reference>) =
-        &references.clone().into_iter().partition(|r| match r {
-            Reference::Branch { .. } => true,
-            _ => false,
-        });
+    info!(
+        "Found {} total references. Filtering to recently updated references",
+        initial_len
+    );
+    let table = Table::new(&references).to_string();
 
     let filtered_references: Vec<Reference> = references
         .into_iter()
@@ -190,16 +189,14 @@ fn references_that_need_scanning(
         })
         .collect();
     info!(
-        "Found {} references total. {} of them have been updated in the last {} days and may need to be scanned",
+        "Found {} total references. {} of them have been updated in the last {} days and may need to be scanned",
         initial_len,
         filtered_references.len(),
         DAYS_UNTIL_STALE,
     );
-    if branches.len() > 0 {
-        info!("{}", Table::new(branches).to_string());
-    }
-    if tags.len() > 0 {
-        info!("{}", Table::new(tags).to_string());
+
+    if filtered_references.len() > 0 {
+        info!("\n{}", table);
     }
 
     Ok(filtered_references)
