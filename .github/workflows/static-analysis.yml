@@ -59,7 +59,9 @@ jobs:
     - run: cargo build
 
   # Ensure dependencies are up to date
-  updated:
+  # Only run this on PRs; this check is advisory and we shouldn't have red x's in commit history.
+  updated (advisory):
+    if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v3
