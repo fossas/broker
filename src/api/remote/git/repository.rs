@@ -8,6 +8,7 @@ use std::fs::File;
 use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Output};
+use tabled::Table;
 use tempfile::{tempdir, NamedTempFile, TempDir};
 use thiserror::Error;
 use time::{ext::NumericalDuration, format_description::well_known::Iso8601, OffsetDateTime};
@@ -175,17 +176,12 @@ fn references_that_need_scanning(
         .describe("cloning into temp directory in references_that_need_scanning")?;
 
     let initial_len = references.len();
-    let mut table: Vec<String> = vec!["branch or tag\tname\tcommit"]
-        .into_iter()
-        .map(String::from)
-        .collect();
+    let (branches, tags): &(Vec<Reference>, Vec<Reference>) =
+        &references.clone().into_iter().partition(|r| match r {
+            Reference::Branch { .. } => true,
+            _ => false,
+        });
 
-    let mut filtered_references_table: Vec<String> = references
-        .clone()
-        .into_iter()
-        .map(|r| r.table_row())
-        .collect();
-    table.append(&mut filtered_references_table);
     let filtered_references: Vec<Reference> = references
         .into_iter()
         .filter(|reference| {
@@ -194,12 +190,17 @@ fn references_that_need_scanning(
         })
         .collect();
     info!(
-        "Found {} references total. {} of them have been updated in the last {} days and may need to be scanned\n{}",
+        "Found {} references total. {} of them have been updated in the last {} days and may need to be scanned",
         initial_len,
         filtered_references.len(),
         DAYS_UNTIL_STALE,
-        table.join("\n"),
     );
+    if branches.len() > 0 {
+        info!("{}", Table::new(branches).to_string());
+    }
+    if tags.len() > 0 {
+        info!("{}", Table::new(tags).to_string());
+    }
 
     Ok(filtered_references)
 }
