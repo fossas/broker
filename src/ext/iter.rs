@@ -108,6 +108,8 @@ fn collapse_errs_stack<I: IntoIterator<Item = Report<E>>, E>(errs: I) -> Option<
 mod tests {
     use std::{cell::RefCell, iter};
 
+    use crate::ext::result::WrapErr;
+
     use super::*;
 
     /// `collect` is an infinite sink, so this validates both that `chain_once_with`
@@ -133,12 +135,12 @@ mod tests {
 
         let fold = iter::once_with(|| {
             errors_hit.replace_with(|hits| *hits + 1);
-            Err(Report::new(Error))
+            Report::new(Error).wrap_err()
         })
         .chain_once_with(|| Ok(2))
         .chain_once_with(|| {
             errors_hit.replace_with(|hits| *hits + 1);
-            Err(Report::new(Error))
+            Report::new(Error).wrap_err()
         })
         .alternative_fold();
 
@@ -157,8 +159,8 @@ mod tests {
         }
 
         let fold: Result<(), Report<Error>> =
-            iter::once_with(|| Err(Report::new(Error::Something)))
-                .chain_once_with(|| Err(Report::new(Error::SomethingElse)))
+            iter::once_with(|| Report::new(Error::Something).wrap_err())
+                .chain_once_with(|| Report::new(Error::SomethingElse).wrap_err())
                 .alternative_fold();
 
         let errs = fold.expect_err("must have errored");

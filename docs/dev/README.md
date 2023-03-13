@@ -26,6 +26,8 @@ Broker:
 We recommend Visual Studio Code with the `rust-analyzer` extension.
 Install Rust here: https://www.rust-lang.org/tools/install
 
+_Note: the goal is that most common tasks are in `Makefile`, see that for pointers!_
+
 For any contributors, we recommend the following tools, although they're not required:
 ```
 cargo edit    # https://lib.rs/crates/cargo-edit
@@ -89,6 +91,8 @@ Reusing the previous example, after a slew of PRs, the final one would set `vers
 
 After this commit is merged to `main`, push a tag (recommended: using `cargo release tag`)
 matching the `version` field, with a `v` prefix.
+
+In the future, the plan is to automate the release process with `make release`.
 
 **It is recommended** to instead use `cargo release`, which automates much of this process and has
 some safety checks (for example it ensures you're tagging on `main`):

@@ -17,7 +17,10 @@ use tracing::info;
 use tracing_appender::non_blocking::WorkerGuard;
 use tracing_subscriber::{filter, fmt::format::FmtSpan, prelude::*, Registry};
 
-use crate::ext::error_stack::{DescribeContext, ErrorHelper, IntoContext};
+use crate::ext::{
+    error_stack::{DescribeContext, ErrorHelper, IntoContext},
+    result::WrapErr,
+};
 
 /// Errors that are possibly surfaced when running debugging operations.
 #[derive(Debug, thiserror::Error)]
@@ -161,7 +164,8 @@ impl TryFrom<usize> for ArtifactRetentionCount {
 
     fn try_from(value: usize) -> Result<Self, Self::Error> {
         if value == 0 {
-            Err(report!(ValidationError::RetentionBelowMinimum))
+            report!(ValidationError::RetentionBelowMinimum)
+                .wrap_err()
                 .help("must specify at least '1'")
                 .describe_lazy(|| format!("provided value: {value}"))
         } else {

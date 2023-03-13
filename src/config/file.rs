@@ -42,7 +42,10 @@ use serde::Deserialize;
 
 use crate::{
     api, debug,
-    ext::error_stack::{DescribeContext, ErrorHelper, IntoContext},
+    ext::{
+        error_stack::{DescribeContext, ErrorHelper, IntoContext},
+        result::WrapErr,
+    },
 };
 
 use crate::ext::io;
@@ -107,7 +110,9 @@ impl Config {
 
 /// Fail the config load process with the provided file.
 fn fail(error: Error, version: usize) -> Result<Config, Report<Error>> {
-    Err(report!(error)).describe_lazy(|| format!("config file specifies version: {version}"))
+    report!(error)
+        .wrap_err()
+        .describe_lazy(|| format!("config file specifies version: {version}"))
 }
 
 /// Parse just the version from the config file, allowing branching parsing of other options.

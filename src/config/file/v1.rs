@@ -14,6 +14,7 @@ use crate::{
     debug,
     ext::{
         error_stack::{DescribeContext, ErrorHelper, IntoContext},
+        result::{WrapErr, WrapOk},
         secrecy::ComparableSecretString,
     },
 };
@@ -72,7 +73,7 @@ fn validate(config: RawConfigV1) -> Result<super::Config, Report<Error>> {
         .change_context(Error::Validate)
         .map(remote::Config::new)?;
 
-    Ok(super::Config::new(api, debugging, integrations))
+    super::Config::new(api, debugging, integrations).wrap_ok()
 }
 
 #[derive(Debug, Deserialize)]
@@ -89,7 +90,7 @@ impl TryFrom<Debugging> for debug::Config {
     fn try_from(value: Debugging) -> Result<Self, Self::Error> {
         let root = debug::Root::from(value.location);
         let retention = debug::Retention::try_from(value.retention)?;
-        Ok(Self::new(root, retention))
+        Self::new(root, retention).wrap_ok()
     }
 }
 
@@ -110,12 +111,11 @@ impl TryFrom<DebuggingRetention> for debug::Retention {
     type Error = Report<debug::ValidationError>;
 
     fn try_from(value: DebuggingRetention) -> Result<Self, Self::Error> {
-        let days = value
+        value
             .days
             .try_into()
-            .describe("validate 'retention.days'")?;
-
-        Ok(Self::new(days))
+            .describe("validate 'retention.days'")
+            .map(Self::new)
     }
 }
 
@@ -163,17 +163,19 @@ impl TryFrom<Integration> for remote::Integration {
                         git::transport::Transport::new_http(endpoint, Some(auth))
                     }
                     Auth::None { transport } => match transport.as_str() {
-                        "ssh" => Err(report!(remote::ValidationError::Remote))
+                        "ssh" => report!(remote::ValidationError::Remote)
+                            .wrap_err()
                             .help("ssh must have an authentication method")
                             .describe_lazy(|| format!("provided transport: {transport}")),
-                        "http" => Ok(git::transport::Transport::new_http(endpoint, None)),
-                        other => Err(report!(remote::ValidationError::Remote))
+                        "http" => git::transport::Transport::new_http(endpoint, None).wrap_ok(),
+                        other => report!(remote::ValidationError::Remote)
+                            .wrap_err()
                             .help("transport must be 'ssh' or 'http'")
                             .describe_lazy(|| format!("provided transport: {other}")),
                     }?,
                 };
 
-                Ok(remote::Integration::new(poll_interval, protocol.into()))
+                remote::Integration::new(poll_interval, protocol.into()).wrap_ok()
             }
         }
     }

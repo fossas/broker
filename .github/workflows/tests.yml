@@ -15,3 +15,7 @@ jobs:
       with:
         tool: nextest
     - run: cargo nextest run
+    # nextest doesn't run doctests, but does test everything else: https://github.com/nextest-rs/nextest/issues/16
+    # run doctests after; this won't result in any extra rebuilds and is very quick.
+    # doctest overview: https://doc.rust-lang.org/rustdoc/write-documentation/documentation-tests.html
+    - run: cargo test --doc

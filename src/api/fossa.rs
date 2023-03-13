@@ -9,6 +9,7 @@ use url::Url;
 
 use crate::ext::{
     error_stack::{DescribeContext, ErrorHelper, IntoContext},
+    result::{WrapErr, WrapOk},
     secrecy::ComparableSecretString,
 };
 
@@ -73,13 +74,13 @@ impl TryFrom<String> for Key {
 
     fn try_from(input: String) -> Result<Self, Self::Error> {
         if input.is_empty() {
-            Err(Report::new(ValidationError::ValueEmpty))
+            Report::new(ValidationError::ValueEmpty)
+                .wrap_err()
                 .describe_lazy(|| format!("provided input: '{input}'"))
                 .help("use an API key from FOSSA here: https://app.fossa.com/account/settings/integrations/api_tokens")
                 .change_context(ValidationError::ApiKey)
         } else {
-            let secret = ComparableSecretString::from(input);
-            Ok(Key(secret))
+            Key(ComparableSecretString::from(input)).wrap_ok()
         }
     }
 }
