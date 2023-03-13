@@ -1,6 +1,6 @@
 //! Wrapper for Git
 use base64::{engine::general_purpose, Engine as _};
-use error_stack::{ensure, report, IntoReport, Report, ResultExt};
+use error_stack::{ensure, report, IntoReport, Report};
 use itertools::Itertools;
 use std::collections::HashMap;
 use std::env;
@@ -13,7 +13,7 @@ use thiserror::Error;
 use time::{ext::NumericalDuration, format_description::well_known::Iso8601, OffsetDateTime};
 
 use super::Reference;
-use crate::ext::error_stack::ErrorHelper;
+use crate::ext::error_stack::{ErrorHelper, IntoContext};
 use crate::{api::http, api::remote::git, api::ssh, ext::error_stack::DescribeContext};
 
 use super::transport::Transport;
@@ -74,8 +74,7 @@ pub fn clone_reference(
 fn get_all_references(transport: &Transport) -> Result<Vec<Reference>, Report<Error>> {
     // First, we need to make a temp directory and run `git init` in it
     let tmpdir = tempdir()
-        .into_report()
-        .change_context(Error::TempDirCreation)
+        .context(Error::TempDirCreation)
         .describe_lazy(|| format!("attempted to create temporary dir in {:?}", env::temp_dir()))
         .help("temporary directory location uses $TMPDIR on Linux and macOS; for Windows it uses the 'GetTempPath' system call")?;
 
@@ -93,9 +92,8 @@ fn get_all_references(transport: &Transport) -> Result<Vec<Reference>, Report<Er
 
     let output = run_git(transport, args, Some(tmpdir.path()))?;
     let output = String::from_utf8(output.stdout)
-        .into_report()
-        .describe("reading output of 'git ls-remote --quiet'")
-        .change_context(Error::ParseGitOutput)?;
+        .context(Error::ParseGitOutput)
+        .describe("reading output of 'git ls-remote --quiet'")?;
     let references = parse_ls_remote(output)?;
 
     // Tags sometimes get duplicated in the output from `git ls-remote`, like this:
@@ -122,8 +120,7 @@ where
     full_args.append(&mut args_as_vec);
 
     let mut ssh_key_file = NamedTempFile::new()
-        .into_report()
-        .change_context(Error::SshKeyFileCreation)
+        .context(Error::SshKeyFileCreation)
         .describe("creating temp file to write SSH key into in run_git")?;
     let env = env_vars(transport, &mut ssh_key_file)?;
 
@@ -135,8 +132,7 @@ where
     }
     let output = command
         .output()
-        .into_report()
-        .change_context(Error::GitExecution)
+        .context(Error::GitExecution)
         .describe_lazy(|| format!("ran git command: {:?}", full_args))?;
 
     if !output.status.success() {
@@ -256,8 +252,7 @@ fn blobless_clone(
     reference: Option<&Reference>,
 ) -> Result<TempDir, Report<Error>> {
     let tmpdir = tempdir()
-        .into_report()
-        .change_context(Error::TempDirCreation)
+        .context(Error::TempDirCreation)
         .describe_lazy(|| format!("attempted to create temporary dir in {:?}", env::temp_dir()))
         .help("temporary directory location uses $TMPDIR on Linux and macOS; for Windows it uses the 'GetTempPath' system call")?;
     let mut args = vec![String::from("clone"), String::from("--filter=blob:none")];
@@ -324,8 +319,7 @@ fn env_vars(
             // GIT_SSH_COMMAND
             ssh_key_file
                 .write_all(key.expose_secret().as_bytes())
-                .into_report()
-                .change_context(Error::SshKeyFileCreation)?;
+                .context(Error::SshKeyFileCreation)?;
 
             vec![(s("GIT_SSH_COMMAND"), git_ssh_command(ssh_key_file.path())?)]
         }
