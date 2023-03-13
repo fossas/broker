@@ -30,4 +30,11 @@ impl Reference {
             Self::Tag { name, .. } => name,
         }
     }
+
+    fn table_row(&self) -> String {
+        match self {
+            Self::Branch { name, head } => format!("branch\t\t{}\t\t{}", name, head),
+            Self::Tag { name, commit } => format!("tag\t\t{}\t\t{}", name, commit),
+        }
+    }
 }

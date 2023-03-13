@@ -107,6 +107,7 @@ fn get_all_references(transport: &Transport) -> Result<Vec<Reference>, Report<Er
     Ok(references)
 }
 
+#[tracing::instrument]
 fn run_git<I, S>(
     transport: &Transport,
     args: I,
@@ -114,12 +115,11 @@ fn run_git<I, S>(
 ) -> Result<Output, Report<Error>>
 where
     I: IntoIterator<Item = S>,
+    I: core::fmt::Debug,
     String: From<S>,
 {
     let mut full_args = default_args(transport)?;
     let mut args_as_vec: Vec<String> = args.into_iter().map(String::from).collect();
-    // full_args includes authentication info, so do not log it!
-    info!("running git {:?} in directory {:?}", args_as_vec, cwd);
     full_args.append(&mut args_as_vec);
 
     let mut ssh_key_file = NamedTempFile::new()
@@ -170,10 +170,22 @@ fn references_that_need_scanning(
     transport: &Transport,
     references: Vec<Reference>,
 ) -> Result<Vec<Reference>, Report<Error>> {
+    info!("Finding references that may need scanning");
     let tmpdir = blobless_clone(transport, None)
         .describe("cloning into temp directory in references_that_need_scanning")?;
 
     let initial_len = references.len();
+    let mut table: Vec<String> = vec!["branch or tag\tname\tcommit"]
+        .into_iter()
+        .map(String::from)
+        .collect();
+
+    let mut filtered_references_table: Vec<String> = references
+        .clone()
+        .into_iter()
+        .map(|r| r.table_row())
+        .collect();
+    table.append(&mut filtered_references_table);
     let filtered_references: Vec<Reference> = references
         .into_iter()
         .filter(|reference| {
@@ -182,17 +194,18 @@ fn references_that_need_scanning(
         })
         .collect();
     info!(
-        "Found {} references total. {} of them have been updated in the last {} days and will be scanned\n{:?}",
+        "Found {} references total. {} of them have been updated in the last {} days and may need to be scanned\n{}",
         initial_len,
         filtered_references.len(),
         DAYS_UNTIL_STALE,
-        filtered_references,
+        table.join("\n"),
     );
 
     Ok(filtered_references)
 }
 
 /// A reference needs scanning if its head commit is less than 30 days old
+#[tracing::instrument]
 fn reference_needs_scanning(
     transport: &Transport,
     reference: &Reference,
