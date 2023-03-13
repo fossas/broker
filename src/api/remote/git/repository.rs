@@ -150,6 +150,9 @@ where
     Ok(output)
 }
 
+// Days until a commit is considered stale and will not be scanned
+const DAYS_UNTIL_STALE: i64 = 30;
+
 /// Get a list of all branches and tags for the given integration
 /// This is done by doing this:
 ///
@@ -180,9 +183,10 @@ fn references_that_need_scanning(
         })
         .collect();
     info!(
-        "there were {} references, and {} of them should be scanned\n{:?}",
+        "Found {} references total. {} of them have been updated in the last {} days and will be scanned\n{:?}",
         initial_len,
         filtered_references.len(),
+        DAYS_UNTIL_STALE,
         filtered_references,
     );
 
@@ -220,7 +224,7 @@ fn reference_needs_scanning(
     let date_strings = String::from_utf8_lossy(&output.stdout);
     let mut dates = date_strings.split(":::");
     let earliest_commit_date_that_needs_to_be_scanned =
-        OffsetDateTime::checked_sub(OffsetDateTime::now_utc(), 30.days())
+        OffsetDateTime::checked_sub(OffsetDateTime::now_utc(), DAYS_UNTIL_STALE.days())
             .ok_or_else(|| report!(Error::ParseGitOutput))?;
 
     let author_date = dates
