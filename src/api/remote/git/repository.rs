@@ -69,6 +69,7 @@ pub fn clone_reference(
     transport: &Transport,
     reference: &Reference,
 ) -> Result<TempDir, Report<Error>> {
+    info!("cloning {:?}", reference);
     let tmpdir = blobless_clone(transport, Some(reference))?;
     Ok(tmpdir)
 }
