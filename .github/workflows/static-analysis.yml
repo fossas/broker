@@ -1,5 +1,5 @@
 name: static analysis
-on: [push, pull_request]
+on: pull_request
 
 # Run checkers independently, so you see errors from each.
 jobs:
