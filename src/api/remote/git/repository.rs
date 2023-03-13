@@ -11,6 +11,7 @@ use std::process::{Command, Output};
 use tempfile::{tempdir, NamedTempFile, TempDir};
 use thiserror::Error;
 use time::{ext::NumericalDuration, format_description::well_known::Iso8601, OffsetDateTime};
+use tracing::info;
 
 use super::Reference;
 use crate::ext::error_stack::{ErrorHelper, IntoContext};
@@ -126,7 +127,7 @@ where
 
     let mut command = Command::new("git");
     command.args(full_args.clone()).envs(env);
-    println!("running git {:?} in directory {:?}", full_args, cwd);
+    info!("running git {:?} in directory {:?}", full_args, cwd);
     if let Some(directory) = cwd {
         command.current_dir(directory);
     }
@@ -176,7 +177,7 @@ fn references_that_need_scanning(
                 .unwrap_or(false)
         })
         .collect();
-    println!(
+    info!(
         "there were {} references, and {} of them should be scanned\n{:?}",
         initial_len,
         filtered_references.len(),
@@ -215,11 +216,6 @@ fn reference_needs_scanning(
 
     let output = run_git(transport, args, Some(&cloned_repo_dir))?;
     let date_strings = String::from_utf8_lossy(&output.stdout);
-    println!(
-        "author and committer date for {}: {}",
-        reference.name(),
-        date_strings
-    );
     let mut dates = date_strings.split(":::");
     let earliest_commit_date_that_needs_to_be_scanned =
         OffsetDateTime::checked_sub(OffsetDateTime::now_utc(), 30.days())

@@ -151,6 +151,11 @@ async fn load_config(args: config::RawBaseArgs) -> Result<Config, Error> {
 /// 2. For each remote, clone it into a directory and check out the tag or branch
 async fn main_clone(args: config::RawBaseArgs) -> Result<(), Error> {
     let conf = load_config(args).await?;
+    let _tracing_guard = conf
+        .debug()
+        .run_tracing_sink()
+        .change_context(Error::InternalSetup)?;
+
     let integration = &conf.integrations().as_ref()[0];
     let mut references = integration.references()
         .change_context(Error::Runtime)
