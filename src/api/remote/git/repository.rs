@@ -59,12 +59,14 @@ pub enum Error {
 }
 
 /// List references that have been updated in the last 30 days.
+#[tracing::instrument]
 pub fn list_references(transport: &Transport) -> Result<Vec<Reference>, Report<Error>> {
     let references = get_all_references(transport)?;
     references_that_need_scanning(transport, references)
 }
 
 /// Clone a [`Reference`] into a temporary directory.
+#[tracing::instrument]
 pub fn clone_reference(
     transport: &Transport,
     reference: &Reference,
@@ -74,6 +76,7 @@ pub fn clone_reference(
     Ok(tmpdir)
 }
 
+#[tracing::instrument]
 fn get_all_references(transport: &Transport) -> Result<Vec<Reference>, Report<Error>> {
     // First, we need to make a temp directory and run `git init` in it
     let tmpdir = tempdir()
@@ -168,6 +171,7 @@ const DAYS_UNTIL_STALE: i64 = 30;
 /// To do this we need a cloned repository so that we can run
 /// `git log <some format string that includes that date of the commit> <branch_or_tag_name>`
 /// in the cloned repo for each branch or tag
+#[tracing::instrument]
 fn references_that_need_scanning(
     transport: &Transport,
     references: Vec<Reference>,
@@ -260,6 +264,7 @@ fn reference_needs_scanning(
 }
 
 /// Do a blobless clone of the repository, checking out the Reference if it exists
+#[tracing::instrument]
 fn blobless_clone(
     transport: &Transport,
     reference: Option<&Reference>,
@@ -288,6 +293,7 @@ fn blobless_clone(
     Ok(tmpdir)
 }
 
+#[tracing::instrument]
 fn default_args(transport: &Transport) -> Result<Vec<String>, Report<Error>> {
     ensure!(
         transport.endpoint().starts_with("http"),
@@ -317,6 +323,7 @@ fn default_args(transport: &Transport) -> Result<Vec<String>, Report<Error>> {
         .collect())
 }
 
+#[tracing::instrument]
 fn env_vars(
     transport: &Transport,
     ssh_key_file: &mut NamedTempFile<File>,
@@ -352,6 +359,7 @@ fn env_vars(
 // "-o IdentitiesOnly=yes" means "only use the identity file pointed to by the -i arg"
 // "-o StrictHostKeyChecking=no" avoids errors when the host is not in ssh's knownHosts file
 // "-F /dev/null" means "start with an empty ssh config"
+#[tracing::instrument]
 fn git_ssh_command(path: &Path) -> Result<String, Report<Error>> {
     path.to_str()
         .ok_or_else(|| report!(Error::PathNotValidUtf8))
@@ -382,6 +390,7 @@ fn git_ssh_command(path: &Path) -> Result<String, Report<Error>> {
 /// We only want the branches (which start with `refs/head/` and the tags (which start with `refs/tags`))
 /// Tags that end in ^{} should have the ^{} stripped from them. This will usually end up with a duplicate, so we
 /// de-dupe before returning
+#[tracing::instrument]
 fn parse_ls_remote(output: String) -> Result<Vec<Reference>, Report<Error>> {
     let results = output
         .split('\n')
@@ -392,6 +401,7 @@ fn parse_ls_remote(output: String) -> Result<Vec<Reference>, Report<Error>> {
     Ok(results)
 }
 
+#[tracing::instrument]
 fn line_to_git_ref(line: &str) -> Option<Reference> {
     let mut parsed = line.split_whitespace();
     let commit = parsed.next()?;
