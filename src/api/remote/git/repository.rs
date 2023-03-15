@@ -74,7 +74,7 @@ pub fn clone_reference(
     Ok(tmpdir)
 }
 
-#[tracing::instrument]
+#[tracing::instrument(skip(transport))]
 fn get_all_references(transport: &Transport) -> Result<Vec<Reference>, Report<Error>> {
     // First, we need to make a temp directory and run `git init` in it
     let tmpdir = tempdir()
@@ -110,7 +110,7 @@ fn get_all_references(transport: &Transport) -> Result<Vec<Reference>, Report<Er
     Ok(references)
 }
 
-#[tracing::instrument]
+#[tracing::instrument(skip(transport))]
 fn run_git<I, S>(
     transport: &Transport,
     args: I,
@@ -169,7 +169,7 @@ const DAYS_UNTIL_STALE: i64 = 30;
 /// To do this we need a cloned repository so that we can run
 /// `git log <some format string that includes that date of the commit> <branch_or_tag_name>`
 /// in the cloned repo for each branch or tag
-#[tracing::instrument]
+#[tracing::instrument(skip(transport))]
 fn references_that_need_scanning(
     transport: &Transport,
     references: Vec<Reference>,
@@ -193,7 +193,7 @@ fn references_that_need_scanning(
 }
 
 /// A reference needs scanning if its head commit is less than 30 days old
-#[tracing::instrument]
+#[tracing::instrument(skip(transport))]
 fn reference_needs_scanning(
     transport: &Transport,
     reference: &Reference,
@@ -249,7 +249,7 @@ fn reference_needs_scanning(
 }
 
 /// Do a blobless clone of the repository, checking out the Reference if it exists
-#[tracing::instrument]
+#[tracing::instrument(skip(transport))]
 fn blobless_clone(
     transport: &Transport,
     reference: Option<&Reference>,
@@ -278,7 +278,7 @@ fn blobless_clone(
     Ok(tmpdir)
 }
 
-#[tracing::instrument]
+#[tracing::instrument(skip(transport))]
 fn default_args(transport: &Transport) -> Result<Vec<String>, Report<Error>> {
     ensure!(
         transport.endpoint().starts_with("http"),
@@ -308,7 +308,7 @@ fn default_args(transport: &Transport) -> Result<Vec<String>, Report<Error>> {
         .collect())
 }
 
-#[tracing::instrument]
+#[tracing::instrument(skip(transport))]
 fn env_vars(
     transport: &Transport,
     ssh_key_file: &mut NamedTempFile<File>,
