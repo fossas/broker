@@ -1,6 +1,6 @@
 //! Interface for interacting with the database, abstracted over database implementation.
 
-use std::path::Path;
+use std::{fmt::Debug, path::Path};
 
 use async_trait::async_trait;
 use derive_new::new;
@@ -64,8 +64,15 @@ pub struct Coordinate {
 }
 
 /// All databases implement this type.
+///
+/// Database is `Send`, `Sync` and `Clone`.
+/// It is intended to be created once at the start of the application,
+/// and then shared with all tasks throughout the process’ lifetime.
 #[async_trait]
-pub trait Database {
+pub trait Database: Debug + Clone + Send + Sync {
+    /// Check that we can contact the DB.
+    async fn healthcheck(&self) -> Result<(), Error>;
+
     /// The last version of Broker used to access the database.
     /// If the DB has never been accessed before, returns `None`.
     ///

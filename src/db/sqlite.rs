@@ -23,7 +23,7 @@ use crate::{
     doc::{crate_name, crate_version},
     ext::{
         error_stack::{DescribeContext, ErrorHelper, IntoContext},
-        result::WrapErr,
+        result::{DiscardResult, WrapErr},
     },
 };
 
@@ -54,7 +54,7 @@ pub enum Error {
 }
 
 /// A database implemented with sqlite.
-#[derive(new)]
+#[derive(Clone, new)]
 pub struct Database {
     location: PathBuf,
     internal: SqlitePool,
@@ -63,6 +63,7 @@ pub struct Database {
 impl Debug for Database {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Database")
+            .field("kind", &"sqlite")
             .field("location", &self.location)
             .finish()
     }
@@ -137,6 +138,11 @@ struct RepoStateRow {
 
 #[async_trait]
 impl super::Database for Database {
+    #[tracing::instrument]
+    async fn healthcheck(&self) -> Result<(), super::Error> {
+        self.broker_version().await.discard_ok()
+    }
+
     #[tracing::instrument]
     async fn broker_version(&self) -> Result<Option<Version>, super::Error> {
         query_as!(
