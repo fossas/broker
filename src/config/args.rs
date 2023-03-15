@@ -4,15 +4,19 @@ use std::path::PathBuf;
 
 use clap::Parser;
 use derive_new::new;
-use error_stack::{Report, ResultExt};
+use error_stack::{report, Report, ResultExt};
 use getset::{CopyGetters, Getters};
+use indoc::indoc;
 use serde::Serialize;
 
 use crate::ext::{
     error_stack::{merge_error_stacks, DescribeContext, ErrorHelper},
     io,
-    result::WrapOk,
+    result::{WrapErr, WrapOk},
 };
+
+/// The variable used to control whether Broker attempts to discover files.
+pub const DISABLE_FILE_DISCOVERY_VAR: &str = "DISABLE_FILE_DISCOVERY";
 
 /// Errors that are possibly surfaced during validation of config values.
 #[derive(Debug, thiserror::Error)]
@@ -67,21 +71,58 @@ impl RawBaseArgs {
     /// In practice, if the user provided a path to the db and config file, the validation is straightforward.
     /// If the user did not provide one or both, this function discovers their location on disk
     /// or errors if they are not able to be found.
+    ///
+    /// In the case of the database file, if one was not provided _and_ not found,
+    /// it is assumed to be a sibling to the config file.
+    /// Database implementations then create it if it does not exist.
     pub async fn validate(self) -> Result<BaseArgs, Report<Error>> {
         let config_path = if let Some(provided_path) = self.config_file_path {
             ConfigFilePath::from(provided_path).wrap_ok()
-        } else {
+        } else if discovery_enabled() {
             ConfigFilePath::discover()
                 .await
                 .change_context(Error::ConfigFileLocation)
+        } else {
+            report!(Error::ConfigFileLocation).wrap_err().help_lazy(|| {
+                format!("discovery is disabled via '{DISABLE_FILE_DISCOVERY_VAR}' env var")
+            })
         };
 
         let database_path = if let Some(provided_path) = self.database_file_path {
             DatabaseFilePath::from(provided_path).wrap_ok()
-        } else {
+        } else if discovery_enabled() {
             DatabaseFilePath::discover()
                 .await
                 .change_context(Error::DbFileLocation)
+        } else {
+            report!(Error::DbFileLocation).wrap_err().help_lazy(|| {
+                format!("discovery is disabled via '{DISABLE_FILE_DISCOVERY_VAR}' env var")
+            })
+        };
+
+        // If the DB path couldn't be found, but we have a config path, try to set the DB
+        // to be a sibling of the config path. If that can't be done, augment the error
+        // to explain why for debugging.
+        let database_path = match database_path {
+            Ok(database_path) => Ok(database_path),
+            Err(err) => {
+                match &config_path {
+                    Ok(config_path) => {
+                        match config_path.path.parent() {
+                            Some(parent) => Ok(DatabaseFilePath { path: parent.join("db.sqlite"), provided: false }),
+                            None => Err(err).describe(indoc! {"
+                            Usually in this case Broker assumes the DB path to be next to the config file path,
+                            but the config path's parent could not be determined and so the db path was unable
+                            to be constructed.
+                            "}),
+                        }
+                    },
+                    Err(_) => Err(err).describe(indoc! {"
+                    Usually in this case Broker assumes the DB path to be next to the config file path,
+                    but since the config file path was not able to be determined that's not possible here.
+                    "}),
+                }
+            },
         };
 
         // `error_stack` supports stacking multiple errors together so
@@ -205,4 +246,11 @@ impl From<String> for DatabaseFilePath {
             provided: true,
         }
     }
+}
+
+fn discovery_enabled() -> bool {
+    std::env::var(DISABLE_FILE_DISCOVERY_VAR)
+        .map(|value| vec!["true", "1"].contains(&value.as_str()))
+        .map(|value| !value)
+        .unwrap_or(true)
 }

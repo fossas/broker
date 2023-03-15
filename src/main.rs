@@ -6,6 +6,7 @@
 #![warn(rust_2018_idioms)]
 
 use broker::api::remote::RemoteProvider;
+use broker::doc::crate_version;
 use broker::{config, ext::error_stack::ErrorHelper};
 use broker::{
     config::Config,
@@ -68,9 +69,7 @@ enum Commands {
 async fn main() -> Result<(), Error> {
     // App-wide setup goes here.
     Report::set_color_mode(ColorMode::Color);
-
-    // Record global information to display with any error.
-    let version = env!("CARGO_PKG_VERSION");
+    let version = crate_version();
 
     // Subcommand routing.
     let Opts { command } = Opts::parse();
