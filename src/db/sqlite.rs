@@ -282,11 +282,7 @@ mod tests {
     async fn inserts_version() {
         let (_tmp, db) = temp_db!();
 
-        let version = Version::new(0, 1, 0);
-        db.update_db_version(&version)
-            .await
-            .expect("must insert version");
-
+        let version = crate_version();
         let row = query_as!(
             BrokerVersionRow,
             "select version from broker_version limit 1"
@@ -302,13 +298,8 @@ mod tests {
     async fn updates_version() {
         let (_tmp, db) = temp_db!();
 
-        let name = crate_name();
-        query!("insert into broker_version values (?, ?)", name, "0.1.0")
-            .execute(&db.internal)
-            .await
-            .expect("must insert initial version");
-
-        let version = Version::new(0, 2, 0);
+        let version = crate_version();
+        let version = Version::new(version.major + 1, 0, 0);
         db.update_db_version(&version)
             .await
             .expect("must update version");
