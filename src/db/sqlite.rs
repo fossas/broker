@@ -38,13 +38,13 @@ use sqlx::{
 };
 use tap::TapFallible;
 use thiserror::Error;
-use tracing::debug;
 
 use crate::{
     doc::{crate_name, crate_version},
     ext::{
         error_stack::{DescribeContext, ErrorHelper, IntoContext},
         result::{DiscardResult, WrapErr},
+        tracing::{span_record, span_records},
     },
 };
 
@@ -92,7 +92,7 @@ impl Debug for Database {
 
 impl Database {
     /// Connect to the database.
-    #[tracing::instrument]
+    #[tracing::instrument(fields(options))]
     pub async fn connect(location: &Path) -> Result<Self, Error> {
         let options = SqliteConnectOptions::new()
             .filename(location)
@@ -100,7 +100,7 @@ impl Database {
             .synchronous(sqlx::sqlite::SqliteSynchronous::Normal)
             .create_if_missing(true);
 
-        debug!("open db at {location:?} with connect options: {options:?}");
+        span_record!(options, debug options);
         let db = SqlitePoolOptions::new()
             .max_connections(64)
             .min_connections(1)
@@ -109,7 +109,14 @@ impl Database {
             .context(Error::Connect)
             .describe_lazy(|| format!("attempted to open sqlite db at {location:?}"))?;
 
-        Self::new(location.to_path_buf(), db).migrate().await
+        let db = Self::new(location.to_path_buf(), db).migrate().await?;
+
+        super::Database::claim_broker_version(&db)
+            .await
+            .change_context(Error::Connect)
+            .describe("during initial connection, Broker validates that it's the latest version connecting to the DB")?;
+
+        Ok(db)
     }
 
     /// Migrate the database.
@@ -128,7 +135,7 @@ impl Database {
             .map(|_| self)
     }
 
-    #[tracing::instrument]
+    #[tracing::instrument(fields(result))]
     async fn update_db_version(&self, version: &Version) -> Result<(), Error> {
         let name = crate_name();
         let version = version.to_string();
@@ -142,7 +149,7 @@ impl Database {
         )
         .execute(&self.internal)
         .await
-        .map(|result| debug!("result: {result:?}"))
+        .map(|result| span_record!(result, debug result))
         .context(Error::Communication)
     }
 }
@@ -164,7 +171,7 @@ impl super::Database for Database {
         self.broker_version().await.discard_ok()
     }
 
-    #[tracing::instrument]
+    #[tracing::instrument(fields(read, parsed))]
     async fn broker_version(&self) -> Result<Option<Version>, super::Error> {
         query_as!(
             BrokerVersionRow,
@@ -172,33 +179,33 @@ impl super::Database for Database {
         )
         .fetch_optional(&self.internal)
         .await
-        .tap_ok(|raw| debug!("read: {raw:?}"))
+        .tap_ok(|raw| span_record!(read, debug raw))
         .context(Error::Communication)
         .change_context(super::Error::Interact)?
         .map(|row| Version::parse(&row.version))
         .transpose()
-        .tap_ok(|version| debug!("last used broker version: {version:?}"))
+        .tap_ok(|version| span_record!(parsed, debug version))
         .context(Error::Parse)
         .describe("Broker versions must be valid semver")
         .help("this likely indicates that the database is corrupted, as all Broker releases are valid semver")
         .change_context(super::Error::Interact)
     }
 
-    #[tracing::instrument]
+    #[tracing::instrument(fields(current_version, db_version))]
     async fn claim_broker_version(&self) -> Result<(), super::Error> {
         let current_version = crate_version().clone();
         let db_version = self.broker_version().await?;
-        debug!("claiming version {current_version} against db {db_version:?}");
+        span_records! {
+            current_version => debug current_version;
+            db_version => debug db_version;
+        };
 
         match db_version {
-            None => {
-                debug!("db does not have a version set, inserting into db");
-                self.update_db_version(&current_version)
-                    .await
-                    .change_context(super::Error::Interact)
-            }
+            None => self
+                .update_db_version(&current_version)
+                .await
+                .change_context(super::Error::Interact),
             Some(db_version) if current_version < db_version => {
-                debug!("current version is older than db version, bailing");
                 report!(super::Error::BrokerOutdated)
                     .wrap_err()
                     .describe(indoc! {"
@@ -208,20 +215,15 @@ impl super::Database for Database {
                         "})
                     .help("try again with the latest version of Broker")
             }
-            Some(db_version) if current_version > db_version => {
-                debug!("current version is newer than db version, updating db");
-                self.update_db_version(&current_version)
-                    .await
-                    .change_context(super::Error::Interact)
-            }
-            Some(_) => {
-                debug!("versions were the same");
-                Ok(())
-            }
+            Some(db_version) if current_version > db_version => self
+                .update_db_version(&current_version)
+                .await
+                .change_context(super::Error::Interact),
+            Some(_) => Ok(()),
         }
     }
 
-    #[tracing::instrument]
+    #[tracing::instrument(fields(repo_state))]
     async fn state(&self, coordinate: &Coordinate) -> Result<Option<Vec<u8>>, super::Error> {
         let integration = coordinate.namespace.to_string();
         query_as!(
@@ -233,13 +235,13 @@ impl super::Database for Database {
         )
         .fetch_optional(&self.internal)
         .await
-        .tap_ok(|raw| debug!("read: {raw:?}"))
+        .tap_ok(|raw| span_record!(repo_state, debug raw))
         .context(Error::Communication)
         .change_context(super::Error::Interact)
         .map(|result| result.map(|row| row.repo_state))
     }
 
-    #[tracing::instrument]
+    #[tracing::instrument(fields(result))]
     async fn set_state(&self, coordinate: &Coordinate, state: &[u8]) -> Result<(), super::Error> {
         let integration = coordinate.namespace.to_string();
         query!(
@@ -254,7 +256,7 @@ impl super::Database for Database {
         )
         .execute(&self.internal)
         .await
-        .map(|result| debug!("result: {result:?}"))
+        .map(|result| span_record!(result, debug result))
         .context(Error::Communication)
         .change_context(super::Error::Interact)
     }
