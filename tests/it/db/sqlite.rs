@@ -93,24 +93,23 @@ async fn claim_older_version_fails() {
     db.close().await.expect("must close db");
 
     // Now open the actual DB interface at this path and try to claim the current version.
-    let db = temp_db!(&path);
-    let err = db
-        .claim_broker_version()
+    let err = connect_sqlite(&path)
         .await
-        .expect_err("must have failed to claim version");
-
+        .expect_err("must fail to claim version");
     assert_error_stack_snapshot!(&path, err);
 }
 
 #[tokio::test]
-async fn gets_empty_version() {
+async fn gets_initial_version() {
     let (_tmp, db, _path) = temp_db!();
 
-    let db_version = db.broker_version().await.expect("must get version");
-    assert!(
-        db_version.is_none(),
-        "db version was unset, so must be none"
-    );
+    let version = broker::doc::crate_version();
+    let db_version = db
+        .broker_version()
+        .await
+        .expect("must get version")
+        .expect("version must be set");
+    assert_eq!(db_version.to_string(), version.to_string());
 }
 
 #[tokio::test]

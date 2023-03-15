@@ -1,11 +1,18 @@
 ---
 source: tests/it/db/sqlite.rs
 expression: err
-info: /var/folders/q7/3nvvpy0d6js28m8lypw3tcx80000gn/T/.tmprZqgnP/test.db
+info: /var/folders/q7/3nvvpy0d6js28m8lypw3tcx80000gn/T/.tmpkPzqkc/test.db
 ---
-newer version of Broker has used this database
+initialize database
 ├╴at {source location}
-├╴context: Broker stores the last used version in the DB to ensure
-│ that older versions of Broker cannot break invariants added in newer
-│ versions of Broker.
-╰╴help: try again with the latest version of Broker
+│
+├─▶ connect to database
+│   ├╴at {source location}
+│   ╰╴context: during initial connection, Broker validates that it's the latest version connecting to the DB
+│
+╰─▶ newer version of Broker has used this database
+    ├╴at {source location}
+    ├╴context: Broker stores the last used version in the DB to ensure
+    │ that older versions of Broker cannot break invariants added in newer
+    │ versions of Broker.
+    ╰╴help: try again with the latest version of Broker
