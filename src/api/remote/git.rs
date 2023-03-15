@@ -1,13 +1,11 @@
 pub mod repository;
 pub mod transport;
 use derive_new::new;
-use tabled::Tabled;
 
 /// A git reference's type (branch or tag)
-#[derive(Debug, Clone, Hash, Eq, PartialEq, new, Tabled)]
+#[derive(Debug, Clone, Hash, Eq, PartialEq, new)]
 pub enum Reference {
     /// A branch
-    #[tabled(inline("Branch::"))]
     Branch {
         /// The name of the branch
         name: String,
@@ -17,7 +15,6 @@ pub enum Reference {
     },
 
     /// A tag
-    #[tabled(inline("Tag::"))]
     Tag {
         /// The name of the tag
         name: String,

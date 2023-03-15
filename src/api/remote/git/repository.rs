@@ -8,11 +8,10 @@ use std::fs::File;
 use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Output};
-use tabled::Table;
 use tempfile::{tempdir, NamedTempFile, TempDir};
 use thiserror::Error;
 use time::{ext::NumericalDuration, format_description::well_known::Iso8601, OffsetDateTime};
-use tracing::info;
+use tracing::debug;
 
 use super::Reference;
 use crate::ext::error_stack::{ErrorHelper, IntoContext};
@@ -71,7 +70,6 @@ pub fn clone_reference(
     transport: &Transport,
     reference: &Reference,
 ) -> Result<TempDir, Report<Error>> {
-    info!("cloning {:?}", reference);
     let tmpdir = blobless_clone(transport, Some(reference))?;
     Ok(tmpdir)
 }
@@ -179,13 +177,6 @@ fn references_that_need_scanning(
     let tmpdir = blobless_clone(transport, None)
         .describe("cloning into temp directory in references_that_need_scanning")?;
 
-    let initial_len = references.len();
-    info!(
-        "Found {} total references. Filtering to recently updated references",
-        initial_len
-    );
-    let table = Table::new(&references).to_string();
-
     let filtered_references: Vec<Reference> = references
         .into_iter()
         .filter(|reference| {
@@ -193,16 +184,10 @@ fn references_that_need_scanning(
                 .unwrap_or(false)
         })
         .collect();
-    info!(
-        "Found {} total references. {} of them have been updated in the last {} days and may need to be scanned",
-        initial_len,
-        filtered_references.len(),
-        DAYS_UNTIL_STALE,
+    debug!(
+        "references that have been updated in the last {} days: {:?}",
+        DAYS_UNTIL_STALE, filtered_references
     );
-
-    if !filtered_references.is_empty() {
-        info!("\n{}", table);
-    }
 
     Ok(filtered_references)
 }
