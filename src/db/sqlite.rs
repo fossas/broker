@@ -1,4 +1,25 @@
 //! Database implementation using sqlite as a backing store.
+//!
+//! # Vulnerability warning
+//!
+//! sqlx@0.6 uses libsqlite3-sys@0.24, which is vulnerable to CVE-2022-35737:
+//! > SQLite 1.0.12 through 3.39.x before 3.39.2 sometimes allows an array-bounds
+//! > overflow if billions of bytes are used in a string argument to a C API.
+//!
+//! This fix is blocked upstream on sqlx: 0.7 is a rewrite, and they're unwilling
+//! to release a fix for this as it is a breaking change when a rewrite is pending
+//! (historically, they've gotten a lot of heat for releasing "too many breaking changes").
+//!
+//! We don't allow arbitrary queries from users, and the only values sent
+//! come from within the program. So long as we continue not allowing user provided
+//! queries, we're unlikely to ever hit "billions of bytes used in a string argument",
+//! making this a very low risk vulnerability for this application.
+//!
+//! ## Further reading
+//! - CVE details on NIST: https://nvd.nist.gov/vuln/detail/CVE-2022-35737
+//! - CVE report issue:    https://github.com/launchbadge/sqlx/issues/2350
+//! - PR fixing CVE:       https://github.com/launchbadge/sqlx/pull/2094
+//! - 0.7x tracking issue: https://github.com/launchbadge/sqlx/issues/1163
 
 use std::{
     fmt::Debug,
