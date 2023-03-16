@@ -30,8 +30,8 @@ pub enum Error {
 }
 
 /// Load the config at v1 for the application.
-pub fn load(content: String) -> Result<super::Config, Report<Error>> {
-    RawConfigV1::parse(content).and_then(validate)
+pub fn load(content: String, path: PathBuf) -> Result<super::Config, Report<Error>> {
+    RawConfigV1::parse(content).and_then(|config| validate(config, path))
 }
 
 /// Config values as parsed from disk.
@@ -60,7 +60,7 @@ impl RawConfigV1 {
     }
 }
 
-fn validate(config: RawConfigV1) -> Result<super::Config, Report<Error>> {
+fn validate(config: RawConfigV1, path: PathBuf) -> Result<super::Config, Report<Error>> {
     let endpoint = fossa::Endpoint::try_from(config.endpoint).change_context(Error::Validate)?;
     let key = fossa::Key::try_from(config.integration_key).change_context(Error::Validate)?;
     let api = fossa::Config::new(endpoint, key);
@@ -73,7 +73,7 @@ fn validate(config: RawConfigV1) -> Result<super::Config, Report<Error>> {
         .change_context(Error::Validate)
         .map(remote::Config::new)?;
 
-    super::Config::new(api, debugging, integrations).wrap_ok()
+    super::Config::new(api, debugging, integrations, path).wrap_ok()
 }
 
 #[derive(Debug, Deserialize)]

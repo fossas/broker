@@ -33,7 +33,7 @@
 //!
 //! Validations are expressed as `From<String>` or `TryFrom<String>` implementations.
 
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use derive_new::new;
 use error_stack::{report, Report, ResultExt};
@@ -83,6 +83,9 @@ pub struct Config {
 
     /// Configured integration points.
     integrations: api::remote::Config,
+
+    /// Root of the config
+    path: PathBuf,
 }
 
 impl Config {
@@ -101,7 +104,7 @@ impl Config {
             .describe("prior to parsing the config file, Broker checks just the 'version' field to select the correct parser")?;
 
         match version {
-            1 => v1::load(content).change_context(Error::ParseV1),
+            1 => v1::load(content, PathBuf::from(path)).change_context(Error::ParseV1),
             0 => fail(Error::Incompatible, 0).help("update the config file to a newer format"),
             v => fail(Error::Unsupported, v).help("ensure that Broker is at the latest version"),
         }
