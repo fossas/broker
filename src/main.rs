@@ -246,7 +246,8 @@ async fn download_fossa_cli(config_path: &PathBuf) -> Result<(), Error> {
         .await
         .context(Error::InternalSetup)
         .describe("converting downloaded fossa-cli into bytes")?;
-    copy(&mut content.as_ref(), &mut download_file)
+    let mut decoder = libflate::deflate::Decoder::new(content.as_ref());
+    copy(&mut decoder, &mut download_file)
         .context(Error::InternalSetup)
         .describe("writing downloaded fossa-cli to disk")?;
 
