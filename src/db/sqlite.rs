@@ -173,9 +173,11 @@ impl super::Database for Database {
 
     #[tracing::instrument(fields(read, parsed))]
     async fn broker_version(&self) -> Result<Option<Version>, super::Error> {
+        let name = crate_name();
         query_as!(
             BrokerVersionRow,
-            "select version from broker_version limit 1"
+            "select version from broker_version where name = ? limit 1",
+            name
         )
         .fetch_optional(&self.internal)
         .await
