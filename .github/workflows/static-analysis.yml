@@ -58,22 +58,3 @@ jobs:
       with:
         tool: sqlx-cli
     - run: '! make migration-status | grep -q pending'
-
-  # Ensure dependencies are up to date.
-  #
-  # If you're getting this error in CI, it's just letting you know that there are dependency updates available;
-  # ideally update them but feel free to leave them for later as well.
-  updated-advisory:
-    runs-on: ubuntu-latest
-    steps:
-    - uses: actions/checkout@v3
-    - uses: actions-rs/toolchain@v1
-      with:
-        profile: minimal
-        toolchain: stable
-    - uses: Swatinem/rust-cache@v2
-    - uses: taiki-e/install-action@v2
-      with:
-        tool: cargo-upgrades,cargo-edit
-    - run: cargo upgrade
-    - run: git diff --exit-code
