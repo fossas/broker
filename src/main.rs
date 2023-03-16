@@ -5,6 +5,9 @@
 #![deny(missing_docs)]
 #![warn(rust_2018_idioms)]
 
+use std::env::temp_dir;
+use std::fs::File;
+use std::io::copy;
 use std::path::PathBuf;
 use std::process::Command;
 
@@ -168,6 +171,11 @@ async fn ensure_fossa_cli(config_path: &PathBuf) -> Result<(), Error> {
 }
 
 async fn download_fossa_cli(config_path: &PathBuf) -> Result<(), Error> {
+    let config_dir = config_path
+        .parent()
+        .ok_or(Error::InternalSetup)
+        .into_report()
+        .describe("Finding location to download fossa-cli to")?;
     let client = reqwest::Client::new();
     let latest_release_response = client
         .get("https://github.com/fossas/fossa-cli/releases/latest")
@@ -221,7 +229,37 @@ async fn download_fossa_cli(config_path: &PathBuf) -> Result<(), Error> {
     };
     let download_url = format!("https://github.com/fossas/fossa-cli/releases/download/v{version}/fossa_{version}_{os}_{arch}{extension}");
     println!("Downloading from {}", download_url);
-    // TODO: Download, unzip and untar it
+    // Download into a tmp dir so that we can unzip and untar it
+    let tmpdir = temp_dir();
+    let response = client
+        .get(&download_url)
+        .send()
+        .await
+        .context(Error::InternalSetup)
+        .describe_lazy(|| format!("downloading fossa-cli from {}", download_url))?;
+    let download_path = tmpdir.as_path().join(format!("fossa.{}", extension));
+    let mut download_file = File::create(&download_path)
+        .context(Error::InternalSetup)
+        .describe("Creating temp file to download fossa-cli into")?;
+    let content = response
+        .bytes()
+        .await
+        .context(Error::InternalSetup)
+        .describe("converting downloaded fossa-cli into bytes")?;
+    copy(&mut content.as_ref(), &mut download_file)
+        .context(Error::InternalSetup)
+        .describe("writing downloaded fossa-cli to disk")?;
+
+    let final_location = config_dir.join(format!("fossa{}", extension));
+    std::fs::rename(&download_path, &final_location)
+        .context(Error::InternalSetup)
+        .describe_lazy(|| {
+            format!(
+                "Copying fossa-cli to final destination of {:?}",
+                final_location
+            )
+        })?;
+    println!("fossa-cli should now be in {:?}", &final_location);
     Ok(())
 }
 
