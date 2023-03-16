@@ -44,6 +44,21 @@ jobs:
     - uses: Swatinem/rust-cache@v2
     - run: cargo build
 
+  # Ensure db is migrated
+  db-migrated:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v3
+    - uses: actions-rs/toolchain@v1
+      with:
+        profile: minimal
+        toolchain: stable
+    - uses: Swatinem/rust-cache@v2
+    - uses: taiki-e/install-action@v2
+      with:
+        tool: sqlx-cli
+    - run: '! make migration-status | grep -q pending'
+
   # Ensure dependencies are up to date.
   #
   # If you're getting this error in CI, it's just letting you know that there are dependency updates available;
