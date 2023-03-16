@@ -126,7 +126,7 @@ impl Database {
             .run(&self.internal)
             .await
             .context(Error::Migrate)
-            .describe("migrations are compiled into Broker")
+            .describe_lazy(|| format!("migrating db at {:?}", self.location))
             .help(indoc! {"
             This error likely means the database is corrupted.
             The database is only used to improve overall system performance,
