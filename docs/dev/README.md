@@ -33,6 +33,7 @@ For any contributors, we recommend the following tools, although they're not req
 cargo edit    # https://lib.rs/crates/cargo-edit
 cargo nextest # https://nexte.st/
 cargo upgrade # https://lib.rs/crates/cargo-upgrades
+cargo sqlx    # https://lib.rs/crates/sqlx-cli
 ```
 
 If you're a FOSSA employee who'll be performing releases, we use `cargo-dist` and `cargo-release`:
@@ -56,6 +57,46 @@ Refer to `insta`'s [getting started guide](https://insta.rs/docs/) for optimal u
 
 The short version of the workflow is that if you get "snapshot errors" during tests,
 run `cargo insta test --review" to review the changes and accept/deny them as intentional.
+
+### migrations
+
+We store migrations in `db/migrations` (this is different than `sqlx`'s default of just `migrations`).
+
+To create a migration, ensure `sqlx-cli` is installed [above](#setting-up-your-development-environment) and run:
+```
+# use underscores for any spaces in <name>
+; cargo sqlx migrate add --source db/migrations -r <name>
+```
+
+Then fill out the newly generated `up` and `down` scripts.
+
+Up migrations are automatically applied when Broker boots up, but they can be automatically applied:
+```
+; cargo sqlx migrate run --source db/migrations
+; cargo sqlx migrate revert --source db/migrations
+```
+
+Applying up migrations always migrates all the way to current, while reverting does one step at a time:
+```
+; cargo sqlx migrate run --source db/migrations
+Applied 20230313231558/migrate state 1 (202.166µs)
+Applied 20230313231721/migrate state 2 (135.833µs)
+Applied 20230313231723/migrate state 3 (124.667µs)
+; cargo sqlx migrate revert --source db/migrations
+Applied 20230313231723/revert state 3 (851.083µs)
+; cargo sqlx migrate revert --source db/migrations
+Applied 20230313231721/revert state 2 (593.584µs)
+; cargo sqlx migrate revert --source db/migrations
+Applied 20230313231558/revert state (661.875µs)
+; cargo sqlx migrate revert --source db/migrations
+No migrations available to revert
+```
+
+To see migration state, run:
+```
+; cargo sqlx migrate info --source db/migrations
+20230313231558/pending state
+```
 
 ## style guide
 
