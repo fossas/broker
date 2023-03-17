@@ -18,4 +18,13 @@ generate-dist:
 run:
 	@cargo run -- run
 
-.PHONY: test run build dev review-snapshots generate-dist
+migration-status:
+	@cargo sqlx migrate info --source db/migrations
+
+migrate-up:
+	@cargo sqlx migrate run --source db/migrations
+
+migrate-down:
+	@cargo sqlx migrate revert --source db/migrations
+
+.PHONY: test run build dev review-snapshots generate-dist migration-status migrate-up migrate-down

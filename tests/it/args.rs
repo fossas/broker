@@ -4,10 +4,10 @@ use broker::{
     api::fossa::{Endpoint, Key},
     config,
 };
+use proptest::{prop_assert, prop_assert_eq};
 use url::Url;
 
 use crate::helper::assert_error_stack_snapshot;
-use proptest::prelude::*;
 use test_strategy::proptest;
 
 pub fn raw_base_args(config: &str, db: &str) -> config::RawBaseArgs {
@@ -31,6 +31,35 @@ async fn validates_args() {
         validated.database_path().path(),
         &PathBuf::from("testdata/database/empty.sqlite")
     );
+}
+
+#[tokio::test]
+async fn infers_db_path() {
+    std::env::set_var(broker::config::DISABLE_FILE_DISCOVERY_VAR, "1");
+
+    let base = config::RawBaseArgs::new(Some(String::from("testdata/config/basic.yml")), None);
+    let validated = config::validate_args(base).await;
+    let validated = validated.expect("args must have passed validation");
+    assert_eq!(
+        validated.config_path().path(),
+        &PathBuf::from("testdata/config/basic.yml")
+    );
+
+    // Inferse `db.sqlite` to be a sibling of the config file.
+    assert_eq!(
+        validated.database_path().path(),
+        &PathBuf::from("testdata/config/db.sqlite")
+    );
+}
+
+#[tokio::test]
+async fn infers_db_path_failing_config() {
+    std::env::set_var(broker::config::DISABLE_FILE_DISCOVERY_VAR, "1");
+
+    let base = config::RawBaseArgs::new(Some(String::from("")), None);
+    let validated = config::validate_args(base.clone()).await;
+    let err = validated.expect_err("must have errored");
+    assert_error_stack_snapshot!(&base, err);
 }
 
 #[proptest]

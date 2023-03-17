@@ -12,6 +12,7 @@
 
 pub mod api;
 pub mod config;
+pub mod db;
 pub mod debug;
 pub mod doc;
 pub mod download_fossa_cli;
