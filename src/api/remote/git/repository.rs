@@ -1,6 +1,6 @@
 //! Wrapper for Git
 use base64::{engine::general_purpose, Engine as _};
-use error_stack::{ensure, report, IntoReport, Report, ResultExt};
+use error_stack::{ensure, report, IntoReport, Report};
 use itertools::Itertools;
 use std::collections::HashMap;
 use std::env;
@@ -11,9 +11,10 @@ use std::process::{Command, Output};
 use tempfile::{tempdir, NamedTempFile, TempDir};
 use thiserror::Error;
 use time::{ext::NumericalDuration, format_description::well_known::Iso8601, OffsetDateTime};
+use tracing::debug;
 
 use super::Reference;
-use crate::ext::error_stack::ErrorHelper;
+use crate::ext::error_stack::{ErrorHelper, IntoContext};
 use crate::{api::http, api::remote::git, api::ssh, ext::error_stack::DescribeContext};
 
 use super::transport::Transport;
@@ -57,12 +58,14 @@ pub enum Error {
 }
 
 /// List references that have been updated in the last 30 days.
+#[tracing::instrument]
 pub fn list_references(transport: &Transport) -> Result<Vec<Reference>, Report<Error>> {
     let references = get_all_references(transport)?;
     references_that_need_scanning(transport, references)
 }
 
 /// Clone a [`Reference`] into a temporary directory.
+#[tracing::instrument]
 pub fn clone_reference(
     transport: &Transport,
     reference: &Reference,
@@ -71,11 +74,11 @@ pub fn clone_reference(
     Ok(tmpdir)
 }
 
+#[tracing::instrument(skip(transport))]
 fn get_all_references(transport: &Transport) -> Result<Vec<Reference>, Report<Error>> {
     // First, we need to make a temp directory and run `git init` in it
     let tmpdir = tempdir()
-        .into_report()
-        .change_context(Error::TempDirCreation)
+        .context(Error::TempDirCreation)
         .describe_lazy(|| format!("attempted to create temporary dir in {:?}", env::temp_dir()))
         .help("temporary directory location uses $TMPDIR on Linux and macOS; for Windows it uses the 'GetTempPath' system call")?;
 
@@ -93,9 +96,8 @@ fn get_all_references(transport: &Transport) -> Result<Vec<Reference>, Report<Er
 
     let output = run_git(transport, args, Some(tmpdir.path()))?;
     let output = String::from_utf8(output.stdout)
-        .into_report()
-        .describe("reading output of 'git ls-remote --quiet'")
-        .change_context(Error::ParseGitOutput)?;
+        .context(Error::ParseGitOutput)
+        .describe("reading output of 'git ls-remote --quiet'")?;
     let references = parse_ls_remote(output)?;
 
     // Tags sometimes get duplicated in the output from `git ls-remote`, like this:
@@ -108,6 +110,7 @@ fn get_all_references(transport: &Transport) -> Result<Vec<Reference>, Report<Er
     Ok(references)
 }
 
+#[tracing::instrument(skip(transport))]
 fn run_git<I, S>(
     transport: &Transport,
     args: I,
@@ -115,6 +118,7 @@ fn run_git<I, S>(
 ) -> Result<Output, Report<Error>>
 where
     I: IntoIterator<Item = S>,
+    I: core::fmt::Debug,
     String: From<S>,
 {
     let mut full_args = default_args(transport)?;
@@ -122,21 +126,18 @@ where
     full_args.append(&mut args_as_vec);
 
     let mut ssh_key_file = NamedTempFile::new()
-        .into_report()
-        .change_context(Error::SshKeyFileCreation)
+        .context(Error::SshKeyFileCreation)
         .describe("creating temp file to write SSH key into in run_git")?;
     let env = env_vars(transport, &mut ssh_key_file)?;
 
     let mut command = Command::new("git");
     command.args(full_args.clone()).envs(env);
-    println!("running git {:?} in directory {:?}", full_args, cwd);
     if let Some(directory) = cwd {
         command.current_dir(directory);
     }
     let output = command
         .output()
-        .into_report()
-        .change_context(Error::GitExecution)
+        .context(Error::GitExecution)
         .describe_lazy(|| format!("ran git command: {:?}", full_args))?;
 
     if !output.status.success() {
@@ -150,6 +151,9 @@ where
     }
     Ok(output)
 }
+
+// Days until a commit is considered stale and will not be scanned
+const DAYS_UNTIL_STALE: i64 = 30;
 
 /// Get a list of all branches and tags for the given integration
 /// This is done by doing this:
@@ -165,6 +169,7 @@ where
 /// To do this we need a cloned repository so that we can run
 /// `git log <some format string that includes that date of the commit> <branch_or_tag_name>`
 /// in the cloned repo for each branch or tag
+#[tracing::instrument(skip(transport))]
 fn references_that_need_scanning(
     transport: &Transport,
     references: Vec<Reference>,
@@ -172,7 +177,6 @@ fn references_that_need_scanning(
     let tmpdir = blobless_clone(transport, None)
         .describe("cloning into temp directory in references_that_need_scanning")?;
 
-    let initial_len = references.len();
     let filtered_references: Vec<Reference> = references
         .into_iter()
         .filter(|reference| {
@@ -180,17 +184,16 @@ fn references_that_need_scanning(
                 .unwrap_or(false)
         })
         .collect();
-    println!(
-        "there were {} references, and {} of them should be scanned\n{:?}",
-        initial_len,
-        filtered_references.len(),
-        filtered_references,
+    debug!(
+        "references that have been updated in the last {} days: {:?}",
+        DAYS_UNTIL_STALE, filtered_references
     );
 
     Ok(filtered_references)
 }
 
 /// A reference needs scanning if its head commit is less than 30 days old
+#[tracing::instrument(skip(transport))]
 fn reference_needs_scanning(
     transport: &Transport,
     reference: &Reference,
@@ -219,14 +222,9 @@ fn reference_needs_scanning(
 
     let output = run_git(transport, args, Some(&cloned_repo_dir))?;
     let date_strings = String::from_utf8_lossy(&output.stdout);
-    println!(
-        "author and committer date for {}: {}",
-        reference.name(),
-        date_strings
-    );
     let mut dates = date_strings.split(":::");
     let earliest_commit_date_that_needs_to_be_scanned =
-        OffsetDateTime::checked_sub(OffsetDateTime::now_utc(), 30.days())
+        OffsetDateTime::checked_sub(OffsetDateTime::now_utc(), DAYS_UNTIL_STALE.days())
             .ok_or_else(|| report!(Error::ParseGitOutput))?;
 
     let author_date = dates
@@ -251,13 +249,13 @@ fn reference_needs_scanning(
 }
 
 /// Do a blobless clone of the repository, checking out the Reference if it exists
+#[tracing::instrument(skip(transport))]
 fn blobless_clone(
     transport: &Transport,
     reference: Option<&Reference>,
 ) -> Result<TempDir, Report<Error>> {
     let tmpdir = tempdir()
-        .into_report()
-        .change_context(Error::TempDirCreation)
+        .context(Error::TempDirCreation)
         .describe_lazy(|| format!("attempted to create temporary dir in {:?}", env::temp_dir()))
         .help("temporary directory location uses $TMPDIR on Linux and macOS; for Windows it uses the 'GetTempPath' system call")?;
     let mut args = vec![String::from("clone"), String::from("--filter=blob:none")];
@@ -280,6 +278,7 @@ fn blobless_clone(
     Ok(tmpdir)
 }
 
+#[tracing::instrument(skip(transport))]
 fn default_args(transport: &Transport) -> Result<Vec<String>, Report<Error>> {
     ensure!(
         transport.endpoint().starts_with("http"),
@@ -309,6 +308,7 @@ fn default_args(transport: &Transport) -> Result<Vec<String>, Report<Error>> {
         .collect())
 }
 
+#[tracing::instrument(skip(transport))]
 fn env_vars(
     transport: &Transport,
     ssh_key_file: &mut NamedTempFile<File>,
@@ -324,8 +324,7 @@ fn env_vars(
             // GIT_SSH_COMMAND
             ssh_key_file
                 .write_all(key.expose_secret().as_bytes())
-                .into_report()
-                .change_context(Error::SshKeyFileCreation)?;
+                .context(Error::SshKeyFileCreation)?;
 
             vec![(s("GIT_SSH_COMMAND"), git_ssh_command(ssh_key_file.path())?)]
         }
@@ -345,6 +344,7 @@ fn env_vars(
 // "-o IdentitiesOnly=yes" means "only use the identity file pointed to by the -i arg"
 // "-o StrictHostKeyChecking=no" avoids errors when the host is not in ssh's knownHosts file
 // "-F /dev/null" means "start with an empty ssh config"
+#[tracing::instrument]
 fn git_ssh_command(path: &Path) -> Result<String, Report<Error>> {
     path.to_str()
         .ok_or_else(|| report!(Error::PathNotValidUtf8))
@@ -375,6 +375,7 @@ fn git_ssh_command(path: &Path) -> Result<String, Report<Error>> {
 /// We only want the branches (which start with `refs/head/` and the tags (which start with `refs/tags`))
 /// Tags that end in ^{} should have the ^{} stripped from them. This will usually end up with a duplicate, so we
 /// de-dupe before returning
+#[tracing::instrument]
 fn parse_ls_remote(output: String) -> Result<Vec<Reference>, Report<Error>> {
     let results = output
         .split('\n')
@@ -385,6 +386,7 @@ fn parse_ls_remote(output: String) -> Result<Vec<Reference>, Report<Error>> {
     Ok(results)
 }
 
+#[tracing::instrument]
 fn line_to_git_ref(line: &str) -> Option<Reference> {
     let mut parsed = line.split_whitespace();
     let commit = parsed.next()?;

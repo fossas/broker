@@ -153,6 +153,11 @@ async fn main_clone(args: config::RawBaseArgs) -> Result<(), Error> {
         .change_context(Error::DetermineEffectiveConfig)
         .documentation_lazy(doc::link::config_file_reference)?;
 
+    let _tracing_guard = conf
+        .debug()
+        .run_tracing_sink()
+        .change_context(Error::InternalSetup)?;
+
     let integration = &conf.integrations().as_ref()[0];
     let mut references = integration.references()
         .change_context(Error::Runtime)
