@@ -24,23 +24,27 @@ pub enum Error {
 }
 
 /// Ensure that the fossa cli exists
-/// If we find `fossa` in your path, then just return "fossa"
 /// If we find it in config_dir/fossa, then return that
+/// If we find `fossa` in your path, then just return "fossa"
 /// Otherwise, download the latest release, put it in `config_dir/fossa` and return that
 #[tracing::instrument]
 pub async fn ensure_fossa_cli(config_dir: &PathBuf) -> Result<PathBuf, Error> {
     let command = command_name();
-    if check_command_existence(&PathBuf::from(&command)) {
-        info!("using fossa found in path");
-        return Ok(PathBuf::from(command));
-    };
 
-    let command_in_config_dir = config_dir.join(command);
+    // default to fossa that lives in ~/.config/fossa/broker/fossa
+    let command_in_config_dir = config_dir.join(&command);
     if check_command_existence(&command_in_config_dir) {
         info!("Using already existing fossa in config dir");
         return Ok(command_in_config_dir);
     }
 
+    // if it does not exist in ~/.config/fossa/broker/fossa, then check to see if it is on the path
+    if check_command_existence(&PathBuf::from(&command)) {
+        info!("using fossa found in path");
+        return Ok(PathBuf::from(command));
+    };
+
+    // if it is not in either location, then download it
     info!("downloading latest release of fossa");
     download(config_dir)
         .await
@@ -50,11 +54,7 @@ pub async fn ensure_fossa_cli(config_dir: &PathBuf) -> Result<PathBuf, Error> {
 
 #[tracing::instrument]
 fn check_command_existence(command_path: &PathBuf) -> bool {
-    let output = Command::new(command_path)
-        .arg("--version")
-        .output()
-        .context(Error::InternalSetup)
-        .describe("Unable to find `fossa` binary in your path");
+    let output = Command::new(command_path).arg("--version").output();
 
     match output {
         Ok(output) => {
