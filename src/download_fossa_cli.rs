@@ -23,7 +23,7 @@ pub enum Error {
 }
 
 /// Ensure that the fossa cli exists
-pub async fn ensure_fossa_cli(config_path: &PathBuf) -> Result<PathBuf, Error> {
+pub async fn ensure_fossa_cli(config_dir: &PathBuf) -> Result<PathBuf, Error> {
     let output = Command::new("fossa")
         .arg("--help")
         .output()
@@ -39,7 +39,7 @@ pub async fn ensure_fossa_cli(config_path: &PathBuf) -> Result<PathBuf, Error> {
             }
         }
         Err(_) => {
-            return download(config_path)
+            return download(config_dir)
                 .await
                 .change_context(Error::InternalSetup)
                 .describe("fossa-cli not found in your path, so we attempted to download it");
@@ -50,11 +50,7 @@ pub async fn ensure_fossa_cli(config_path: &PathBuf) -> Result<PathBuf, Error> {
 }
 
 /// Download the CLI into the same directory as the config_path
-async fn download(config_path: &PathBuf) -> Result<PathBuf, Error> {
-    let config_dir = config_path
-        .parent()
-        .ok_or(Error::InternalSetup)
-        .into_report()?;
+async fn download(config_dir: &PathBuf) -> Result<PathBuf, Error> {
     let final_path = config_dir.join("fossa");
     let client = reqwest::Client::new();
     // This will follow the redirect, so latest_release_response.url().path() will be something like "/fossas/fossa-cli/releases/tag/v3.7.2"
