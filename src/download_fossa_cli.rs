@@ -48,6 +48,7 @@ pub async fn ensure_fossa_cli(config_dir: &PathBuf) -> Result<PathBuf, Error> {
         .describe("fossa-cli not found in your path, so we attempted to download it")
 }
 
+#[tracing::instrument]
 fn check_command_existence(command_path: &PathBuf) -> bool {
     let output = Command::new(command_path)
         .arg("--version")
@@ -69,6 +70,7 @@ fn check_command_existence(command_path: &PathBuf) -> bool {
 }
 
 /// command_name is "fossa.exe" on windows and "fossa" on all other platforms
+#[tracing::instrument]
 fn command_name() -> String {
     match std::env::consts::OS {
         "windows" => "fossa.exe".to_string(),
