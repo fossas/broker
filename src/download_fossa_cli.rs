@@ -25,6 +25,7 @@ pub enum Error {
 /// Ensure that the fossa cli exists
 /// If we find `fossa` in your path, then just return "fossa"
 /// Otherwise, download the latest release, put it in `config_dir/fossa` and return that
+#[tracing::instrument]
 pub async fn ensure_fossa_cli(config_dir: &PathBuf) -> Result<PathBuf, Error> {
     let output = Command::new("fossa")
         .arg("--version")
@@ -52,6 +53,7 @@ pub async fn ensure_fossa_cli(config_dir: &PathBuf) -> Result<PathBuf, Error> {
 }
 
 /// Download the CLI into the same directory as the config_path
+#[tracing::instrument]
 async fn download(config_dir: &PathBuf) -> Result<PathBuf, Error> {
     let final_path = config_dir.join("fossa");
     let client = reqwest::Client::new();
@@ -117,6 +119,7 @@ async fn download(config_dir: &PathBuf) -> Result<PathBuf, Error> {
     Ok(final_path)
 }
 
+#[tracing::instrument]
 async fn download_from_github(download_url: String) -> Result<Cursor<Bytes>, Error> {
     let client = reqwest::Client::new();
     let response = client
@@ -135,6 +138,7 @@ async fn download_from_github(download_url: String) -> Result<Cursor<Bytes>, Err
     Ok(content.clone())
 }
 
+#[tracing::instrument(skip(content))]
 async fn unzip_targz(content: Cursor<Bytes>, final_path: &Path) -> Result<(), Error> {
     let deflater = bufread::GzDecoder::new(content);
     let mut tar_archive = Archive::new(deflater);
@@ -161,6 +165,7 @@ async fn unzip_targz(content: Cursor<Bytes>, final_path: &Path) -> Result<(), Er
     Ok(())
 }
 
+#[tracing::instrument(skip(content))]
 async fn unzip_zip(content: Cursor<Bytes>, final_path: &Path) -> Result<(), Error> {
     // With zip
     let mut archive = zip::ZipArchive::new(content).unwrap();
