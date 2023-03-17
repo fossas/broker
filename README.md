@@ -8,7 +8,7 @@ without sharing access to the source code of the project!
 
 ## Quickstart
 
-1. Install Broker: `TODO: add command`
+1. Install Broker: `TODO: add install script`
 2. Initialize Broker: `broker init`
 3. Configure the `.broker.yml` with your projects
 4. Run Broker: `broker run`
@@ -28,6 +28,11 @@ _Legend:_
 - _✅: Supported_
 - _⌛️: In Development_
 - _🛑: Not Planned_
+
+## System Requirements
+
+Most modern systems can run Broker with no issues.
+For a more detailed look at system requirements, see the [system requirements here](./docs/reference/system-requirements.md).
 
 ## Contributing
 
