@@ -23,9 +23,11 @@ pub enum Error {
 }
 
 /// Ensure that the fossa cli exists
+/// If we find `fossa` in your path, then just return "fossa"
+/// Otherwise, download the latest release, put it in `config_dir/fossa` and return that
 pub async fn ensure_fossa_cli(config_dir: &PathBuf) -> Result<PathBuf, Error> {
     let output = Command::new("fossa")
-        .arg("--help")
+        .arg("--version")
         .output()
         .context(Error::InternalSetup)
         .describe("Unable to find `fossa` binary in your path");
@@ -34,7 +36,7 @@ pub async fn ensure_fossa_cli(config_dir: &PathBuf) -> Result<PathBuf, Error> {
         Ok(output) => {
             if !output.status.success() {
                 return Err(Error::InternalSetup).into_report().describe(
-                    "Error when running `fossa -h` on the fossa binary found in your path",
+                    "Error when running `fossa --version` on the fossa binary found in your path",
                 );
             }
         }
@@ -104,7 +106,7 @@ async fn download(config_dir: &PathBuf) -> Result<PathBuf, Error> {
     // https://github.com/fossas/fossa-cli/releases/download/v3.7.2/fossa_3.7.2_darwin_amd64.zip
     // https://github.com/fossas/fossa-cli/releases/download/v3.7.2/fossa_3.7.2_linux_amd64.tar.gz
     println!("Downloading from {}", download_url);
-    let content = download_file(download_url)
+    let content = download_from_github(download_url)
         .await
         .change_context(Error::InternalSetup)?;
     if extension == ".zip" {
@@ -115,7 +117,7 @@ async fn download(config_dir: &PathBuf) -> Result<PathBuf, Error> {
     Ok(final_path)
 }
 
-async fn download_file(download_url: String) -> Result<Cursor<Bytes>, Error> {
+async fn download_from_github(download_url: String) -> Result<Cursor<Bytes>, Error> {
     let client = reqwest::Client::new();
     let response = client
         .get(&download_url)
