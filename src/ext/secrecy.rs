@@ -4,6 +4,8 @@ use std::fmt::{Debug, Display};
 
 use delegate::delegate;
 use secrecy::{ExposeSecret, Secret};
+use serde::{Deserialize, Serialize};
+use serde_yaml::with::singleton_map::serialize;
 use subtle::ConstantTimeEq;
 
 /// [`Secret`], specialized to [`String`], with constant-time comparisons.
@@ -14,6 +16,26 @@ use subtle::ConstantTimeEq;
 /// and work with it as this type.
 #[derive(Clone)]
 pub struct ComparableSecretString(Secret<String>);
+
+/// When serializing, we have to expose the secret.
+impl Serialize for ComparableSecretString {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        serialize(&self.expose_secret(), serializer)
+    }
+}
+
+impl<'de> Deserialize<'de> for ComparableSecretString {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let secret_string = String::deserialize(deserializer)?;
+        Ok(ComparableSecretString::from(secret_string))
+    }
+}
 
 impl ComparableSecretString {
     delegate! {

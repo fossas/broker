@@ -160,6 +160,7 @@ async fn main_clone(args: config::RawBaseArgs) -> Result<(), Error> {
 
     let integration = &conf.integrations().as_ref()[0];
     let mut references = integration.references()
+        .await
         .change_context(Error::Runtime)
         .help("try running Broker with the '--help' argument to see available options and usage suggestions")?;
 
@@ -168,6 +169,7 @@ async fn main_clone(args: config::RawBaseArgs) -> Result<(), Error> {
     for reference in references {
         integration
             .clone_reference(&reference)
+            .await
             .change_context(Error::Runtime)?;
     }
     Ok(())

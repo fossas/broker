@@ -156,5 +156,5 @@ where
     E: Context,
     F: FnOnce() -> Result<T, Report<E>> + Send + 'static,
 {
-    run_background(|| work()).await
+    run_background(work).await
 }

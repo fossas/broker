@@ -29,6 +29,9 @@ pub enum Error {
 pub enum Queue {
     /// This queue is just used to send and log messages, used to demonstrate it's working.
     Echo,
+
+    /// The queue for scanning revisions.
+    Scan,
 }
 
 /// Open both sides of the named queue.

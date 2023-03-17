@@ -9,7 +9,7 @@
 //! [`Protocol`], which is usually wrapped inside an [`Integration`], forming the primary interaction
 //! point for this module.
 
-use std::time::Duration;
+use std::{fmt::Display, time::Duration};
 
 use async_trait::async_trait;
 use delegate::delegate;
@@ -18,11 +18,15 @@ use derive_new::new;
 use error_stack::{report, Report, ResultExt};
 use getset::{CopyGetters, Getters};
 use humantime::parse_duration;
+use serde::{Deserialize, Serialize};
 use tempfile::TempDir;
 
-use crate::ext::{
-    error_stack::{DescribeContext, ErrorHelper, IntoContext},
-    result::{WrapErr, WrapOk},
+use crate::{
+    db,
+    ext::{
+        error_stack::{DescribeContext, ErrorHelper, IntoContext},
+        result::{WrapErr, WrapOk},
+    },
 };
 
 /// Integrations for git repositories
@@ -58,13 +62,20 @@ impl Integrations {
 }
 
 /// Validated remote location for a code host.
-#[derive(Debug, Clone, PartialEq, Eq, AsRef, Display, new)]
+#[derive(Debug, Clone, PartialEq, Eq, AsRef, Display, Deserialize, Serialize, new)]
 pub struct Remote(String);
 
 impl Remote {
     /// Check whether the remote, rendered into string form, starts with a substring.
     pub fn starts_with(&self, test: &str) -> bool {
         self.0.starts_with(test)
+    }
+
+    /// Generate a representation for the remote suitable for use when
+    /// creating a [`db::Coordinate`].
+    pub fn for_coordinate(&self) -> String {
+        // Distinct from the `Display` implementation so that the two can diverge.
+        self.0.clone()
     }
 }
 
@@ -91,7 +102,7 @@ impl TryFrom<String> for Remote {
 /// along with its protocol (which describes how to download the code so it can be analyzed).
 ///
 /// This type stores this combination of data.
-#[derive(Debug, Clone, PartialEq, Eq, Getters, CopyGetters, new)]
+#[derive(Debug, Clone, PartialEq, Eq, Getters, CopyGetters, Deserialize, Serialize, new)]
 pub struct Integration {
     /// The interval at which Broker should poll the remote code host for whether the code has changed.
     #[getset(get_copy = "pub")]
@@ -102,20 +113,46 @@ pub struct Integration {
     protocol: Protocol,
 }
 
+impl Display for Integration {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.protocol())
+    }
+}
+
+impl Integration {
+    /// Get the configured remote for the integration, regardless of variant.
+    pub fn remote(&self) -> &Remote {
+        match &self.protocol {
+            Protocol::Git(transport) => match transport {
+                git::transport::Transport::Ssh { endpoint, .. } => endpoint,
+                git::transport::Transport::Http { endpoint, .. } => endpoint,
+            },
+        }
+    }
+}
+
 /// Code is stored in many kinds of locations, from git repos to
 /// random FTP sites to DevOps hosts like GitHub.
 ///
 /// To handle this variety, Broker uses a predefined list
 /// of supported protocols (this type),
 /// which are specialized with configuration unique to those integrations.
-#[derive(Debug, Clone, PartialEq, Eq, From, new)]
+#[derive(Debug, Clone, PartialEq, Eq, From, Deserialize, Serialize, new)]
 pub enum Protocol {
     /// Integration with a code host using the git protocol.
     Git(git::transport::Transport),
 }
 
+impl Display for Protocol {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Protocol::Git(transport) => write!(f, "using git protocol with transport {transport}"),
+        }
+    }
+}
+
 /// Specifies the maximum age for an observability artifact.
-#[derive(Debug, Copy, Clone, PartialEq, Eq, AsRef, From, new)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, AsRef, From, Deserialize, Serialize, new)]
 pub struct PollInterval(Duration);
 
 impl PollInterval {
@@ -145,10 +182,38 @@ pub enum RemoteProviderError {
 }
 
 /// Remotes can reference specific points in time on a remote unit of code.
-#[derive(Debug, Clone, Hash, Eq, PartialEq)]
+#[derive(Debug, Clone, Hash, Eq, PartialEq, Serialize, Deserialize)]
 pub enum Reference {
     /// Git remotes have their own reference format.
     Git(git::Reference),
+}
+
+impl Reference {
+    /// Given a remote, create a database coordinate from this reference.
+    pub fn as_coordinate(&self, remote: &Remote) -> db::Coordinate {
+        db::Coordinate::new(
+            db::Namespace::Git,
+            remote.for_coordinate(),
+            match self {
+                Reference::Git(reference) => format!("git:{}", reference.for_coordinate()),
+            },
+        )
+    }
+
+    /// Generate a canonical state for the reference.
+    pub fn as_state(&self) -> &[u8] {
+        match self {
+            Reference::Git(git) => git.as_state(),
+        }
+    }
+}
+
+impl Display for Reference {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Reference::Git(reference) => write!(f, "git {reference}"),
+        }
+    }
 }
 
 /// RemoteProvider are code hosts that we get code from

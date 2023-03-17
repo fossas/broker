@@ -98,7 +98,7 @@ impl Config {
             .with(
                 tracing_subscriber::fmt::layer()
                     .pretty()
-                    .with_filter(filter::LevelFilter::INFO),
+                    .with_filter(filter::LevelFilter::WARN),
             )
             // log all traces to file in json format
             .with(
