@@ -5,12 +5,8 @@ These are the recommended system requirements.
 Broker may run on less resources, but using Broker with lower system resources than listed here is unsupported.
 Broker scales very well with more resources, so if analysis takes longer than you're hoping try bumping its CPU and memory limits.
 
-Broker uses [FOSSA CLI](https://github.com/fossas/fossa-cli) internally, and this is where most of the resource usage occurs.
-If you're used to administering CI nodes running FOSSA CLI then you can mostly just copy those for Broker.
-
-The numbers below include the requirements from FOSSA CLI.
-This means that part of this requirement is predicated on how much memory FOSSA CLI needs,
-so the requirements listed are the total amount needed for the system, not just for Broker itself.
+Broker uses the FOSSA CLI, so its requirements are mainly dominated by how much CPU and memory FOSSA CLI needs.
+If you already use FOSSA CLI on CI nodes, you can likely copy those resource limits for Broker.
 
 ## CPU
 
