@@ -11,6 +11,7 @@ use std::os::unix::prelude::OpenOptionsExt;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use tar::Archive;
+use tracing::info;
 
 use crate::ext::error_stack::{DescribeContext, IntoContext};
 
@@ -24,10 +25,31 @@ pub enum Error {
 
 /// Ensure that the fossa cli exists
 /// If we find `fossa` in your path, then just return "fossa"
+/// If we find it in config_dir/fossa, then return that
 /// Otherwise, download the latest release, put it in `config_dir/fossa` and return that
 #[tracing::instrument]
 pub async fn ensure_fossa_cli(config_dir: &PathBuf) -> Result<PathBuf, Error> {
-    let output = Command::new(command_name())
+    let command = command_name();
+    if check_command_existence(&PathBuf::from(&command)) {
+        info!("using fossa found in path");
+        return Ok(PathBuf::from(command));
+    };
+
+    let command_in_config_dir = config_dir.join(command);
+    if check_command_existence(&command_in_config_dir) {
+        info!("Using already existing fossa in config dir");
+        return Ok(command_in_config_dir);
+    }
+
+    info!("downloading latest release of fossa");
+    download(config_dir)
+        .await
+        .change_context(Error::InternalSetup)
+        .describe("fossa-cli not found in your path, so we attempted to download it")
+}
+
+fn check_command_existence(command_path: &PathBuf) -> bool {
+    let output = Command::new(command_path)
         .arg("--version")
         .output()
         .context(Error::InternalSetup)
@@ -36,20 +58,14 @@ pub async fn ensure_fossa_cli(config_dir: &PathBuf) -> Result<PathBuf, Error> {
     match output {
         Ok(output) => {
             if !output.status.success() {
-                return Err(Error::InternalSetup).into_report().describe(
-                    "Error when running `fossa --version` on the fossa binary found in your path",
-                );
+                return false;
             }
+            return true;
         }
         Err(_) => {
-            return download(config_dir)
-                .await
-                .change_context(Error::InternalSetup)
-                .describe("fossa-cli not found in your path, so we attempted to download it");
+            return false;
         }
     }
-
-    Ok(PathBuf::from("fossa"))
 }
 
 /// command_name is "fossa.exe" on windows and "fossa" on all other platforms
