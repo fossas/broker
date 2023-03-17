@@ -16,6 +16,14 @@ macro_rules! merge_error_stacks {
 
 pub(crate) use merge_error_stacks;
 
+/// Merge multiple error stacks together into a single combined stack.
+pub fn merge_errors<I: IntoIterator<Item = Report<E>>, E>(errs: I) -> Option<Report<E>> {
+    errs.into_iter().reduce(|mut stack, err| {
+        stack.extend_one(err);
+        stack
+    })
+}
+
 /// Used to provide help text to an error.
 ///
 /// This is meant to be readable by users of the application;

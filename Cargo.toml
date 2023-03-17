@@ -46,6 +46,7 @@ async-trait = "0.1.66"
 semver = { version = "1.0.17", features = ["serde"] }
 tap = "1.0.1"
 automod = "1.0.7"
+tokio-retry = "0.3.0"
 
 [dev-dependencies]
 insta = { version = "1.28.0", features = ["filters", "json", "yaml"] }

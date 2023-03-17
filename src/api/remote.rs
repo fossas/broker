@@ -11,6 +11,8 @@
 
 use std::time::Duration;
 
+use async_trait::async_trait;
+use delegate::delegate;
 use derive_more::{AsRef, Display, From};
 use derive_new::new;
 use error_stack::{report, Report, ResultExt};
@@ -44,7 +46,16 @@ pub enum ValidationError {
 
 /// Validated config values for external code host integrations.
 #[derive(Debug, Default, Clone, PartialEq, Eq, AsRef, From, new)]
-pub struct Config(Vec<Integration>);
+pub struct Integrations(Vec<Integration>);
+
+impl Integrations {
+    delegate! {
+        to self.0 {
+            /// Iterate over configured integrations.
+            pub fn iter(&self) -> impl Iterator<Item = &Integration>;
+        }
+    }
+}
 
 /// Validated remote location for a code host.
 #[derive(Debug, Clone, PartialEq, Eq, AsRef, Display, new)]
@@ -107,6 +118,13 @@ pub enum Protocol {
 #[derive(Debug, Copy, Clone, PartialEq, Eq, AsRef, From, new)]
 pub struct PollInterval(Duration);
 
+impl PollInterval {
+    /// The poll interval expressed as a [`Duration`].
+    pub fn as_duration(&self) -> Duration {
+        self.0
+    }
+}
+
 impl TryFrom<String> for PollInterval {
     type Error = Report<ValidationError>;
 
@@ -134,24 +152,26 @@ pub enum Reference {
 }
 
 /// RemoteProvider are code hosts that we get code from
+#[async_trait]
 pub trait RemoteProvider {
     /// The reference type used for this implementation.
     type Reference;
 
     /// Clone a [`Reference`] into a temporary directory.
-    fn clone_reference(
+    async fn clone_reference(
         &self,
         reference: &Self::Reference,
     ) -> Result<TempDir, Report<RemoteProviderError>>;
 
     /// List references that have been updated in the last 30 days.
-    fn references(&self) -> Result<Vec<Self::Reference>, Report<RemoteProviderError>>;
+    async fn references(&self) -> Result<Vec<Self::Reference>, Report<RemoteProviderError>>;
 }
 
+#[async_trait]
 impl RemoteProvider for Integration {
     type Reference = Reference;
 
-    fn clone_reference(
+    async fn clone_reference(
         &self,
         reference: &Self::Reference,
     ) -> Result<TempDir, Report<RemoteProviderError>> {
@@ -161,15 +181,16 @@ impl RemoteProvider for Integration {
             // Right now we're considering this not worth fixing,
             // but as we add more protocols/references it's probably worth revisiting.
             Protocol::Git(transport) => match reference {
-                Reference::Git(reference) => transport.clone_reference(reference),
+                Reference::Git(reference) => transport.clone_reference(reference).await,
             },
         }
     }
 
-    fn references(&self) -> Result<Vec<Self::Reference>, Report<RemoteProviderError>> {
+    async fn references(&self) -> Result<Vec<Self::Reference>, Report<RemoteProviderError>> {
         match self.protocol() {
             Protocol::Git(proto) => proto
                 .references()
+                .await
                 .map(|refs| refs.into_iter().map(Reference::Git).collect()),
         }
     }

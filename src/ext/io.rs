@@ -144,5 +144,17 @@ where
     Report<E>: From<E>,
     F: FnOnce() -> Result<T, E> + Send + 'static,
 {
-    run_background(|| work().into_report()).await
+    spawn_blocking_stacked(|| work().into_report()).await
+}
+
+/// Run the provided blocking closure in the background,
+/// wrapping any error returned in this module's `Error::IO` context.
+#[tracing::instrument(skip_all)]
+pub async fn spawn_blocking_stacked<T, E, F>(work: F) -> Result<T, Report<Error>>
+where
+    T: Send + 'static,
+    E: Context,
+    F: FnOnce() -> Result<T, Report<E>> + Send + 'static,
+{
+    run_background(|| work()).await
 }

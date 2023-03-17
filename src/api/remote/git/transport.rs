@@ -1,14 +1,18 @@
 //! Powers integration with code hosts speaking the git protocol.
 
+use async_trait::async_trait;
 use derive_more::From;
 use derive_new::new;
 use error_stack::{Report, ResultExt};
 use tempfile::TempDir;
 
-use crate::api::{
-    http,
-    remote::{RemoteProvider, RemoteProviderError},
-    ssh,
+use crate::{
+    api::{
+        http,
+        remote::{RemoteProvider, RemoteProviderError},
+        ssh,
+    },
+    ext::io,
 };
 
 use super::{super::Remote, repository};
@@ -68,17 +72,32 @@ impl Transport {
     }
 }
 
+#[async_trait]
 impl RemoteProvider for Transport {
     type Reference = super::Reference;
 
-    fn clone_reference(
+    async fn clone_reference(
         &self,
         reference: &Self::Reference,
     ) -> Result<TempDir, Report<RemoteProviderError>> {
-        repository::clone_reference(self, reference).change_context(RemoteProviderError::RunCommand)
+        // The git client is currently synchronous, which means we need to do its work in the
+        // background thread pool. This also then means we're sending `reference` across threads.
+        // Rather than get into tracking lifetimes, just clone it.
+        // The cost is irrelevant next to the IO time.
+        // let reference = reference.to_owned();
+        io::spawn_blocking_stacked(move || repository::clone_reference(self, &reference))
+            .await
+            .change_context(RemoteProviderError::RunCommand)
     }
 
-    fn references(&self) -> Result<Vec<Self::Reference>, Report<RemoteProviderError>> {
-        repository::list_references(self).change_context(RemoteProviderError::RunCommand)
+    async fn references(&self) -> Result<Vec<Self::Reference>, Report<RemoteProviderError>> {
+        // The git client is currently synchronous, which means we need to do its work in the
+        // background thread pool. This also then means we're sending `self` across threads.
+        // Rather than get into tracking lifetimes, just clone it.
+        // The cost is irrelevant next to the IO time.
+        // let cloned = self.to_owned();
+        io::spawn_blocking_stacked(move || repository::list_references(self))
+            .await
+            .change_context(RemoteProviderError::RunCommand)
     }
 }

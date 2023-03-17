@@ -82,7 +82,7 @@ pub struct Config {
     debug: debug::Config,
 
     /// Configured integration points.
-    integrations: api::remote::Config,
+    integrations: api::remote::Integrations,
 }
 
 impl Config {
