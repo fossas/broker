@@ -1,5 +1,4 @@
 //! Tools to ensure that the fossa-cli exists and download it if it does not
-
 use bytes::Bytes;
 use error_stack::IntoReport;
 use error_stack::{Result, ResultExt};
@@ -16,6 +15,9 @@ use crate::ext::error_stack::{DescribeContext, IntoContext};
 /// Errors while downloading fossa-cli
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
+    /// Errors while getting the tag and version from the download URL
+    #[error("An error occurred while finding the latest version of the CLI")]
+    FindingVersion,
     /// Download Errors
     #[error("An error occurred while downloading from Github")]
     Downloading,
@@ -49,9 +51,11 @@ pub async fn ensure_fossa_cli(config_dir: &PathBuf) -> Result<PathBuf, Error> {
     info!("downloading latest release of fossa");
     download(config_dir)
         .await
-        .describe("fossa-cli not found in your path, so we attempted to download it")
+        .describe("fossa-cli not found in your path, attempting to download it")
 }
 
+/// Given a path to a possible fossa executable, return whether or not it successfully runs
+/// "fossa --version"
 #[tracing::instrument]
 fn check_command_existence(command_path: &PathBuf) -> bool {
     let output = Command::new(command_path).arg("--version").output();
@@ -78,7 +82,7 @@ fn command_name() -> String {
     }
 }
 
-/// Download the CLI into the same directory as the config_path
+/// Download the CLI into the config_dir
 #[tracing::instrument]
 async fn download(config_dir: &PathBuf) -> Result<PathBuf, Error> {
     let client = reqwest::Client::new();
@@ -88,17 +92,21 @@ async fn download(config_dir: &PathBuf) -> Result<PathBuf, Error> {
         .header(reqwest::header::ACCEPT, "application/json")
         .send()
         .await
-        .context(Error::Downloading)
+        .context(Error::FindingVersion)
         .describe("Getting URL for latest release of the fossa CLI")?;
     let path = latest_release_response.url().path();
+
     let tag = path
         .rsplit("/")
         .next()
-        .ok_or(Error::Downloading)
+        .ok_or(Error::FindingVersion)
         .into_report()
         .describe_lazy(|| format!("Parsing fossa-cli version from path {}", path))?;
+
     if !tag.starts_with("v") {
-        return Err(Error::Downloading).into_report()?;
+        return Err(Error::FindingVersion)
+            .into_report()
+            .describe_lazy(|| format!(r#"Expected tag to start with v, but found "{tag}""#))?;
     }
     let version = tag.trim_start_matches("v");
 
@@ -116,13 +124,13 @@ async fn download(config_dir: &PathBuf) -> Result<PathBuf, Error> {
         _ => "linux",
     };
 
-    let final_path = config_dir.join(command_name());
-
-    let download_url = format!("https://github.com/fossas/fossa-cli/releases/download/v{version}/fossa_{version}_{os}_{arch}{extension}");
     // Example URLs:
     // https://github.com/fossas/fossa-cli/releases/download/v3.7.2/fossa_3.7.2_darwin_amd64.zip
-    // https://github.com/fossas/fossa-cli/releases/download/v3.7.2/fossa_3.7.2_linux_amd64.tar.gz
+    // https://github.com/fossas/fossa-cli/releases/download/v3.7.2/fossa_3.7.2_linux_amd64.zip
+    let download_url = format!("https://github.com/fossas/fossa-cli/releases/download/v{version}/fossa_{version}_{os}_{arch}{extension}");
     let content = download_from_github(download_url).await?;
+
+    let final_path = config_dir.join(command_name());
     unzip_zip(content, &final_path).await?;
     Ok(final_path)
 }
@@ -135,13 +143,21 @@ async fn download_from_github(download_url: String) -> Result<Cursor<Bytes>, Err
         .send()
         .await
         .into_report()
-        .change_context(Error::Downloading)?;
+        .change_context(Error::Downloading)
+        .describe_lazy(|| {
+            format!("Error while downloading latest fossa release from {download_url}")
+        })?;
 
     let content = response
         .bytes()
         .await
         .into_report()
-        .change_context(Error::Downloading)?;
+        .change_context(Error::Downloading)
+        .describe_lazy(|| {
+            format!(
+                "Error while converting download of fossa release from {download_url} into bytes"
+            )
+        })?;
     let content = Cursor::new(content);
     Ok(content.clone())
 }
