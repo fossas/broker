@@ -27,7 +27,7 @@ pub enum Error {
 /// Otherwise, download the latest release, put it in `config_dir/fossa` and return that
 #[tracing::instrument]
 pub async fn ensure_fossa_cli(config_dir: &PathBuf) -> Result<PathBuf, Error> {
-    let output = Command::new("fossa")
+    let output = Command::new(command_name())
         .arg("--version")
         .output()
         .context(Error::InternalSetup)
@@ -52,10 +52,17 @@ pub async fn ensure_fossa_cli(config_dir: &PathBuf) -> Result<PathBuf, Error> {
     Ok(PathBuf::from("fossa"))
 }
 
+/// command_name is "fossa.exe" on windows and "fossa" on all other platforms
+fn command_name() -> String {
+    match std::env::consts::OS {
+        "windows" => "fossa.exe".to_string(),
+        _ => "fossa".to_string(),
+    }
+}
+
 /// Download the CLI into the same directory as the config_path
 #[tracing::instrument]
 async fn download(config_dir: &PathBuf) -> Result<PathBuf, Error> {
-    let final_path = config_dir.join("fossa");
     let client = reqwest::Client::new();
     // This will follow the redirect, so latest_release_response.url().path() will be something like "/fossas/fossa-cli/releases/tag/v3.7.2"
     let latest_release_response = client
@@ -77,44 +84,38 @@ async fn download(config_dir: &PathBuf) -> Result<PathBuf, Error> {
     }
     let version = tag.trim_start_matches("v");
 
-    // TODO: Convert these into the options we support and blow up if unsupported
-    // Supported os/arch combos:
-    // windows/amd64
+    // currently supported os/arch combos:
     // darwin/amd64
-    // darwin/arm64
     // linux/amd64
-    let mut arch = match std::env::consts::ARCH {
-        "x86" | "x86_64" => "amd64",
-        "aarch64" | "arm" => "arm64",
-        _ => "amd64",
-    };
+    // windows/amd64
+    //
+    // We only support "amd64" right now, so no need to look at std::env::consts::ARCH
+    let arch = "amd64";
     let os = match std::env::consts::OS {
         "macos" => "darwin",
         "windows" => "windows",
         _ => "linux",
     };
 
-    if os == "darwin" && arch == "arm64" {
-        arch = "amd64";
-    }
-
     let extension = match os {
         "darwin" => ".zip",
         "windows" => ".zip",
         _ => ".tar.gz",
     };
+
+    let final_path = config_dir.join(command_name());
+
     let download_url = format!("https://github.com/fossas/fossa-cli/releases/download/v{version}/fossa_{version}_{os}_{arch}{extension}");
     // Example URLs:
     // https://github.com/fossas/fossa-cli/releases/download/v3.7.2/fossa_3.7.2_darwin_amd64.zip
     // https://github.com/fossas/fossa-cli/releases/download/v3.7.2/fossa_3.7.2_linux_amd64.tar.gz
-    println!("Downloading from {}", download_url);
     let content = download_from_github(download_url)
         .await
         .change_context(Error::InternalSetup)?;
     if extension == ".zip" {
         unzip_zip(content, &final_path).await?;
     } else {
-        unzip_targz(content, &final_path).await?;
+        unzip_tar_gz(content, &final_path).await?;
     };
     Ok(final_path)
 }
@@ -139,7 +140,7 @@ async fn download_from_github(download_url: String) -> Result<Cursor<Bytes>, Err
 }
 
 #[tracing::instrument(skip(content))]
-async fn unzip_targz(content: Cursor<Bytes>, final_path: &Path) -> Result<(), Error> {
+async fn unzip_tar_gz(content: Cursor<Bytes>, final_path: &Path) -> Result<(), Error> {
     let deflater = bufread::GzDecoder::new(content);
     let mut tar_archive = Archive::new(deflater);
     let mut entries = tar_archive
