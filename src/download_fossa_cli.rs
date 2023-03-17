@@ -3,7 +3,7 @@
 use error_stack::IntoReport;
 use error_stack::{Result, ResultExt};
 use flate2::bufread;
-use std::env::temp_dir;
+use reqwest::Response;
 use std::fs::{self};
 use std::io::copy;
 use std::io::Cursor;
@@ -55,6 +55,7 @@ async fn download(config_path: &PathBuf) -> Result<PathBuf, Error> {
         .parent()
         .ok_or(Error::InternalSetup)
         .into_report()?;
+    let final_path = config_dir.join("fossa");
     let client = reqwest::Client::new();
     // This will follow the redirect, so latest_release_response.url().path() will be something like "/fossas/fossa-cli/releases/tag/v3.7.2"
     let latest_release_response = client
@@ -71,10 +72,6 @@ async fn download(config_path: &PathBuf) -> Result<PathBuf, Error> {
         .ok_or(Error::InternalSetup)
         .into_report()
         .describe_lazy(|| format!("Parsing fossa-cli version from path {}", path))?;
-    println!(
-        "latest_release_response.url().path(): {:?}, version = {}",
-        path, tag
-    );
     if !tag.starts_with("v") {
         return Err(Error::InternalSetup).into_report()?;
     }
@@ -107,26 +104,23 @@ async fn download(config_path: &PathBuf) -> Result<PathBuf, Error> {
         _ => ".tar.gz",
     };
     let download_url = format!("https://github.com/fossas/fossa-cli/releases/download/v{version}/fossa_{version}_{os}_{arch}{extension}");
+    // Example URLs:
+    // https://github.com/fossas/fossa-cli/releases/download/v3.7.2/fossa_3.7.2_darwin_amd64.zip
+    // https://github.com/fossas/fossa-cli/releases/download/v3.7.2/fossa_3.7.2_linux_amd64.tar.gz
     println!("Downloading from {}", download_url);
-    // let download_url = format!("https://github.com/fossas/fossa-cli/releases/download/v{version}/fossa_{version}_{os}_{arch}{extension}");
-    // let download_url =
-    //     "https://github.com/fossas/fossa-cli/releases/download/v3.7.2/fossa_3.7.2_darwin_amd64.zip"
-    //         .to_string();
-    // let download_url =
-    //     "https://github.com/fossas/fossa-cli/releases/download/v3.7.2/fossa_3.7.2_linux_amd64.tar.gz".to_string();
-    println!("Downloading from {}", download_url);
-    let final_location = if download_url.ends_with(".zip") {
-        unzip_zip(download_url, config_dir).await
+    let response = download_file(download_url)
+        .await
+        .change_context(Error::InternalSetup)?;
+    if extension == ".zip" {
+        unzip_zip(response, &final_path).await?;
     } else {
-        unzip_targz(download_url, config_dir).await
+        unzip_targz(response, &final_path).await?;
     };
-    final_location
+    Ok(final_path)
 }
 
-async fn unzip_targz(download_url: String, config_dir: &Path) -> Result<PathBuf, Error> {
+async fn download_file(download_url: String) -> Result<Response, Error> {
     let client = reqwest::Client::new();
-    // Download into a tmp dir so that we can unzip and untar it
-    let tmpdir = temp_dir();
     let response = client
         .get(&download_url)
         .send()
@@ -134,21 +128,16 @@ async fn unzip_targz(download_url: String, config_dir: &Path) -> Result<PathBuf,
         .into_report()
         .change_context(Error::InternalSetup)?;
 
+    Ok(response)
+}
+
+async fn unzip_targz(response: Response, final_path: &Path) -> Result<(), Error> {
     let content = response
         .bytes()
         .await
         .into_report()
         .change_context(Error::InternalSetup)?;
     let content = Cursor::new(content);
-
-    let download_path = tmpdir.as_path().join("fossa");
-    let mut download_file = fs::OpenOptions::new()
-        .create(true)
-        .write(true)
-        .mode(0o770)
-        .open(&download_path)
-        .into_report()
-        .change_context(Error::InternalSetup)?;
     let deflater = bufread::GzDecoder::new(content);
     let mut tar_archive = Archive::new(deflater);
     let mut entries = tar_archive
@@ -160,37 +149,21 @@ async fn unzip_targz(download_url: String, config_dir: &Path) -> Result<PathBuf,
         .into_report()
         .change_context(Error::InternalSetup)?;
 
-    copy(&mut entry, &mut download_file)
-        .into_report()
-        .change_context(Error::InternalSetup)?;
-
-    let final_location = config_dir.join("fossa");
-    std::fs::rename(&download_path, &final_location)
-        .into_report()
-        .change_context(Error::InternalSetup)?;
-
-    Ok(final_location)
-}
-
-async fn unzip_zip(download_url: String, config_dir: &Path) -> Result<PathBuf, Error> {
-    let client = reqwest::Client::new();
-    // Download into a tmp dir so that we can unzip and untar it
-    let tmpdir = temp_dir();
-    let response = client
-        .get(&download_url)
-        .send()
-        .await
-        .into_report()
-        .change_context(Error::InternalSetup)?;
-
-    let download_path = tmpdir.as_path().join("fossa");
-    let mut download_file = fs::OpenOptions::new()
+    let mut final_file = fs::OpenOptions::new()
         .create(true)
         .write(true)
         .mode(0o770)
-        .open(&download_path)
+        .open(&final_path)
         .into_report()
         .change_context(Error::InternalSetup)?;
+    copy(&mut entry, &mut final_file)
+        .into_report()
+        .change_context(Error::InternalSetup)?;
+
+    Ok(())
+}
+
+async fn unzip_zip(response: Response, final_path: &Path) -> Result<(), Error> {
     let content = response
         .bytes()
         .await
@@ -203,19 +176,19 @@ async fn unzip_zip(download_url: String, config_dir: &Path) -> Result<PathBuf, E
     let mut file = match archive.by_name("fossa") {
         Ok(file) => file,
         Err(..) => {
-            println!("File test/lorem_ipsum.txt not found");
             return Err(Error::InternalSetup).into_report();
         }
     };
-    println!("file found!");
-    copy(&mut file, &mut download_file)
+
+    let mut final_file = fs::OpenOptions::new()
+        .create(true)
+        .write(true)
+        .mode(0o770)
+        .open(&final_path)
         .into_report()
         .change_context(Error::InternalSetup)?;
-    let final_location = config_dir.join("fossa");
-
-    std::fs::rename(&download_path, &final_location)
+    copy(&mut file, &mut final_file)
         .into_report()
         .change_context(Error::InternalSetup)?;
-
-    Ok(final_location)
+    Ok(())
 }
