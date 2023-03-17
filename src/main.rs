@@ -5,14 +5,8 @@
 #![deny(missing_docs)]
 #![warn(rust_2018_idioms)]
 
-use std::env::temp_dir;
-use std::fs::File;
-use std::io::copy;
-use std::path::PathBuf;
-use std::process::Command;
-
 use broker::api::remote::RemoteProvider;
-use broker::ext::error_stack::IntoContext;
+use broker::download_fossa_cli;
 use broker::{config, ext::error_stack::ErrorHelper};
 use broker::{
     config::Config,
@@ -20,7 +14,6 @@ use broker::{
     ext::error_stack::{DescribeContext, ErrorDocReference, FatalErrorReport},
 };
 use clap::{Parser, Subcommand};
-use error_stack::IntoReport;
 use error_stack::{bail, fmt::ColorMode, Report, Result, ResultExt};
 use tracing::info;
 
@@ -137,131 +130,14 @@ async fn main_run(args: config::RawBaseArgs) -> Result<(), Error> {
 
     info!("Loaded {conf:?}");
 
-    ensure_fossa_cli(conf.path()).await?;
+    let fossa_path = download_fossa_cli::ensure_fossa_cli(conf.path())
+        .await
+        .change_context(Error::InternalSetup)?;
+    info!("fossa path: {:?}", fossa_path);
 
     broker::subcommand::run::main(conf)
         .await
         .change_context(Error::Runtime)
-}
-
-async fn ensure_fossa_cli(config_path: &PathBuf) -> Result<(), Error> {
-    let output = Command::new("fossa")
-        .arg("--help")
-        .output()
-        .context(Error::InternalSetup)
-        .describe("Unable to find `fossa` binary in your path");
-
-    match output {
-        Ok(output) => {
-            if !output.status.success() {
-                return Err(Error::InternalSetup).into_report().describe(
-                    "Error when running `fossa -h` on the fossa binary found in your path",
-                );
-            }
-        }
-        Err(_) => {
-            return download_fossa_cli(config_path)
-                .await
-                .change_context(Error::InternalSetup)
-                .describe("fossa-cli not found in your path, so we attempted to download it");
-        }
-    }
-
-    Ok(())
-}
-
-async fn download_fossa_cli(config_path: &PathBuf) -> Result<(), Error> {
-    let config_dir = config_path
-        .parent()
-        .ok_or(Error::InternalSetup)
-        .into_report()
-        .describe("Finding location to download fossa-cli to")?;
-    let client = reqwest::Client::new();
-    let latest_release_response = client
-        .get("https://github.com/fossas/fossa-cli/releases/latest")
-        .header(reqwest::header::ACCEPT, "application/json")
-        .send()
-        .await
-        .context(Error::InternalSetup)
-        .describe("Getting URL for latest release of the fossa CLI")?;
-    // latest_release_response.url().path() will be something like "/fossas/fossa-cli/releases/tag/v3.7.2"
-    let path = latest_release_response.url().path();
-    let tag = path
-        .rsplit("/")
-        .next()
-        .ok_or(Error::InternalSetup)
-        .into_report()
-        .describe_lazy(|| format!("Parsing fossa-cli version from path {}", path))?;
-    println!(
-        "latest_release_response.url().path(): {:?}, version = {}",
-        path, tag
-    );
-    if !tag.starts_with("v") {
-        return Err(Error::InternalSetup).into_report()?;
-    }
-    let version = tag.trim_start_matches("v");
-
-    // TODO: Convert these into the options we support and blow up if unsupported
-    // Supported os/arch combos:
-    // windows/amd64
-    // darwin/amd64
-    // darwin/arm64
-    // linux/amd64
-    let mut arch = match std::env::consts::ARCH {
-        "x86" | "x86_64" => "amd64",
-        "aarch64" | "arm" => "arm64",
-        _ => "amd64",
-    };
-    let os = match std::env::consts::OS {
-        "macos" => "darwin",
-        "windows" => "windows",
-        _ => "linux",
-    };
-
-    if os == "darwin" && arch == "arm64" {
-        arch = "amd64";
-    }
-
-    let extension = match os {
-        "darwin" => ".zip",
-        "windows" => ".zip",
-        _ => ".tar.gz",
-    };
-    let download_url = format!("https://github.com/fossas/fossa-cli/releases/download/v{version}/fossa_{version}_{os}_{arch}{extension}");
-    println!("Downloading from {}", download_url);
-    // Download into a tmp dir so that we can unzip and untar it
-    let tmpdir = temp_dir();
-    let response = client
-        .get(&download_url)
-        .send()
-        .await
-        .context(Error::InternalSetup)
-        .describe_lazy(|| format!("downloading fossa-cli from {}", download_url))?;
-    let download_path = tmpdir.as_path().join(format!("fossa.{}", extension));
-    let mut download_file = File::create(&download_path)
-        .context(Error::InternalSetup)
-        .describe("Creating temp file to download fossa-cli into")?;
-    let content = response
-        .bytes()
-        .await
-        .context(Error::InternalSetup)
-        .describe("converting downloaded fossa-cli into bytes")?;
-    let mut decoder = libflate::deflate::Decoder::new(content.as_ref());
-    copy(&mut decoder, &mut download_file)
-        .context(Error::InternalSetup)
-        .describe("writing downloaded fossa-cli to disk")?;
-
-    let final_location = config_dir.join(format!("fossa{}", extension));
-    std::fs::rename(&download_path, &final_location)
-        .context(Error::InternalSetup)
-        .describe_lazy(|| {
-            format!(
-                "Copying fossa-cli to final destination of {:?}",
-                final_location
-            )
-        })?;
-    println!("fossa-cli should now be in {:?}", &final_location);
-    Ok(())
 }
 
 /// Parse application args and then load effective config.
