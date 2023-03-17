@@ -1,7 +1,7 @@
 //! Tests for `api::code` functionality.
 
 use broker::api::remote::{PollInterval, Remote};
-use proptest::prelude::*;
+use proptest::{prop_assert, prop_assert_eq};
 use test_strategy::proptest;
 
 use crate::helper::{assert_error_stack_snapshot, duration::DurationInput};
