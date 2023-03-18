@@ -19,6 +19,7 @@ use uuid::Uuid;
 
 use crate::api::remote::Reference;
 use crate::ext::error_stack::IntoContext;
+use crate::ext::tracing::span_record;
 use crate::queue::{self, Queue, Receiver, Sender};
 use crate::{
     api::remote::{Integration, RemoteProvider},
@@ -80,7 +81,7 @@ pub async fn main(config: Config, db: impl Database) -> Result<(), Error> {
     // Create them all, then just `try_join!` on all of them at the end.
     let healthcheck_worker = do_healthcheck(&db);
     let integration_worker = do_poll_integrations(&config, &db, scan_tx);
-    let scan_git_reference_worker = do_scan_git_reference(&db, scan_rx);
+    let scan_git_reference_worker = do_scan_git_references(&db, scan_rx);
 
     // `try_join!` keeps all of the workers running until one of them fails,
     // at which point the failure is returned and remaining tasks are dropped.
@@ -130,6 +131,7 @@ impl ScanGitVCSReference {
 }
 
 /// Loops forever, polling configured integrations on their `poll_interval`.
+#[tracing::instrument(skip_all)]
 async fn do_poll_integrations(
     config: &Config,
     db: &impl Database,
@@ -150,6 +152,7 @@ async fn do_poll_integrations(
     try_join_all(integration_workers).await.discard_ok()
 }
 
+#[tracing::instrument(skip_all)]
 async fn do_poll_integration(
     db: &impl Database,
     integration: &Integration,
@@ -262,14 +265,25 @@ async fn do_poll_integration(
     }
 }
 
-async fn do_scan_git_reference(_db: &impl Database, mut receiver: Receiver) -> Result<(), Error> {
+#[tracing::instrument(skip_all)]
+async fn do_scan_git_references(db: &impl Database, mut receiver: Receiver) -> Result<(), Error> {
     loop {
         let guard = receiver.recv().await.change_context(Error::TaskReceive)?;
 
         let data = guard.data();
         let job = bincode::deserialize::<ScanGitVCSReference>(data).context(Error::TaskDecode)?;
 
-        info!("Pretending to scan {job:?}");
+        do_scan_git_reference(db, job).await?;
         guard.commit().change_context(Error::TaskComplete)?;
     }
+}
+
+#[tracing::instrument(skip(_db), fields(scan_id))]
+async fn do_scan_git_reference(_db: &impl Database, job: ScanGitVCSReference) -> Result<(), Error> {
+    span_record!(scan_id, job.scan_id);
+    info!(
+        "Pretending to scan {} at {}",
+        job.integration, job.reference
+    );
+    Ok(())
 }
