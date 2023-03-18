@@ -1,10 +1,13 @@
 ---
 source: tests/it/remote_git.rs
-expression: "integration.references().expect_err(\"no results returned from get_references_that_need_scanning on a private repo\")"
+expression: err
 info: references on private repo with bad auth
 ---
 run external command
 ├╴at {source location}
+│
+├─▶ IO layer error
+│   ╰╴at {source location}
 │
 ╰─▶ git execution failed
     ├╴at {source location}

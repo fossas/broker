@@ -1,10 +1,13 @@
 ---
 source: tests/it/remote_git.rs
-expression: "integration.clone_reference(&reference).expect_err(\"Could not read from remote repository\")"
+expression: err
 info: cloning private repo with bad auth
 ---
 run external command
 ├╴at {source location}
+│
+├─▶ IO layer error
+│   ╰╴at {source location}
 │
 ╰─▶ git execution failed
     ├╴at {source location}
