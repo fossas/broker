@@ -43,7 +43,7 @@ jobs:
           registry: ghcr.io
           username: fossas
           password: ${{ secrets.GITHUB_TOKEN }}
-      - uses: docker/build-push-action@v2
+      - uses: docker/build-push-action@v4
         with:
           file: Dockerfile
           push: ${{ github.event_name != 'pull_request' }}
