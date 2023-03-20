@@ -10,10 +10,14 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 
 use crate::ext::error_stack::{DescribeContext, IntoContext};
+use crate::ext::io;
 
 /// Errors while downloading fossa-cli
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
+    /// Errors while finding the config root
+    #[error("finding the config root")]
+    Config,
     /// Errors while getting the tag and version from the download URL
     #[error("An error occurred while finding the latest version of the CLI")]
     FindingVersion,
@@ -30,11 +34,12 @@ pub enum Error {
 /// If we find `fossa` in your path, then just return "fossa"
 /// Otherwise, download the latest release, put it in `config_dir/fossa` and return that
 #[tracing::instrument]
-pub async fn ensure_fossa_cli(config_dir: &PathBuf) -> Result<PathBuf, Error> {
+pub async fn ensure_fossa_cli() -> Result<PathBuf, Error> {
     let command = command_name();
+    let data_root = io::data_root().await.change_context(Error::Config)?;
 
     // default to fossa that lives in ~/.config/fossa/broker/fossa
-    let command_in_config_dir = config_dir.join(&command);
+    let command_in_config_dir = data_root.join(&command);
     if check_command_existence(&command_in_config_dir) {
         return Ok(command_in_config_dir);
     }
@@ -45,7 +50,7 @@ pub async fn ensure_fossa_cli(config_dir: &PathBuf) -> Result<PathBuf, Error> {
     };
 
     // if it is not in either location, then download it
-    download(config_dir)
+    download(&data_root)
         .await
         .describe("fossa-cli not found in your path, attempting to download it")
 }

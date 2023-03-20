@@ -33,10 +33,10 @@
 //!
 //! Validations are expressed as `From<String>` or `TryFrom<String>` implementations.
 
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 use derive_new::new;
-use error_stack::{report, IntoReport, Report, ResultExt};
+use error_stack::{report, Report, ResultExt};
 use getset::Getters;
 use serde::Deserialize;
 
@@ -83,9 +83,6 @@ pub struct Config {
 
     /// Configured integration points.
     integrations: api::remote::Config,
-
-    /// Root of the config
-    directory: PathBuf,
 }
 
 impl Config {
@@ -103,13 +100,8 @@ impl Config {
             .context(Error::ParseVersion)
             .describe("prior to parsing the config file, Broker checks just the 'version' field to select the correct parser")?;
 
-        let config_dir = path
-            .parent()
-            .ok_or(Error::ReadFile)
-            .into_report()
-            .describe_lazy(|| format!("finding config directory for config file at {path:?}"))?;
         match version {
-            1 => v1::load(content, PathBuf::from(config_dir)).change_context(Error::ParseV1),
+            1 => v1::load(content).change_context(Error::ParseV1),
             0 => fail(Error::Incompatible, 0).help("update the config file to a newer format"),
             v => fail(Error::Unsupported, v).help("ensure that Broker is at the latest version"),
         }

@@ -134,7 +134,7 @@ async fn main_run(args: config::RawBaseArgs) -> Result<(), Error> {
         .await
         .change_context(Error::InternalSetup)?;
 
-    let fossa_path = download_fossa_cli::ensure_fossa_cli(conf.directory())
+    let fossa_path = download_fossa_cli::ensure_fossa_cli()
         .await
         .change_context(Error::InternalSetup)?;
     info!("fossa path: {:?}", fossa_path);
