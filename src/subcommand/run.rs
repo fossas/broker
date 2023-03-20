@@ -18,7 +18,6 @@ use tracing::{debug, info};
 use uuid::Uuid;
 
 use crate::api::remote::Reference;
-use crate::ext::error_stack::IntoContext;
 use crate::ext::tracing::span_record;
 use crate::queue::{self, Queue, Receiver, Sender};
 use crate::{
@@ -46,16 +45,6 @@ pub enum Error {
     /// If one of those polls fails, this error is returned.
     #[error("poll integration")]
     PollIntegration,
-
-    /// When tasks are stored in the async pipeline, they must be encoded.
-    /// If they fail to encode, this is the resulting error.
-    #[error("task encoding failed")]
-    TaskEncode,
-
-    /// When tasks are stored in the async pipeline, they must be encoded.
-    /// If they fail to decode, this is the resulting error.
-    #[error("task decoding failed")]
-    TaskDecode,
 
     /// If we fail to send tasks to the async task queue, this error is raised.
     #[error("enqueue task for processing")]
@@ -135,7 +124,7 @@ impl ScanGitVCSReference {
 async fn do_poll_integrations(
     config: &Config,
     db: &impl Database,
-    sender: Sender,
+    sender: Sender<ScanGitVCSReference>,
 ) -> Result<(), Error> {
     // The sender is not thread safe; ensure it's only run one at a time.
     let sender = Arc::new(Mutex::new(sender));
@@ -156,7 +145,7 @@ async fn do_poll_integrations(
 async fn do_poll_integration(
     db: &impl Database,
     integration: &Integration,
-    sender: Arc<Mutex<Sender>>,
+    sender: Arc<Mutex<Sender<ScanGitVCSReference>>>,
 ) -> Result<(), Error> {
     // We use this in a few places and may send it across threads, so just clone it locally.
     let remote = integration.remote().to_owned();
@@ -234,12 +223,8 @@ async fn do_poll_integration(
         }
         for reference in references {
             let job = ScanGitVCSReference::new(integration, &reference);
-            let encoded = bincode::serialize(&job).context(Error::TaskEncode)?;
             let mut sender = sender.lock().await;
-            sender
-                .send(&encoded)
-                .await
-                .change_context(Error::TaskEnqueue)?;
+            sender.send(&job).await.change_context(Error::TaskEnqueue)?;
 
             info!("Enqueued task to scan {integration} at {reference}");
         }
@@ -266,21 +251,25 @@ async fn do_poll_integration(
 }
 
 #[tracing::instrument(skip_all)]
-async fn do_scan_git_references(db: &impl Database, mut receiver: Receiver) -> Result<(), Error> {
+async fn do_scan_git_references(
+    db: &impl Database,
+    mut receiver: Receiver<ScanGitVCSReference>,
+) -> Result<(), Error> {
     loop {
         let guard = receiver.recv().await.change_context(Error::TaskReceive)?;
+        let job = guard.item().change_context(Error::TaskReceive)?;
 
-        let data = guard.data();
-        let job = bincode::deserialize::<ScanGitVCSReference>(data).context(Error::TaskDecode)?;
-
-        do_scan_git_reference(db, job).await?;
+        do_scan_git_reference(db, &job).await?;
         guard.commit().change_context(Error::TaskComplete)?;
     }
 }
 
 #[tracing::instrument(skip(_db), fields(scan_id))]
-async fn do_scan_git_reference(_db: &impl Database, job: ScanGitVCSReference) -> Result<(), Error> {
-    span_record!(scan_id, job.scan_id);
+async fn do_scan_git_reference(
+    _db: &impl Database,
+    job: &ScanGitVCSReference,
+) -> Result<(), Error> {
+    span_record!(scan_id, &job.scan_id);
     info!(
         "Pretending to scan {} at {}",
         job.integration, job.reference
