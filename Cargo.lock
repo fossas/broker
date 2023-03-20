@@ -170,6 +170,7 @@ dependencies = [
  "strum",
  "subtle",
  "tap",
+ "temp-env",
  "tempfile",
  "test-strategy",
  "thiserror",
@@ -2271,6 +2272,17 @@ name = "tap"
 version = "1.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "55937e1799185b12863d447f42597ed69d9928686b8d88a1df17376a097d8369"
+
+[[package]]
+name = "temp-env"
+version = "0.3.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8c0c07fe42fe15dcf97c394cb8350483a6e5095affb3a99e0dfd5f664be15fc3"
+dependencies = [
+ "futures",
+ "once_cell",
+ "tokio",
+]
 
 [[package]]
 name = "tempfile"

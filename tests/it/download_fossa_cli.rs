@@ -22,13 +22,15 @@ async fn download_fossa_cli() {
     };
 
     // Setup for case when no fossa exists in the path or in the config dir
-    env::set_var("PATH", "");
-    // remove_file will return an Err if expected_path does not exist, but that's ok()
     let fossa_in_config_path = Path::join(conf.directory(), &command_name);
+    // remove_file will return an Err if expected_path does not exist, but that's ok()
     fs::remove_file(&fossa_in_config_path).ok();
-    let actual_path = download_fossa_cli::ensure_fossa_cli(conf.directory())
-        .await
-        .expect("download from github failed");
+    let actual_path = temp_env::async_with_vars([("PATH", Some("aaaa"))], || async {
+        download_fossa_cli::ensure_fossa_cli(conf.directory())
+            .await
+            .expect("download from github failed")
+    })
+    .await;
 
     // assertions
     assert_eq!(fossa_in_config_path, actual_path);
@@ -38,16 +40,36 @@ async fn download_fossa_cli() {
     fs::remove_file(&fossa_in_config_path).ok();
 
     // setup for case where fossa already exists in the path
-    env::set_var("PATH", "/Users/scott/fossa/broker/testdata/fakebins");
     println!("PATH env var = {:?}", env::var("PATH"));
-    // there is a fake fossa in the testdata/fake_bins path
-    let actual_path = download_fossa_cli::ensure_fossa_cli(conf.directory())
-        .await
-        .expect("download from github failed");
+    // there is a fake fossa in the testdata/fakebins path
+    temp_env::async_with_vars(
+        [("PATH", Some("/Users/scott/fossa/broker/testdata/fakebins"))],
+        test_fn(),
+    );
 
     let expected_path = PathBuf::from(&command_name);
     let expected_path = expected_path.as_path();
 
     assert_eq!(expected_path, actual_path);
     assert!(!fossa_in_config_path.exists());
+}
+
+async fn test_fn() {
+    let (_, conf) = load_config!(
+        "testdata/config/fossa-one-http-no-auth.yml",
+        "testdata/database/empty.sqlite"
+    )
+    .await;
+    let actual_path = download_fossa_cli::ensure_fossa_cli(conf.directory())
+        .await
+        .expect("download from github failed");
+
+    let command_name = match std::env::consts::OS {
+        "windows" => "fossa.exe".to_string(),
+        _ => "fossa".to_string(),
+    };
+    let expected_path = PathBuf::from(&command_name);
+    let expected_path = expected_path.as_path();
+
+    assert_eq!(expected_path, actual_path);
 }

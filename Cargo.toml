@@ -55,6 +55,7 @@ insta = { version = "1.28.0", features = ["filters", "json", "yaml"] }
 proptest = "1.1.0"
 strum = { version = "0.24.1", features = ["derive"] }
 test-strategy = "0.3.0"
+temp-env = { version = "0.3.2", features = ["async_closure"] }
 
 [build-dependencies]
 error-stack = { version = "0.3.1", features = ["hooks"] }
