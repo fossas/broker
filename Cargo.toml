@@ -45,7 +45,7 @@ sqlx = { version = "0.6.2", features = ["runtime-tokio-rustls", "sqlite", "migra
 async-trait = "0.1.66"
 semver = { version = "1.0.17", features = ["serde"] }
 tap = "1.0.1"
-automod = "1.0.7"
+automod = "1.0.8"
 
 [dev-dependencies]
 insta = { version = "1.28.0", features = ["filters", "json", "yaml"] }
