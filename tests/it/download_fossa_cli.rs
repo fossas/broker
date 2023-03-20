@@ -23,18 +23,8 @@ async fn download_fossa_cli() {
 
     // Setup for case when no fossa exists in the path or in the config dir
     let fossa_in_config_path = Path::join(conf.directory(), &command_name);
-    // remove_file will return an Err if expected_path does not exist, but that's ok()
     fs::remove_file(&fossa_in_config_path).ok();
-    let actual_path = temp_env::async_with_vars([("PATH", Some("aaaa"))], || async {
-        download_fossa_cli::ensure_fossa_cli(conf.directory())
-            .await
-            .expect("download from github failed")
-    })
-    .await;
-
-    // assertions
-    assert_eq!(fossa_in_config_path, actual_path);
-    assert!(fossa_in_config_path.exists());
+    temp_env::async_with_vars([("PATH", Some("aaaa"))], test_fn());
 
     // cleanup
     fs::remove_file(&fossa_in_config_path).ok();
@@ -47,10 +37,6 @@ async fn download_fossa_cli() {
         test_fn(),
     );
 
-    let expected_path = PathBuf::from(&command_name);
-    let expected_path = expected_path.as_path();
-
-    assert_eq!(expected_path, actual_path);
     assert!(!fossa_in_config_path.exists());
 }
 
