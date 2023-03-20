@@ -65,11 +65,9 @@ fn check_command_existence(command_path: &PathBuf) -> bool {
             if !output.status.success() {
                 return false;
             }
-            return true;
+            true
         }
-        Err(_) => {
-            return false;
-        }
+        Err(_) => false,
     }
 }
 
@@ -97,18 +95,18 @@ async fn download(config_dir: &PathBuf) -> Result<PathBuf, Error> {
     let path = latest_release_response.url().path();
 
     let tag = path
-        .rsplit("/")
+        .rsplit('/')
         .next()
         .ok_or(Error::FindingVersion)
         .into_report()
         .describe_lazy(|| format!("Parsing fossa-cli version from path {}", path))?;
 
-    if !tag.starts_with("v") {
+    if !tag.starts_with('v') {
         return Err(Error::FindingVersion)
             .into_report()
             .describe_lazy(|| format!(r#"Expected tag to start with v, but found "{tag}""#))?;
     }
-    let version = tag.trim_start_matches("v");
+    let version = tag.trim_start_matches('v');
 
     // currently supported os/arch combos:
     // darwin/amd64
@@ -159,7 +157,7 @@ async fn download_from_github(download_url: String) -> Result<Cursor<Bytes>, Err
             )
         })?;
     let content = Cursor::new(content);
-    Ok(content.clone())
+    Ok(content)
 }
 
 #[tracing::instrument(skip(content))]
@@ -180,7 +178,7 @@ async fn unzip_zip(content: Cursor<Bytes>, final_path: &Path) -> Result<(), Erro
         .create(true)
         .write(true)
         .mode(0o770)
-        .open(&final_path)
+        .open(final_path)
         .into_report()
         .change_context(Error::Extracting)
         .describe_lazy(|| {
