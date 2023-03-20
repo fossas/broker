@@ -280,10 +280,9 @@ fn blobless_clone(
 
 #[tracing::instrument(skip(transport))]
 fn default_args(transport: &Transport) -> Result<Vec<String>, Report<Error>> {
-    ensure!(
-        transport.endpoint().starts_with("http"),
-        Error::HttpRemoteInvalid,
-    );
+    if let Transport::Http { endpoint, .. } = transport {
+        ensure!(endpoint.starts_with("http"), Error::HttpRemoteInvalid,);
+    }
 
     let header_args = match transport.auth() {
         // git -c credential-helper="" -c http.extraHeader="AUTHORIZATION: Basic ${B64_GITHUB_TOKEN}" clone https://github.com/spatten/fanopticon
