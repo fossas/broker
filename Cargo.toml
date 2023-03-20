@@ -42,7 +42,7 @@ itertools = "0.10.5"
 time = { version = "0.3.20", features = ["parsing"] }
 yaque = "0.6.4"
 sqlx = { version = "0.6.2", features = ["runtime-tokio-rustls", "sqlite", "migrate", "macros", "time", "offline"] }
-async-trait = "0.1.66"
+async-trait = "0.1.67"
 semver = { version = "1.0.17", features = ["serde"] }
 tap = "1.0.1"
 automod = "1.0.8"
