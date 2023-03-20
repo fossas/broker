@@ -31,7 +31,7 @@ pub enum Error {
 
 /// Load the config at v1 for the application.
 pub fn load(content: String) -> Result<super::Config, Report<Error>> {
-    RawConfigV1::parse(content).and_then(|config| validate(config))
+    RawConfigV1::parse(content).and_then(validate)
 }
 
 /// Config values as parsed from disk.
