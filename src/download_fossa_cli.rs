@@ -40,12 +40,12 @@ pub async fn ensure_fossa_cli() -> Result<PathBuf, Error> {
 
     // default to fossa that lives in ~/.config/fossa/broker/fossa
     let command_in_config_dir = data_root.join(&command);
-    if check_command_existence(&command_in_config_dir) {
+    if check_command_existence(&command_in_config_dir).await {
         return Ok(command_in_config_dir);
     }
 
     // if it does not exist in ~/.config/fossa/broker/fossa, then check to see if it is on the path
-    if check_command_existence(&PathBuf::from(&command)) {
+    if check_command_existence(&PathBuf::from(&command)).await {
         return Ok(PathBuf::from(command));
     };
 
@@ -58,7 +58,7 @@ pub async fn ensure_fossa_cli() -> Result<PathBuf, Error> {
 /// Given a path to a possible fossa executable, return whether or not it successfully runs
 /// "fossa --version"
 #[tracing::instrument]
-fn check_command_existence(command_path: &PathBuf) -> bool {
+async fn check_command_existence(command_path: &PathBuf) -> bool {
     let output = Command::new(command_path).arg("--version").output();
 
     match output {
