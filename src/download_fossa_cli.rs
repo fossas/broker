@@ -44,8 +44,8 @@ pub enum Error {
     Extract,
 
     /// The final step is to copy the file from the tmpfile into its final location
-    #[error("copy to final location")]
-    FinalCopy,
+    #[error("copy FOSSA CLI to final location '{0}'")]
+    FinalCopy(String),
 }
 
 /// Ensure that the fossa cli exists and return its path, preferring fossa in config_dir/fossa over fossa in your path.
@@ -213,22 +213,16 @@ fn write_zip_to_final_file<R>(mut zip_file: R, final_path: &PathBuf) -> Result<(
 where
     R: Read,
 {
+    let final_path_string = final_path.to_str().unwrap_or("").to_string();
     let mut final_file = fs::OpenOptions::new()
         .create(true)
         .write(true)
         .open(final_path)
         .into_report()
-        .change_context(Error::FinalCopy)
-        .describe_lazy(|| {
-            format!(
-                "create final file to write extracted zip to at {:?}",
-                final_path
-            )
-        })?;
+        .change_context(Error::FinalCopy(final_path_string.clone()))?;
     copy(&mut zip_file, &mut final_file)
         .into_report()
-        .change_context(Error::Extract)
-        .describe_lazy(|| format!("write extracted zip file to {:?}", final_path))?;
+        .change_context(Error::FinalCopy(final_path_string))?;
     Ok(())
 }
 
@@ -241,22 +235,16 @@ where
     R: Read,
 {
     use std::os::unix::prelude::OpenOptionsExt;
+    let final_path_string = final_path.to_str().unwrap_or("").to_string();
     let mut final_file = fs::OpenOptions::new()
         .create(true)
         .write(true)
         .mode(0o770)
         .open(final_path)
         .into_report()
-        .change_context(Error::FinalCopy)
-        .describe_lazy(|| {
-            format!(
-                "create final file to write extracted zip to at {:?}",
-                final_path
-            )
-        })?;
+        .change_context(Error::FinalCopy(final_path_string.clone()))?;
     copy(&mut zip_file, &mut final_file)
         .into_report()
-        .change_context(Error::Extract)
-        .describe_lazy(|| format!("write extracted zip file to {:?}", final_path))?;
+        .change_context(Error::FinalCopy(final_path_string))?;
     Ok(())
 }
