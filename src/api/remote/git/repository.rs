@@ -131,7 +131,10 @@ where
     let env = env_vars(transport, &mut ssh_key_file)?;
 
     let mut command = Command::new("git");
-    command.args(full_args.clone()).envs(env);
+    command
+        .args(full_args.clone())
+        .envs(env)
+        .env_remove("GIT_ASKPASS");
     if let Some(directory) = cwd {
         command.current_dir(directory);
     }
