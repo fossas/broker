@@ -103,7 +103,7 @@ impl RemoteProvider for Transport {
         // The cost is irrelevant next to the IO time.
         let transport = self.to_owned();
         let reference = reference.to_owned();
-        io::spawn_blocking_stacked(move || repository::clone_reference(&transport, &reference))
+        io::spawn_blocking(move || repository::clone_reference(&transport, &reference))
             .await
             .change_context(RemoteProviderError::RunCommand)
     }
@@ -114,7 +114,7 @@ impl RemoteProvider for Transport {
         // Rather than get into tracking lifetimes, just clone it.
         // The cost is irrelevant next to the IO time.
         let transport = self.to_owned();
-        io::spawn_blocking_stacked(move || repository::list_references(&transport))
+        io::spawn_blocking(move || repository::list_references(&transport))
             .await
             .change_context(RemoteProviderError::RunCommand)
     }

@@ -69,7 +69,7 @@ pub async fn ensure_fossa_cli() -> Result<PathBuf, Error> {
     };
 
     // if it is not in either location, then download it
-    download(&data_root)
+    download(data_root)
         .await
         .describe("fossa-cli not found in your path, attempting to download it")
 }
