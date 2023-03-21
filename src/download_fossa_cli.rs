@@ -2,6 +2,7 @@
 use bytes::Bytes;
 use error_stack::IntoReport;
 use error_stack::{Result, ResultExt};
+use indoc::indoc;
 use std::fs::{self};
 use std::io::copy;
 use std::io::Cursor;
@@ -9,8 +10,9 @@ use std::os::unix::prelude::OpenOptionsExt;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-use crate::ext::error_stack::{DescribeContext, IntoContext};
+use crate::ext::error_stack::{DescribeContext, ErrorHelper, IntoContext};
 use crate::ext::io;
+use crate::ext::result::WrapErr;
 
 /// Errors while downloading fossa-cli
 #[derive(Debug, thiserror::Error)]
@@ -18,13 +20,25 @@ pub enum Error {
     /// Errors while finding the config root
     #[error("find config root")]
     Config,
+
     /// Broker attempts to find the latest version of the CLI before downloading.
     /// It does this by checking the latest tag and parsing the redirect location.
     #[error("find latest FOSSA CLI version")]
     FindVersion,
+
+    /// Broker parses the redirect location from the 'latest' psuedo-tag to determine
+    /// the correct tag representing 'latest'. If that fails to parse, this error occurs.
+    #[error("parse 'latest' psuedo-tag redirect: '{0}'")]
+    ParseRedirect(String),
+
+    /// If the determined tag doesn't start with 'v', something went wrong in the parse.
+    #[error("expected tag to start with 'v', but got '{0}'")]
+    DeterminedTagFormat(String),
+
     /// Once Broker determines the correct version, it downloads it from Github.
     #[error("download FOSSA CLI from github")]
     Download,
+
     /// Finally, once FOSSA CLI is downloaded, Broker must extract it from an archive.
     #[error("extract FOSSA CLI archive")]
     Extract,
@@ -87,20 +101,20 @@ async fn download(config_dir: &PathBuf) -> Result<PathBuf, Error> {
         .send()
         .await
         .context(Error::FindVersion)
-        .describe("Getting URL for latest release of the fossa CLI")?;
+        .describe("uses Github's 'latest' pseudo-tag to determine the latest release")?;
     let path = latest_release_response.url().path();
 
     let tag = path
         .rsplit('/')
         .next()
-        .ok_or(Error::FindVersion)
-        .into_report()
-        .describe_lazy(|| format!("Parsing fossa-cli version from path {}", path))?;
+        .ok_or(Error::ParseRedirect(String::from(path)))
+        .context(Error::FindVersion)
+        .describe("uses the 'latest' pseudo-tag on Github to determine the tag representing the latest release")?;
 
     if !tag.starts_with('v') {
-        return Err(Error::FindVersion)
-            .into_report()
-            .describe_lazy(|| format!(r#"Expected tag to start with v, but found "{tag}""#))?;
+        return Error::DeterminedTagFormat(String::from(tag))
+            .wrap_err()
+            .context(Error::FindVersion);
     }
     let version = tag.trim_start_matches('v');
 
@@ -138,20 +152,24 @@ async fn download_from_github(download_url: String) -> Result<Cursor<Bytes>, Err
         .await
         .into_report()
         .change_context(Error::Download)
-        .describe_lazy(|| {
-            format!("Error while downloading latest fossa release from {download_url}")
-        })?;
+        .help_lazy(|| indoc!{"
+            Try downloading FOSSA CLI from '{download_url}' to determine if this is an issue with the local network.
+            You also may be able to work around this issue by using the installation script for FOSSA CLI,
+            located at https://github.com/fossas/fossa-cli#installation
+            "}
+        )?;
 
     let content = response
         .bytes()
         .await
         .into_report()
         .change_context(Error::Download)
-        .describe_lazy(|| {
-            format!(
-                "Error while converting download of fossa release from {download_url} into bytes"
-            )
-        })?;
+        .help_lazy(|| indoc!{"
+            Try downloading FOSSA CLI from '{download_url}' to determine if this is an issue with the local network.
+            You also may be able to work around this issue by using the installation script for FOSSA CLI,
+            located at https://github.com/fossas/fossa-cli#installation
+            "}
+        )?;
     let content = Cursor::new(content);
     Ok(content)
 }
