@@ -31,7 +31,7 @@ use tokio::task;
 use crate::ext::error_stack::{DescribeContext, ErrorHelper, IntoContext};
 
 pub mod sync;
-pub use sync::DATA_ROOT_VAR;
+pub use sync::set_data_root;
 
 /// Errors that are possibly surfaced during IO actions.
 #[derive(Debug, thiserror::Error)]
@@ -53,7 +53,7 @@ pub enum Error {
 ///
 /// Users may also customize this root via the [`DATA_ROOT_VAR`] environment variable.
 #[tracing::instrument]
-pub async fn data_root() -> Result<PathBuf, Report<Error>> {
+pub async fn data_root() -> Result<&'static PathBuf, Report<Error>> {
     run_background(sync::data_root).await
 }
 

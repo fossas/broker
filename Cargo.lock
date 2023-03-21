@@ -132,6 +132,7 @@ name = "broker"
 version = "0.1.0-pre"
 dependencies = [
  "async-trait",
+ "atty",
  "automod",
  "base64",
  "bincode",

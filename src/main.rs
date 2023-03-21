@@ -5,9 +5,11 @@
 #![deny(missing_docs)]
 #![warn(rust_2018_idioms)]
 
+use atty::Stream;
 use broker::api::remote::RemoteProvider;
 use broker::db;
 use broker::doc::crate_version;
+use broker::ext::error_stack::IntoContext;
 use broker::{config, ext::error_stack::ErrorHelper};
 use broker::{
     doc,
@@ -15,7 +17,8 @@ use broker::{
 };
 use clap::{Parser, Subcommand};
 use error_stack::{bail, fmt::ColorMode, Report, Result, ResultExt};
-use tracing::info;
+use tap::TapFallible;
+use tracing::debug;
 
 #[derive(Debug, thiserror::Error)]
 enum Error {
@@ -67,21 +70,54 @@ enum Commands {
 
 #[tokio::main]
 async fn main() -> Result<(), Error> {
-    // App-wide setup goes here.
-    Report::set_color_mode(ColorMode::Color);
+    // App-wide setup that doesn't depend on config or subcommand goes here.
     let version = crate_version();
+    if atty::is(Stream::Stdout) {
+        Report::set_color_mode(ColorMode::Color);
+    } else {
+        Report::set_color_mode(ColorMode::None);
+    }
 
     // Subcommand routing.
     let Opts { command } = Opts::parse();
-    match command {
-        Commands::Init => main_init().await,
-        Commands::Setup => main_setup().await,
-        Commands::Config(args) => main_config(args).await,
-        Commands::Fix(args) => main_fix(args).await,
-        Commands::Backup(args) => main_backup(args).await,
-        Commands::Run(args) => main_run(args).await,
-        Commands::Clone(args) => main_clone(args).await,
+    let subcommand = || async {
+        match command {
+            Commands::Init => main_init().await,
+            Commands::Setup => main_setup().await,
+            Commands::Config(args) => main_config(args).await,
+            Commands::Fix(args) => main_fix(args).await,
+            Commands::Backup(args) => main_backup(args).await,
+            Commands::Run(args) => main_run(args).await,
+            Commands::Clone(args) => main_clone(args).await,
+        }
+    };
+
+    // Run the subcommand, but also listen for ctrl+c.
+    // If ctrl+c is fired, we exit; this drops any futures currently running.
+    // In Rust, this is the appropriate way to cancel futures.
+    tokio::select! {
+        // We want to handle signals first, regardless of how often the subcommand
+        // is ready to be polled.
+        biased;
+
+        // If the signal fires, log that we're shutting down and return.
+        result = tokio::signal::ctrl_c() => {
+            // Only log this on success.
+            //
+            // Write directly to stderr because tracing may already be shut down,
+            // or may not ever have been started, by the time this runs.
+            result.tap_ok(|_| eprintln!("Shut down at due to OS signal"))
+            // If this errors, it'll do so immediately before anything else runs,
+            // so it's definitely part of internal setup.
+            .context(Error::InternalSetup)
+        },
+
+        // Otherwise, run the subcommand to completion.
+        result = subcommand() => {
+            result
+        }
     }
+    // Decorate any error message with top level diagnostics and debugging help.
     .request_support()
     .describe_lazy(|| format!("broker version: {version}"))
 }
@@ -123,6 +159,7 @@ async fn main_run(args: config::RawBaseArgs) -> Result<(), Error> {
         .await
         .change_context(Error::DetermineEffectiveConfig)
         .documentation_lazy(doc::link::config_file_reference)?;
+    debug!("Loaded {conf:?}");
 
     let _tracing_guard = conf
         .debug()
@@ -133,7 +170,6 @@ async fn main_run(args: config::RawBaseArgs) -> Result<(), Error> {
         .await
         .change_context(Error::InternalSetup)?;
 
-    info!("Loaded {conf:?}");
     broker::subcommand::run::main(conf, db)
         .await
         .change_context(Error::Runtime)
