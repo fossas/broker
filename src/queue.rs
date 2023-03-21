@@ -129,7 +129,7 @@ where
 
     async fn open_internal(path: PathBuf) -> Result<Self, Report<Error>> {
         let lock_path = path.join("send.lock");
-        io::spawn_blocking(move || yaque::Sender::open(path))
+        io::spawn_blocking_wrap(move || yaque::Sender::open(path))
             .await
             .change_context(Error::Open)
             .help(indoc! {"
@@ -210,7 +210,7 @@ where
 
     async fn open_internal(path: PathBuf) -> Result<Self, Report<Error>> {
         let lock_path = path.join("recv.lock");
-        io::spawn_blocking(move || yaque::Receiver::open(path))
+        io::spawn_blocking_wrap(move || yaque::Receiver::open(path))
             .await
             .change_context(Error::Open)
             .help(indoc! {"

@@ -134,23 +134,24 @@ where
         .change_context(Error::IO)
 }
 
-/// Run the provided blocking closure in the background,
-/// wrapping any error returned in this module's `Error::IO` context.
+/// Run the provided blocking closure in the background.
+///
+/// The error returned by the function is wrapped inside a report
+/// and set to this module's `Error::IO` context.
 #[tracing::instrument(skip_all)]
-pub async fn spawn_blocking<T, E, F>(work: F) -> Result<T, Report<Error>>
+pub async fn spawn_blocking_wrap<T, E, F>(work: F) -> Result<T, Report<Error>>
 where
     T: Send + 'static,
     E: std::error::Error + Sync + Send + 'static,
     Report<E>: From<E>,
     F: FnOnce() -> Result<T, E> + Send + 'static,
 {
-    spawn_blocking_stacked(|| work().into_report()).await
+    spawn_blocking(|| work().into_report()).await
 }
 
-/// Run the provided blocking closure in the background,
-/// wrapping any error returned in this module's `Error::IO` context.
+/// Run the provided blocking closure in the background.
 #[tracing::instrument(skip_all)]
-pub async fn spawn_blocking_stacked<T, E, F>(work: F) -> Result<T, Report<Error>>
+pub async fn spawn_blocking<T, E, F>(work: F) -> Result<T, Report<Error>>
 where
     T: Send + 'static,
     E: Context,
