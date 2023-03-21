@@ -126,36 +126,43 @@ async fn download(config_dir: &PathBuf) -> Result<PathBuf, Error> {
     }
     let version = tag.trim_start_matches('v');
 
-    // currently supported os/arch combos:
-    // darwin/amd64
-    // linux/amd64
-    // windows/amd64
-    //
-    // We only support "amd64" right now, so no need to look at std::env::consts::ARCH
-    let arch = "amd64";
-    let extension = ".zip";
-    let os = match std::env::consts::OS {
-        "macos" => "darwin",
-        "windows" => "windows",
-        _ => "linux",
-    };
-
-    // Example URLs:
-    // https://github.com/fossas/fossa-cli/releases/download/v3.7.2/fossa_3.7.2_darwin_amd64.zip
-    // https://github.com/fossas/fossa-cli/releases/download/v3.7.2/fossa_3.7.2_linux_amd64.zip
-    let download_url = format!("https://github.com/fossas/fossa-cli/releases/download/v{version}/fossa_{version}_{os}_{arch}{extension}");
-    let content = download_from_github(download_url).await?;
+    let content = download_from_github(version).await?;
 
     let final_path = config_dir.join(command_name());
     unzip_zip(content, &final_path).await?;
     Ok(final_path)
 }
 
+// currently supported os/arch combos:
+// darwin/amd64
+// linux/amd64
+// windows/amd64
+//
+// We only support "amd64" right now, so no need to look at target_arch
+// Example URLs:
+// https://github.com/fossas/fossa-cli/releases/download/v3.7.2/fossa_3.7.2_windows_amd64.zip
+// https://github.com/fossas/fossa-cli/releases/download/v3.7.2/fossa_3.7.2_darwin_amd64.zip
+// https://github.com/fossas/fossa-cli/releases/download/v3.7.2/fossa_3.7.2_linux_amd64.zip
+#[cfg(target_os = "windows")]
+fn download_url(version: &str) -> String {
+    format!("https://github.com/fossas/fossa-cli/releases/download/v{version}/fossa_{version}_windows_amd64.zip")
+}
+
+#[cfg(target_os = "macos")]
+fn download_url(version: &str) -> String {
+    format!("https://github.com/fossas/fossa-cli/releases/download/v{version}/fossa_{version}_darwin_amd64.zip")
+}
+
+#[cfg(target_os = "linux")]
+fn download_url(version: &str) -> String {
+    format!("https://github.com/fossas/fossa-cli/releases/download/v{version}/fossa_{version}_linux_amd64.zip")
+}
+
 #[tracing::instrument]
-async fn download_from_github(download_url: String) -> Result<Cursor<Bytes>, Error> {
+async fn download_from_github(version: &str) -> Result<Cursor<Bytes>, Error> {
     let client = reqwest::Client::new();
     let response = client
-        .get(&download_url)
+        .get(download_url(version))
         .send()
         .await
         .into_report()
@@ -202,7 +209,7 @@ async fn unzip_zip(content: Cursor<Bytes>, final_path: &PathBuf) -> Result<(), E
 
 #[tracing::instrument(skip(zip_file))]
 #[cfg(target_family = "windows")]
-async fn write_zip_to_final_file<R>(mut zip_file: R, final_path: &PathBuf) -> Result<(), Error>
+fn write_zip_to_final_file<R>(mut zip_file: R, final_path: &PathBuf) -> Result<(), Error>
 where
     R: Read,
 {
@@ -214,19 +221,19 @@ where
         .change_context(Error::FinalCopy)
         .describe_lazy(|| {
             format!(
-                "creating final file to write extracted zip to at {:?}",
+                "create final file to write extracted zip to at {:?}",
                 final_path
             )
         })?;
     copy(&mut zip_file, &mut final_file)
         .into_report()
         .change_context(Error::Extract)
-        .describe_lazy(|| format!("writing extracted zip file to {:?}", final_path))?;
+        .describe_lazy(|| format!("write extracted zip file to {:?}", final_path))?;
     Ok(())
 }
 
 /// On unix we need to set the mode to 0o770 so that it is executable
-/// On windows we cannot do this
+/// On windows we cannot (and do not need to) do this
 #[tracing::instrument(skip(zip_file))]
 #[cfg(target_family = "unix")]
 fn write_zip_to_final_file<R>(mut zip_file: R, final_path: &PathBuf) -> Result<(), Error>
@@ -243,13 +250,13 @@ where
         .change_context(Error::FinalCopy)
         .describe_lazy(|| {
             format!(
-                "creating final file to write extracted zip to at {:?}",
+                "create final file to write extracted zip to at {:?}",
                 final_path
             )
         })?;
     copy(&mut zip_file, &mut final_file)
         .into_report()
         .change_context(Error::Extract)
-        .describe_lazy(|| format!("writing extracted zip file to {:?}", final_path))?;
+        .describe_lazy(|| format!("write extracted zip file to {:?}", final_path))?;
     Ok(())
 }
