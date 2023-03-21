@@ -21,7 +21,7 @@ pub enum Auth {
 impl Display for Auth {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Auth::KeyFile(path) => write!(f, "key file at {path:?}"),
+            Auth::KeyFile(path) => write!(f, "key file at {}", path.display()),
             Auth::KeyValue(key) => write!(f, "private key {key}"),
         }
     }

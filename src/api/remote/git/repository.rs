@@ -79,7 +79,7 @@ fn get_all_references(transport: &Transport) -> Result<Vec<Reference>, Report<Er
     // First, we need to make a temp directory and run `git init` in it
     let tmpdir = tempdir()
         .context(Error::TempDirCreation)
-        .describe_lazy(|| format!("attempted to create temporary dir in {:?}", env::temp_dir()))
+        .describe_lazy(|| format!("attempted to create temporary dir in {}", env::temp_dir().display()))
         .help("temporary directory location uses $TMPDIR on Linux and macOS; for Windows it uses the 'GetTempPath' system call")?;
 
     // initialize the repo
@@ -259,7 +259,7 @@ fn blobless_clone(
 ) -> Result<TempDir, Report<Error>> {
     let tmpdir = tempdir()
         .context(Error::TempDirCreation)
-        .describe_lazy(|| format!("attempted to create temporary dir in {:?}", env::temp_dir()))
+        .describe_lazy(|| format!("attempted to create temporary dir in {}", env::temp_dir().display()))
         .help("temporary directory location uses $TMPDIR on Linux and macOS; for Windows it uses the 'GetTempPath' system call")?;
     let mut args = vec![String::from("clone"), String::from("--filter=blob:none")];
     if let Some(reference) = reference {
@@ -272,7 +272,7 @@ fn blobless_clone(
         .path()
         .to_str()
         .ok_or_else(|| report!(Error::PathNotValidUtf8))
-        .describe_lazy(|| format!("path provided: {:?}", tmpdir.path()))?;
+        .describe_lazy(|| format!("path provided: {}", tmpdir.path().display()))?;
     args.append(&mut vec![
         transport.endpoint().to_string(),
         path.to_string(),
@@ -350,7 +350,7 @@ fn env_vars(
 fn git_ssh_command(path: &Path) -> Result<String, Report<Error>> {
     path.to_str()
         .ok_or_else(|| report!(Error::PathNotValidUtf8))
-        .describe_lazy(|| format!("path provided: {:?}", path))
+        .describe_lazy(|| format!("path provided: {}", path.display()))
         .map(|path| {
             format!("ssh -i {path} -o IdentitiesOnly=yes -o StrictHostKeyChecking=no -F /dev/null")
         })
