@@ -219,10 +219,10 @@ where
         .write(true)
         .open(final_path)
         .into_report()
-        .change_context(Error::FinalCopy(final_path_string.clone()))?;
+        .change_context_lazy(|| Error::FinalCopy(final_path_string.clone()))?;
     copy(&mut zip_file, &mut final_file)
         .into_report()
-        .change_context(Error::FinalCopy(final_path_string))?;
+        .change_context_lazy(|| Error::FinalCopy(final_path_string))?;
     Ok(())
 }
 
