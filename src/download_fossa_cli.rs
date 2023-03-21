@@ -19,16 +19,16 @@ use crate::ext::result::WrapErr;
 pub enum Error {
     /// Errors while finding the config root
     #[error("find config root")]
-    Config,
+    SetDataRoot,
 
     /// Broker attempts to find the latest version of the CLI before downloading.
     /// It does this by checking the latest tag and parsing the redirect location.
     #[error("find latest FOSSA CLI version")]
     FindVersion,
 
-    /// Broker parses the redirect location from the 'latest' psuedo-tag to determine
+    /// Broker parses the redirect location from the 'latest' pseudo-tag to determine
     /// the correct tag representing 'latest'. If that fails to parse, this error occurs.
-    #[error("parse 'latest' psuedo-tag redirect: '{0}'")]
+    #[error("parse 'latest' pseudo-tag redirect: '{0}'")]
     ParseRedirect(String),
 
     /// If the determined tag doesn't start with 'v', something went wrong in the parse.
@@ -48,14 +48,14 @@ pub enum Error {
     FinalCopy,
 }
 
-/// Ensure that the fossa cli exists and return its path.
-/// If we find it in config_dir/fossa, then return that
+/// Ensure that the fossa cli exists and return its path, preferring fossa in config_dir/fossa over fossa in your path.
+/// If we find it in config_dir/fossa, then return that.
 /// If we find `fossa` in your path, then just return "fossa"
 /// Otherwise, download the latest release, put it in `config_dir/fossa` and return that
 #[tracing::instrument]
 pub async fn ensure_fossa_cli() -> Result<PathBuf, Error> {
     let command = command_name();
-    let data_root = io::data_root().await.change_context(Error::Config)?;
+    let data_root = io::data_root().await.change_context(Error::SetDataRoot)?;
 
     // default to fossa that lives in ~/.config/fossa/broker/fossa
     let command_in_config_dir = data_root.join(command);
@@ -91,6 +91,7 @@ async fn check_command_existence(command_path: &PathBuf) -> bool {
 fn command_name() -> &'static str {
     "fossa.exe"
 }
+
 #[tracing::instrument]
 #[cfg(target_family = "unix")]
 fn command_name() -> &'static str {
