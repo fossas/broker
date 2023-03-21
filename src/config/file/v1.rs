@@ -71,7 +71,7 @@ fn validate(config: RawConfigV1) -> Result<super::Config, Report<Error>> {
         .map(remote::Integration::try_from)
         .collect::<Result<Vec<_>, Report<remote::ValidationError>>>()
         .change_context(Error::Validate)
-        .map(remote::Config::new)?;
+        .map(remote::Integrations::new)?;
 
     super::Config::new(api, debugging, integrations).wrap_ok()
 }
