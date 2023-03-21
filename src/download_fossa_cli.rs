@@ -60,17 +60,11 @@ pub async fn ensure_fossa_cli() -> Result<PathBuf, Error> {
 /// "fossa --version"
 #[tracing::instrument]
 async fn check_command_existence(command_path: &PathBuf) -> bool {
-    let output = Command::new(command_path).arg("--version").output();
-
-    match output {
-        Ok(output) => {
-            if !output.status.success() {
-                return false;
-            }
-            true
-        }
-        Err(_) => false,
-    }
+    Command::new(command_path)
+        .arg("--version")
+        .output()
+        .map(|out| out.status.success())
+        .unwrap_or(false)
 }
 
 /// command_name is "fossa.exe" on windows and "fossa" on all other platforms
