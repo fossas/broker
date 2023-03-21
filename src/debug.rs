@@ -84,7 +84,7 @@ impl Config {
             .help("this location is set in the config file")
             .describe_lazy(|| {
                 format!(
-                    "debug info is configured to be stored in {}",
+                    "debug info is configured to be stored in '{}'",
                     root.display()
                 )
             })
@@ -119,7 +119,7 @@ impl Config {
             .describe("this is a program bug and is not something that users can fix")?;
 
         info!(
-            "Debug artifacts being stored in {}",
+            "Debug artifacts being stored in '{}'",
             self.tracing_root().display()
         );
         Ok(guard)
@@ -146,7 +146,7 @@ impl Retention {
         BasicRollingFileAppender::new(target, roll_condition, self.days.into())
             .context(Error::TraceConfig)
             .help("ensure that the parent directory exists and you have access to it")
-            .describe_lazy(|| format!("initialize sink to {}", target.display()))
+            .describe_lazy(|| format!("initialize sink to '{}'", target.display()))
     }
 }
 

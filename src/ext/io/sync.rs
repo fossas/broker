@@ -129,7 +129,7 @@ pub fn read_to_string<P: AsRef<Path> + fmt::Debug>(file: P) -> Result<String, Re
 pub fn validate_file(path: PathBuf) -> Result<PathBuf, Report<Error>> {
     let meta = fs::metadata(&path)
         .context(Error::ValidatePath)
-        .describe_lazy(|| format!("validate file: {}", path.display()))
+        .describe_lazy(|| format!("validate file: '{}'", path.display()))
         .help("validate that you have access to the file and that it exists")?;
 
     if meta.is_file() {
@@ -138,7 +138,7 @@ pub fn validate_file(path: PathBuf) -> Result<PathBuf, Report<Error>> {
         Error::NotRegularFile
             .wrap_err()
             .into_report()
-            .attach_printable_lazy(|| format!("validate file: {}", path.display()))
+            .attach_printable_lazy(|| format!("validate file: '{}'", path.display()))
     }
 }
 

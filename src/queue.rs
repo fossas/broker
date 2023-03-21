@@ -138,7 +138,7 @@ where
             "})
             .describe_lazy(|| formatdoc! {"
             Queue working state is stored on disk, and relies on a lockfile to guard access.
-            For this particular queue, this lock file is located at {}.
+            For this particular queue, this lock file is located at '{}'.
             ", lock_path.display()})
             .map(Self::new)
     }
@@ -219,7 +219,7 @@ where
             "})
             .describe_lazy(|| formatdoc! {"
             Queue working state is stored on disk, and relies on a lockfile to guard access.
-            For this particular queue, this lock file is located at {}.
+            For this particular queue, this lock file is located at '{}'.
             ", lock_path.display()})
             .map(Self::new)
     }

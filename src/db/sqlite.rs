@@ -107,7 +107,7 @@ impl Database {
             .connect_with(options)
             .await
             .context(Error::Connect)
-            .describe_lazy(|| format!("attempted to open sqlite db at {}", location.display()))?;
+            .describe_lazy(|| format!("attempted to open sqlite db at '{}'", location.display()))?;
 
         let db = Self::new(location.to_path_buf(), db).migrate().await?;
 
@@ -126,7 +126,7 @@ impl Database {
             .run(&self.internal)
             .await
             .context(Error::Migrate)
-            .describe_lazy(|| format!("migrating db at {}", self.location.display()))
+            .describe_lazy(|| format!("migrating db at '{}'", self.location.display()))
             .help(indoc! {"
             This error likely means the database is corrupted.
             The database is only used to improve overall system performance,
