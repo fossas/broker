@@ -16,17 +16,18 @@ use crate::ext::io;
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
     /// Errors while finding the config root
-    #[error("finding the config root")]
+    #[error("find config root")]
     Config,
-    /// Errors while getting the tag and version from the download URL
-    #[error("An error occurred while finding the latest version of the CLI")]
-    FindingVersion,
-    /// Download Errors
-    #[error("An error occurred while downloading from Github")]
-    Downloading,
-    /// Extraction errors
-    #[error("An error occurred while extracting the downloaded file")]
-    Extracting,
+    /// Broker attempts to find the latest version of the CLI before downloading.
+    /// It does this by checking the latest tag and parsing the redirect location.
+    #[error("find latest FOSSA CLI version")]
+    FindVersion,
+    /// Once Broker determines the correct version, it downloads it from Github.
+    #[error("download FOSSA CLI from github")]
+    Download,
+    /// Finally, once FOSSA CLI is downloaded, Broker must extract it from an archive.
+    #[error("extract FOSSA CLI archive")]
+    Extract,
 }
 
 /// Ensure that the fossa cli exists and return its path.
@@ -91,19 +92,19 @@ async fn download(config_dir: &PathBuf) -> Result<PathBuf, Error> {
         .header(reqwest::header::ACCEPT, "application/json")
         .send()
         .await
-        .context(Error::FindingVersion)
+        .context(Error::FindVersion)
         .describe("Getting URL for latest release of the fossa CLI")?;
     let path = latest_release_response.url().path();
 
     let tag = path
         .rsplit('/')
         .next()
-        .ok_or(Error::FindingVersion)
+        .ok_or(Error::FindVersion)
         .into_report()
         .describe_lazy(|| format!("Parsing fossa-cli version from path {}", path))?;
 
     if !tag.starts_with('v') {
-        return Err(Error::FindingVersion)
+        return Err(Error::FindVersion)
             .into_report()
             .describe_lazy(|| format!(r#"Expected tag to start with v, but found "{tag}""#))?;
     }
@@ -142,7 +143,7 @@ async fn download_from_github(download_url: String) -> Result<Cursor<Bytes>, Err
         .send()
         .await
         .into_report()
-        .change_context(Error::Downloading)
+        .change_context(Error::Download)
         .describe_lazy(|| {
             format!("Error while downloading latest fossa release from {download_url}")
         })?;
@@ -151,7 +152,7 @@ async fn download_from_github(download_url: String) -> Result<Cursor<Bytes>, Err
         .bytes()
         .await
         .into_report()
-        .change_context(Error::Downloading)
+        .change_context(Error::Download)
         .describe_lazy(|| {
             format!(
                 "Error while converting download of fossa release from {download_url} into bytes"
@@ -164,12 +165,12 @@ async fn download_from_github(download_url: String) -> Result<Cursor<Bytes>, Err
 #[tracing::instrument(skip(content))]
 async fn unzip_zip(content: Cursor<Bytes>, final_path: &Path) -> Result<(), Error> {
     let mut archive = zip::ZipArchive::new(content)
-        .context(Error::Extracting)
+        .context(Error::Extract)
         .describe("extracting zip file from downloaded fossa release")?;
     let mut file = match archive.by_name("fossa") {
         Ok(file) => file,
         Err(..) => {
-            return Err(Error::Extracting)
+            return Err(Error::Extract)
                 .into_report()
                 .describe("finding fossa executable in downloaded fossa release");
         }
@@ -181,7 +182,7 @@ async fn unzip_zip(content: Cursor<Bytes>, final_path: &Path) -> Result<(), Erro
         .mode(0o770)
         .open(final_path)
         .into_report()
-        .change_context(Error::Extracting)
+        .change_context(Error::Extract)
         .describe_lazy(|| {
             format!(
                 "creating final file to write extracted zip to at {:?}",
@@ -190,7 +191,7 @@ async fn unzip_zip(content: Cursor<Bytes>, final_path: &Path) -> Result<(), Erro
         })?;
     copy(&mut file, &mut final_file)
         .into_report()
-        .change_context(Error::Extracting)
+        .change_context(Error::Extract)
         .describe_lazy(|| format!("writing extracted zip file to {:?}", final_path))?;
     Ok(())
 }
