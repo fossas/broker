@@ -32,9 +32,17 @@ jobs:
     - run: cargo fmt
     - run: git diff --exit-code
 
-  # Ensure every crate can actually build
-  build-all:
-    runs-on: ubuntu-latest
+  # Ensure every crate can actually build on all platforms
+  build:
+    name: build ${{ matrix.os }}
+    strategy:
+      matrix:
+        include:
+        - os: ubuntu-latest
+        - os: macos-latest
+        - os: windows-latest
+
+    runs-on: ${{ matrix.os }}
     steps:
     - uses: actions/checkout@v3
     - uses: actions-rs/toolchain@v1
