@@ -83,11 +83,14 @@ async fn check_command_existence(command_path: &PathBuf) -> bool {
 
 /// command_name is "fossa.exe" on windows and "fossa" on all other platforms
 #[tracing::instrument]
-fn command_name() -> String {
-    match std::env::consts::OS {
-        "windows" => "fossa.exe".to_string(),
-        _ => "fossa".to_string(),
-    }
+#[cfg(target_family = "windows")]
+fn command_name() -> &'static str {
+    "fossa.exe"
+}
+#[tracing::instrument]
+#[cfg(target_family = "unix")]
+fn command_name() -> &'static str {
+    "fossa"
 }
 
 /// Download the CLI into the config_dir
