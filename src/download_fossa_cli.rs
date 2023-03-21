@@ -3,13 +3,12 @@ use bytes::Bytes;
 use error_stack::IntoReport;
 use error_stack::{Result, ResultExt};
 use indoc::indoc;
+use std::fmt::Debug;
 use std::fs::{self};
-use std::io::Cursor;
-use std::io::{copy, Write};
-use std::os::unix::prelude::OpenOptionsExt;
-use std::path::{Path, PathBuf};
+use std::io::copy;
+use std::io::{Cursor, Read};
+use std::path::PathBuf;
 use std::process::Command;
-use tempfile::{tempfile, NamedTempFile};
 
 use crate::ext::error_stack::{DescribeContext, ErrorHelper, IntoContext};
 use crate::ext::io;
@@ -40,9 +39,13 @@ pub enum Error {
     #[error("download FOSSA CLI from github")]
     Download,
 
-    /// Finally, once FOSSA CLI is downloaded, Broker must extract it from an archive.
+    /// Once FOSSA CLI is downloaded, Broker must extract it from an archive into a tmpfile
     #[error("extract FOSSA CLI archive")]
     Extract,
+
+    /// The final step is to copy the file from the tmpfile into its final location
+    #[error("copy to final location")]
+    FinalCopy,
 }
 
 /// Ensure that the fossa cli exists and return its path.
@@ -143,8 +146,7 @@ async fn download(config_dir: &PathBuf) -> Result<PathBuf, Error> {
     let content = download_from_github(download_url).await?;
 
     let final_path = config_dir.join(command_name());
-    let unzip_location = unzip_zip(content).await?;
-    move_to_final_path(unzip_location, &final_path).await?;
+    unzip_zip(content, &final_path).await?;
     Ok(final_path)
 }
 
@@ -180,14 +182,11 @@ async fn download_from_github(download_url: String) -> Result<Cursor<Bytes>, Err
 }
 
 #[tracing::instrument(skip(content))]
-async fn unzip_zip(content: Cursor<Bytes>) -> Result<PathBuf, Error> {
-    let mut tmp_file = NamedTempFile::new()
-        .context(Error::Extract)
-        .describe("creating temp file to write unzipped file to")?;
+async fn unzip_zip(content: Cursor<Bytes>, final_path: &PathBuf) -> Result<(), Error> {
     let mut archive = zip::ZipArchive::new(content)
         .context(Error::Extract)
         .describe("extracting zip file from downloaded fossa release")?;
-    let mut file = match archive.by_name("fossa") {
+    let zip_file = match archive.by_name("fossa") {
         Ok(file) => file,
         Err(..) => {
             return Err(Error::Extract)
@@ -196,16 +195,60 @@ async fn unzip_zip(content: Cursor<Bytes>) -> Result<PathBuf, Error> {
         }
     };
 
-    copy(&mut file, &mut tmp_file)
-        .into_report()
-        .change_context(Error::Extract)
-        .describe_lazy(|| format!("writing extracted zip file to {:?}", tmp_file))?;
-    Ok(PathBuf::from(tmp_file.path()))
+    write_zip_to_final_file(zip_file, final_path)?;
+    Ok(())
 }
 
-/// TODO: conditional function, depending on whether it's windows or Unix
-/// On Windows, just copy to fossa.exe
-/// On Unix, make it executable
-async fn move_to_final_path(unzip_location: PathBuf, final_path: &PathBuf) -> Result<(), Error> {
+#[tracing::instrument(skip(zip_file))]
+#[cfg(target_family = "windows")]
+async fn write_zip_to_final_file<R>(mut zip_file: R, final_path: &PathBuf) -> Result<(), Error>
+where
+    R: Read,
+{
+    let mut final_file = fs::OpenOptions::new()
+        .create(true)
+        .write(true)
+        .open(final_path)
+        .into_report()
+        .change_context(Error::FinalCopy)
+        .describe_lazy(|| {
+            format!(
+                "creating final file to write extracted zip to at {:?}",
+                final_path
+            )
+        })?;
+    copy(&mut zip_file, &mut final_file)
+        .into_report()
+        .change_context(Error::Extract)
+        .describe_lazy(|| format!("writing extracted zip file to {:?}", final_path))?;
+    Ok(())
+}
+
+/// On unix we need to set the mode to 0o770 so that it is executable
+/// On windows we cannot do this
+#[tracing::instrument(skip(zip_file))]
+#[cfg(target_family = "unix")]
+fn write_zip_to_final_file<R>(mut zip_file: R, final_path: &PathBuf) -> Result<(), Error>
+where
+    R: Read,
+{
+    use std::os::unix::prelude::OpenOptionsExt;
+    let mut final_file = fs::OpenOptions::new()
+        .create(true)
+        .write(true)
+        .mode(0o770)
+        .open(final_path)
+        .into_report()
+        .change_context(Error::FinalCopy)
+        .describe_lazy(|| {
+            format!(
+                "creating final file to write extracted zip to at {:?}",
+                final_path
+            )
+        })?;
+    copy(&mut zip_file, &mut final_file)
+        .into_report()
+        .change_context(Error::Extract)
+        .describe_lazy(|| format!("writing extracted zip file to {:?}", final_path))?;
     Ok(())
 }
