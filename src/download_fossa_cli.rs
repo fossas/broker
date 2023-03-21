@@ -58,7 +58,7 @@ pub async fn ensure_fossa_cli() -> Result<PathBuf, Error> {
     let data_root = io::data_root().await.change_context(Error::Config)?;
 
     // default to fossa that lives in ~/.config/fossa/broker/fossa
-    let command_in_config_dir = data_root.join(&command);
+    let command_in_config_dir = data_root.join(command);
     if check_command_existence(&command_in_config_dir).await {
         return Ok(command_in_config_dir);
     }
