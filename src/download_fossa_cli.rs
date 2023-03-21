@@ -194,7 +194,7 @@ async fn unzip_zip(content: Cursor<Bytes>, final_path: &PathBuf) -> Result<(), E
     let mut archive = zip::ZipArchive::new(content)
         .context(Error::Extract)
         .describe("extracting zip file from downloaded fossa release")?;
-    let zip_file = match archive.by_name("fossa") {
+    let zip_file = match archive.by_name(command_name()) {
         Ok(file) => file,
         Err(..) => {
             return Err(Error::Extract)
