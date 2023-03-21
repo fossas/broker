@@ -163,7 +163,7 @@ async fn do_poll_integration(
     };
 
     loop {
-        // Given that this operation is not latency sensitive, and temporary neetwork issues can interfere,
+        // Given that this operation is not latency sensitive, and temporary network issues can interfere,
         // retry several times before permanently failing since a permanent failure means Broker shuts down
         // entirely.
         let strategy = ExponentialBackoff::from_millis(1000).map(jitter).take(1);
