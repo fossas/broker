@@ -9,7 +9,8 @@ run external command
 ├─▶ IO layer error
 │   ╰╴at {source location}
 │
-╰─▶ run git command: 'git -c credential.helper= clone --filter=blob:none --branch main http://github.com/github/doesnotexist.git /var/folders/q7/3nvvpy0d6js28m8lypw3tcx80000gn/T/.tmpaCMHjr'
+╰─▶ run command: git
+    args: ["-c", "credential.helper=", "clone", "--filter=blob:none", "--branch", "main", "http://github.com/github/doesnotexist.git", {file path}]
     env: ["GCM_INTERACTIVE=never", "GIT_ASKPASS=<REMOVED>", "GIT_TERMINAL_PROMPT=0"]
     status: 128
     stdout: ''

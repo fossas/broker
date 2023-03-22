@@ -9,7 +9,8 @@ run external command
 ├─▶ IO layer error
 │   ╰╴at {source location}
 │
-╰─▶ run git command: 'git -c credential.helper= ls-remote --quiet'
+╰─▶ run command: git
+    args: ["-c", "credential.helper=", "ls-remote", "--quiet"]
     env: ["GCM_INTERACTIVE=never", "GIT_ASKPASS=<REMOVED>", "GIT_TERMINAL_PROMPT=0"]
     status: 128
     stdout: ''

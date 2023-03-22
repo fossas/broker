@@ -24,7 +24,7 @@ use super::transport::Transport;
 #[derive(Debug, Error)]
 pub enum Error {
     /// This module shells out to git, and that failed.
-    #[error("run git command: {}", str::trim(.0))]
+    #[error("run command: {}", str::trim(.0))]
     GitExecution(String),
 
     /// Creating a temporary directory failed.
@@ -61,7 +61,7 @@ pub enum Error {
 impl Error {
     fn running_git_command(cmd: &Command) -> Self {
         let (name, args, envs) = describe_cmd(cmd);
-        Self::GitExecution(format!("'{name} {}'\nenv: {envs:?}", args.join(" ")))
+        Self::GitExecution(format!("{name}\nargs: {args:?}\nenv: {envs:?}"))
     }
 
     fn running_git_command_with_output(cmd: &Command, output: &Output) -> Self {
@@ -70,8 +70,7 @@ impl Error {
         let stderr = String::from_utf8_lossy(&output.stderr);
         let status = output.status.code().unwrap_or(-1);
         Self::GitExecution(format!(
-            "'{name} {}'\nenv: {envs:?}\nstatus: {status}\nstdout: '{}'\nstderr: '{}'",
-            args.join(" "),
+            "{name}\nargs: {args:?}\nenv: {envs:?}\nstatus: {status}\nstdout: '{}'\nstderr: '{}'",
             stdout.trim(),
             stderr.trim()
         ))
