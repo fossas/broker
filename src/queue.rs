@@ -7,9 +7,13 @@ use indoc::{formatdoc, indoc};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use strum::Display;
 
-use crate::ext::{
-    error_stack::{DescribeContext, ErrorHelper, IntoContext},
-    io,
+use crate::{
+    ext::{
+        error_stack::{DescribeContext, ErrorHelper, IntoContext},
+        io,
+        result::WrapOk,
+    },
+    AppContext,
 };
 
 /// Errors encountered using the queue.
@@ -45,22 +49,22 @@ pub enum Queue {
 }
 
 /// Open both sides of the named queue.
-pub async fn open<'a, T>(queue: Queue) -> Result<(Sender<T>, Receiver<T>), Report<Error>>
+pub async fn open<'a, T>(
+    ctx: &AppContext,
+    queue: Queue,
+) -> Result<(Sender<T>, Receiver<T>), Report<Error>>
 where
     T: Serialize + Deserialize<'a>,
 {
-    let location = queue_location(queue).await?;
+    let location = queue_location(ctx, queue).await?;
     tokio::try_join!(
         Sender::open_internal(location.clone()),
         Receiver::open_internal(location),
     )
 }
 
-async fn queue_location(queue: Queue) -> Result<PathBuf, Report<Error>> {
-    io::data_root()
-        .await
-        .change_context(Error::IO)
-        .map(|root| root.join("queue").join(queue.to_string()))
+async fn queue_location(ctx: &AppContext, queue: Queue) -> Result<PathBuf, Report<Error>> {
+    crate::data_dir!(ctx).join(queue.to_string()).wrap_ok()
 }
 
 /// The sender side of the queue.
@@ -97,8 +101,8 @@ where
     ///
     /// This function errors if the named queue is already in use for
     /// sending (indicated by a lock file), or if an underlying IO error occurs.
-    pub async fn open(queue: Queue) -> Result<Self, Report<Error>> {
-        let path = queue_location(queue).await?;
+    pub async fn open(ctx: &AppContext, queue: Queue) -> Result<Self, Report<Error>> {
+        let path = queue_location(ctx, queue).await?;
         Self::open_internal(path).await
     }
 
@@ -138,8 +142,8 @@ where
             "})
             .describe_lazy(|| formatdoc! {"
             Queue working state is stored on disk, and relies on a lockfile to guard access.
-            For this particular queue, this lock file is located at {lock_path:?}.
-            "})
+            For this particular queue, this lock file is located at '{}'.
+            ", lock_path.display()})
             .map(Self::new)
     }
 }
@@ -183,8 +187,8 @@ where
     ///
     /// This function panicks if it is not able to set up a notification
     /// handler to watch for file changes.
-    pub async fn open(queue: Queue) -> Result<Self, Report<Error>> {
-        let path = queue_location(queue).await?;
+    pub async fn open(ctx: &AppContext, queue: Queue) -> Result<Self, Report<Error>> {
+        let path = queue_location(ctx, queue).await?;
         Self::open_internal(path).await
     }
 
@@ -219,8 +223,8 @@ where
             "})
             .describe_lazy(|| formatdoc! {"
             Queue working state is stored on disk, and relies on a lockfile to guard access.
-            For this particular queue, this lock file is located at {lock_path:?}.
-            "})
+            For this particular queue, this lock file is located at '{}'.
+            ", lock_path.display()})
             .map(Self::new)
     }
 }

@@ -29,10 +29,13 @@ use error_stack::{IntoReport, Report, ResultExt};
 use once_cell::sync::OnceCell;
 use tracing::debug;
 
-use crate::ext::{
-    error_stack::{DescribeContext, ErrorHelper, IntoContext},
-    iter::{AlternativeIter, ChainOnceWithIter},
-    result::{WrapErr, WrapOk},
+use crate::{
+    ext::{
+        error_stack::{DescribeContext, ErrorHelper, IntoContext},
+        iter::{AlternativeIter, ChainOnceWithIter},
+        result::{WrapErr, WrapOk},
+    },
+    AppContext,
 };
 
 /// Errors that are possibly surfaced during IO actions.
@@ -64,42 +67,15 @@ pub enum Error {
     ValueAlreadySet(String),
 }
 
-static DATA_ROOT: OnceCell<PathBuf> = OnceCell::new();
-
-/// The root data directory for Broker.
-/// Broker uses this directory to store working state and to read configuration information.
-///
-/// - On Linux and macOS: `~/.config/fossa/broker/`
-/// - On Windows: `%USERPROFILE%\.config\fossa\broker`
-///
-/// Users may also customize this root via [`set_data_root`].
-#[tracing::instrument]
-pub fn data_root() -> Result<&'static PathBuf, Report<Error>> {
-    DATA_ROOT.get_or_try_init(|| {
-        debug!("discovering data root from user home");
-        home_dir().map(|home| home.join(".config").join("fossa").join("broker"))
-    })
-}
-
-/// Configure the data root. See [`data_root`] for more info.
-#[tracing::instrument]
-pub fn set_data_root<P: Into<PathBuf> + std::fmt::Debug>(root: P) -> Result<(), Report<Error>> {
-    DATA_ROOT
-        .set(root.into())
-        .map_err(|err| Error::ValueAlreadySet(err.to_string_lossy().to_string()))
-        .map_err(Report::new)
-}
-
 /// Searches configured locations for the file with the provided name.
 ///
 /// Locations searched:
 /// - The [`data_root`] location.
 /// - The [`working_dir`] location.
 #[tracing::instrument]
-pub fn find<S: AsRef<str> + fmt::Debug>(name: S) -> Result<PathBuf, Report<Error>> {
-    let name = PathBuf::from(name.as_ref());
-    iter::once_with(|| working_dir().map(|d| d.join(&name)).and_then(validate_file))
-        .chain_once_with(|| data_root().map(|d| d.join(&name)).and_then(validate_file))
+pub fn find(ctx: &AppContext, name: &str) -> Result<PathBuf, Report<Error>> {
+    iter::once_with(|| working_dir().map(|d| d.join(name)).and_then(validate_file))
+        .chain_once_with(|| validate_file(ctx.data_root().join(name)))
         .alternative_fold()
         .describe("searches the working directory and '{USER_DIR}/.config/fossa/broker'")
 }
@@ -107,12 +83,8 @@ pub fn find<S: AsRef<str> + fmt::Debug>(name: S) -> Result<PathBuf, Report<Error
 /// Searches configured locations (see [`find`])
 /// for one of several provided names, returning the first one that was found.
 #[tracing::instrument]
-pub fn find_some<V, S>(names: V) -> Result<PathBuf, Report<Error>>
-where
-    S: AsRef<str> + fmt::Debug,
-    V: IntoIterator<Item = S> + fmt::Debug,
-{
-    names.into_iter().map(find).alternative_fold()
+pub fn find_some(ctx: &AppContext, names: &[&str]) -> Result<PathBuf, Report<Error>> {
+    names.iter().map(|name| find(ctx, name)).alternative_fold()
 }
 
 /// Reads the provided file content to a string.
@@ -129,7 +101,7 @@ pub fn read_to_string<P: AsRef<Path> + fmt::Debug>(file: P) -> Result<String, Re
 pub fn validate_file(path: PathBuf) -> Result<PathBuf, Report<Error>> {
     let meta = fs::metadata(&path)
         .context(Error::ValidatePath)
-        .describe_lazy(|| format!("validate file: {path:?}"))
+        .describe_lazy(|| format!("validate file: '{}'", path.display()))
         .help("validate that you have access to the file and that it exists")?;
 
     if meta.is_file() {
@@ -138,7 +110,7 @@ pub fn validate_file(path: PathBuf) -> Result<PathBuf, Report<Error>> {
         Error::NotRegularFile
             .wrap_err()
             .into_report()
-            .attach_printable_lazy(|| format!("validate file: {path:?}"))
+            .attach_printable_lazy(|| format!("validate file: '{}'", path.display()))
     }
 }
 
