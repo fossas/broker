@@ -11,7 +11,7 @@ use serde::Serialize;
 
 use crate::ext::{
     error_stack::{merge_error_stacks, DescribeContext, ErrorHelper},
-    io,
+    io::{self, set_data_root},
     result::{WrapErr, WrapOk},
 };
 
@@ -28,6 +28,10 @@ pub enum Error {
     /// The DB file was not able to be located.
     #[error("locate database file")]
     DbFileLocation,
+
+    /// The data root was not able to be configured.
+    #[error("set data root")]
+    SetDataRoot,
 }
 
 /// Base arguments, used in most Broker subcommands.
@@ -63,6 +67,14 @@ pub struct RawBaseArgs {
     /// or (on Windows) `%USERPROFILE%\.config\fossa\broker`.
     #[arg(short = 'd', long)]
     database_file_path: Option<String>,
+
+    /// The root data directory for Broker.
+    /// Broker uses this directory to store working state and to read configuration information.
+    ///
+    /// - On Linux and macOS: `~/.config/fossa/broker/`
+    /// - On Windows: `%USERPROFILE%\.config\fossa\broker`
+    #[arg(short = 'r', long)]
+    data_root: Option<PathBuf>,
 }
 
 impl RawBaseArgs {
@@ -76,6 +88,11 @@ impl RawBaseArgs {
     /// it is assumed to be a sibling to the config file.
     /// Database implementations then create it if it does not exist.
     pub async fn validate(self) -> Result<BaseArgs, Report<Error>> {
+        // Need to set data root first, since other things in this function use it.
+        if let Some(data_root) = self.data_root {
+            set_data_root(data_root).change_context(Error::SetDataRoot)?;
+        }
+
         let config_path = if let Some(provided_path) = self.config_file_path {
             ConfigFilePath::from(provided_path).wrap_ok()
         } else if discovery_enabled() {

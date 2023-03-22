@@ -81,9 +81,9 @@ pub async fn ensure_fossa_cli() -> Result<PathBuf, Error> {
     let latest_release_version = latest_release_version().await?;
     match current_path {
         Some(current_path) => {
-            download_if_old(&data_root, current_path, latest_release_version).await
+            download_if_old(data_root, current_path, latest_release_version).await
         }
-        None => download(&data_root, latest_release_version).await,
+        None => download(data_root, latest_release_version).await,
     }
 }
 

@@ -2,7 +2,7 @@
 
 use error_stack::Report;
 
-use super::result::FlipResult;
+use super::{error_stack::merge_errors, result::FlipResult};
 
 /// Extend any iterator for chaining lazily created items.
 pub trait ChainOnceWithIter<T> {
@@ -91,17 +91,9 @@ impl<I: Iterator<Item = Result<T, Report<E>>>, T, E> AlternativeIter<T, E> for I
             // this occurs if no items were ever given to the iterator.
             // This is clearly a misuse of this API, and so it generates a panic in this scenario,
             // but ideally we'd convert this to a compile time check into a run time check.
-            .map_err(collapse_errs_stack)
+            .map_err(merge_errors)
             .map_err(|stack| stack.expect("invariant: iterator consumed by `alternative_fold` must yield at least one item"))
     }
-}
-
-/// Using `extend_one`, collapse an iterable of reports into a single report.
-fn collapse_errs_stack<I: IntoIterator<Item = Report<E>>, E>(errs: I) -> Option<Report<E>> {
-    errs.into_iter().reduce(|mut stack, err| {
-        stack.extend_one(err);
-        stack
-    })
 }
 
 #[cfg(test)]

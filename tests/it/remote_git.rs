@@ -19,6 +19,7 @@ async fn references_on_public_repo_with_no_auth() {
         .expect("no integration loaded from config");
     let references = integration
         .references()
+        .await
         .expect("no results returned from get_references_that_need_scanning on a public repo!");
     let expected_empty_vec: Vec<Reference> = Vec::new();
     assert_eq!(expected_empty_vec, references);
@@ -38,12 +39,11 @@ async fn references_on_private_repo_with_no_auth() {
         .expect("no integration loaded from config");
 
     let context = String::from("references on private repo with bad auth");
-    assert_error_stack_snapshot!(
-        &context,
-        integration.references().expect_err(
-            "no results returned from get_references_that_need_scanning on a private repo"
-        )
-    );
+    let err = integration
+        .references()
+        .await
+        .expect_err("no results returned from get_references_that_need_scanning on a private repo");
+    assert_error_stack_snapshot!(&context, err);
 }
 
 #[tokio::test]
@@ -65,6 +65,7 @@ async fn clone_public_repo_with_no_auth() {
     ));
     integration
         .clone_reference(&reference)
+        .await
         .expect("no path returned from clone_branch_or_tag on a public repo!");
 }
 
@@ -83,10 +84,9 @@ async fn clone_private_repo_with_no_auth() {
         "onetwothree".to_string(),
     ));
     let context = String::from("cloning private repo with bad auth");
-    assert_error_stack_snapshot!(
-        &context,
-        integration
-            .clone_reference(&reference)
-            .expect_err("Could not read from remote repository")
-    );
+    let err = integration
+        .clone_reference(&reference)
+        .await
+        .expect_err("Could not read from remote repository");
+    assert_error_stack_snapshot!(&context, err);
 }

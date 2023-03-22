@@ -1,14 +1,21 @@
 //! Powers integration with code hosts speaking the git protocol.
 
+use std::fmt::Display;
+
+use async_trait::async_trait;
 use derive_more::From;
 use derive_new::new;
 use error_stack::{Report, ResultExt};
+use serde::{Deserialize, Serialize};
 use tempfile::TempDir;
 
-use crate::api::{
-    http,
-    remote::{RemoteProvider, RemoteProviderError},
-    ssh,
+use crate::{
+    api::{
+        http,
+        remote::{RemoteProvider, RemoteProviderError},
+        ssh,
+    },
+    ext::io,
 };
 
 use super::{super::Remote, repository};
@@ -19,7 +26,7 @@ use super::{super::Remote, repository};
 /// Similar to how [`super::Protocol`] enumerates possible overall communication protocols,
 /// this type enumerates possible communication methods to use when communicating with a
 /// code host that specifically speaks the git protocol.
-#[derive(Debug, Clone, PartialEq, Eq, From, new)]
+#[derive(Debug, Clone, PartialEq, Eq, From, Deserialize, Serialize, new)]
 pub enum Transport {
     /// Specifies that the remote code host is configured to use the SSH protocol.
     Ssh {
@@ -38,6 +45,20 @@ pub enum Transport {
         /// Authentication to that host, if applicable.
         auth: Option<http::Auth>,
     },
+}
+
+impl Display for Transport {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Transport::Ssh { endpoint, auth } => {
+                write!(f, "cloning via SSH from {endpoint} with {auth}")
+            }
+            Transport::Http { endpoint, auth } => match auth {
+                Some(auth) => write!(f, "cloning via HTTP from {endpoint} with {auth}"),
+                None => write!(f, "cloning via HTTP from {endpoint} with no authentication"),
+            },
+        }
+    }
 }
 
 /// Auth types available for a transport
@@ -68,17 +89,33 @@ impl Transport {
     }
 }
 
+#[async_trait]
 impl RemoteProvider for Transport {
     type Reference = super::Reference;
 
-    fn clone_reference(
+    async fn clone_reference(
         &self,
         reference: &Self::Reference,
     ) -> Result<TempDir, Report<RemoteProviderError>> {
-        repository::clone_reference(self, reference).change_context(RemoteProviderError::RunCommand)
+        // The git client is currently synchronous, which means we need to do its work in the
+        // background thread pool. This also then means we're sending `reference` across threads.
+        // Rather than get into tracking lifetimes, just clone it.
+        // The cost is irrelevant next to the IO time.
+        let transport = self.to_owned();
+        let reference = reference.to_owned();
+        io::spawn_blocking(move || repository::clone_reference(&transport, &reference))
+            .await
+            .change_context(RemoteProviderError::RunCommand)
     }
 
-    fn references(&self) -> Result<Vec<Self::Reference>, Report<RemoteProviderError>> {
-        repository::list_references(self).change_context(RemoteProviderError::RunCommand)
+    async fn references(&self) -> Result<Vec<Self::Reference>, Report<RemoteProviderError>> {
+        // The git client is currently synchronous, which means we need to do its work in the
+        // background thread pool. This also then means we're sending `self` across threads.
+        // Rather than get into tracking lifetimes, just clone it.
+        // The cost is irrelevant next to the IO time.
+        let transport = self.to_owned();
+        io::spawn_blocking(move || repository::list_references(&transport))
+            .await
+            .change_context(RemoteProviderError::RunCommand)
     }
 }

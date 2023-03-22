@@ -27,16 +27,13 @@ use std::{
 
 use error_stack::{IntoReport, Report, ResultExt};
 use once_cell::sync::OnceCell;
-use tracing::{debug, info};
+use tracing::debug;
 
 use crate::ext::{
     error_stack::{DescribeContext, ErrorHelper, IntoContext},
     iter::{AlternativeIter, ChainOnceWithIter},
     result::{WrapErr, WrapOk},
 };
-
-/// The variable used to control Broker's data root.
-pub const DATA_ROOT_VAR: &str = "DATA_ROOT";
 
 /// Errors that are possibly surfaced during IO actions.
 #[derive(Debug, thiserror::Error)]
@@ -61,7 +58,13 @@ pub enum Error {
     /// Failed to read the contents of the file at the provided path.
     #[error("read contents of file")]
     ReadFileContent,
+
+    /// The value was already set.
+    #[error("value already set: {0}")]
+    ValueAlreadySet(String),
 }
+
+static DATA_ROOT: OnceCell<PathBuf> = OnceCell::new();
 
 /// The root data directory for Broker.
 /// Broker uses this directory to store working state and to read configuration information.
@@ -69,15 +72,22 @@ pub enum Error {
 /// - On Linux and macOS: `~/.config/fossa/broker/`
 /// - On Windows: `%USERPROFILE%\.config\fossa\broker`
 ///
-/// Users may also customize this root via the [`DATA_ROOT_VAR`] environment variable.
+/// Users may also customize this root via [`set_data_root`].
 #[tracing::instrument]
-pub fn data_root() -> Result<PathBuf, Report<Error>> {
-    if let Ok(user_set_root) = std::env::var(DATA_ROOT_VAR) {
-        info!("User customized data root via '{DATA_ROOT_VAR}' to '{user_set_root}'");
-        PathBuf::from(user_set_root).wrap_ok()
-    } else {
+pub fn data_root() -> Result<&'static PathBuf, Report<Error>> {
+    DATA_ROOT.get_or_try_init(|| {
+        debug!("discovering data root from user home");
         home_dir().map(|home| home.join(".config").join("fossa").join("broker"))
-    }
+    })
+}
+
+/// Configure the data root. See [`data_root`] for more info.
+#[tracing::instrument]
+pub fn set_data_root<P: Into<PathBuf> + std::fmt::Debug>(root: P) -> Result<(), Report<Error>> {
+    DATA_ROOT
+        .set(root.into())
+        .map_err(|err| Error::ValueAlreadySet(err.to_string_lossy().to_string()))
+        .map_err(Report::new)
 }
 
 /// Searches configured locations for the file with the provided name.

@@ -14,7 +14,7 @@ pub mod gen;
 #[must_use = "This temporary directory is deleted when this variable is dropped"]
 pub(crate) fn set_temp_data_root() -> TempDir {
     let tmp = tempfile::tempdir().expect("must create temporary directory");
-    std::env::set_var(broker::ext::io::DATA_ROOT_VAR, tmp.path());
+    broker::ext::io::set_data_root(tmp.path()).expect("must set data root");
     tmp
 }
 
