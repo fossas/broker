@@ -3,7 +3,7 @@ use broker::queue::{self, Queue, Receiver, Sender};
 
 #[tokio::test]
 async fn racing_senders_err() {
-    let ctx = temp_ctx!();
+    let (_tmp, ctx) = temp_ctx!();
 
     let _first: Sender<()> = Sender::open(&ctx, Queue::Echo)
         .await
@@ -14,7 +14,7 @@ async fn racing_senders_err() {
 
 #[tokio::test]
 async fn racing_receivers_err() {
-    let ctx = temp_ctx!();
+    let (_tmp, ctx) = temp_ctx!();
 
     let _first: Receiver<()> = Receiver::open(&ctx, Queue::Echo)
         .await
@@ -25,7 +25,7 @@ async fn racing_receivers_err() {
 
 #[tokio::test]
 async fn echo() {
-    let ctx = temp_ctx!();
+    let (_tmp, ctx) = temp_ctx!();
 
     let (mut tx, mut rx) = queue::open::<String>(&ctx, Queue::Echo)
         .await

@@ -12,7 +12,7 @@ macro_rules! temp_ctx {
     () => {{
         let tmp = tempfile::tempdir().expect("must create tempdir");
         let root = tmp.path().to_path_buf();
-        broker::AppContext::new(root)
+        (tmp, broker::AppContext::new(root))
     }};
 }
 
