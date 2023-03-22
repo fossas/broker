@@ -147,12 +147,21 @@ where
         let stderr = String::from_utf8_lossy(&output.stderr);
         return Err(Error::GitExecution).into_report().describe_lazy(|| {
             format!(
-                "running git command {:?}, status was: {}, stderr: {}",
-                full_args, output.status, stderr,
+                "running git command [{}], status was: {}, stderr: {}",
+                print_args(&full_args),
+                output.status,
+                stderr,
             )
         });
     }
     Ok(output)
+}
+
+fn print_args(args: &[String]) -> String {
+    args.iter()
+        .map(|s| format!(r#""{}""#, s))
+        .collect::<Vec<_>>()
+        .join(", ")
 }
 
 // Days until a commit is considered stale and will not be scanned
