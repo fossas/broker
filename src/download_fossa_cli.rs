@@ -206,7 +206,7 @@ async fn download(config_dir: &PathBuf, version: String) -> Result<PathBuf, Erro
 // https://github.com/fossas/fossa-cli/releases/download/v3.7.2/fossa_3.7.2_darwin_amd64.zip
 // https://github.com/fossas/fossa-cli/releases/download/v3.7.2/fossa_3.7.2_linux_amd64.zip
 #[cfg(target_os = "windows")]
-fn download_url(version: &str) -> String {
+fn download_url(version: String) -> String {
     format!("https://github.com/fossas/fossa-cli/releases/download/v{version}/fossa_{version}_windows_amd64.zip")
 }
 
@@ -216,7 +216,7 @@ fn download_url(version: String) -> String {
 }
 
 #[cfg(target_os = "linux")]
-fn download_url(version: &str) -> String {
+fn download_url(version: String) -> String {
     format!("https://github.com/fossas/fossa-cli/releases/download/v{version}/fossa_{version}_linux_amd64.zip")
 }
 
