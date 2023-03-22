@@ -15,8 +15,8 @@ pub mod config;
 pub mod db;
 pub mod debug;
 pub mod doc;
-pub mod download_fossa_cli;
 pub mod ext;
+pub mod fossa_cli;
 pub mod queue;
 pub mod subcommand;
 

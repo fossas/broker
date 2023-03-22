@@ -53,7 +53,7 @@ pub enum Error {
 /// If we find `fossa` in your path, then just return "fossa"
 /// Otherwise, download the latest release, put it in `config_dir/fossa` and return that
 #[tracing::instrument]
-pub async fn ensure_fossa_cli(ctx: &AppContext) -> Result<PathBuf, Error> {
+pub async fn find_or_download(ctx: &AppContext) -> Result<PathBuf, Error> {
     let command = command_name();
 
     // default to fossa that lives directly in the data root.
