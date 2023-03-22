@@ -1,6 +1,6 @@
 //! Wrapper for Git
 use base64::{engine::general_purpose, Engine as _};
-use error_stack::{ensure, report, IntoReport, Report};
+use error_stack::{bail, report, Report};
 use itertools::Itertools;
 use std::collections::HashMap;
 use std::env;
@@ -15,6 +15,7 @@ use tracing::debug;
 
 use super::Reference;
 use crate::ext::error_stack::{ErrorHelper, IntoContext};
+use crate::ext::result::WrapOk;
 use crate::{api::http, api::remote::git, api::ssh, ext::error_stack::DescribeContext};
 
 use super::transport::Transport;
@@ -23,19 +24,19 @@ use super::transport::Transport;
 #[derive(Debug, Error)]
 pub enum Error {
     /// This module shells out to git, and that failed.
-    #[error("git execution failed")]
-    GitExecution,
+    #[error("run git command: {0}")]
+    GitExecution(String),
 
     /// Creating a temporary directory failed.
-    #[error("failed to create temporary directory")]
-    TempDirCreation,
+    #[error("create temporary directory in system temp location: {0}")]
+    TempDirCreation(PathBuf),
 
     /// When git perform SSH authentication, this module needs to create a file to hold the key.
-    #[error("failed to create temporary ssh key file")]
+    #[error("create temporary ssh key file")]
     SshKeyFileCreation,
 
     /// Parsing git output failed.
-    #[error("failed to parse git output")]
+    #[error("parse git output")]
     ParseGitOutput,
 
     /// When we set up a clone to use HTTP, if the user has erroneously provided an SSH remote,
@@ -47,14 +48,29 @@ pub enum Error {
     /// Given this, prior to using a remote to perform an HTTP clone this module checks whether
     /// the remote address begins with the literal `http` as a very simple form of validation.
     /// If it does not, this error occurs.
-    #[error("http remote does not begin with 'http'")]
-    HttpRemoteInvalid,
+    #[error("http remote '{0}' does not begin with 'http'")]
+    HttpRemoteInvalid(String),
 
     /// It's possible, although unlikely, that a path on the file system is not a valid UTF8 string.
     /// If this occurs when creating the temporary path to which the directory is cloned,
     /// this module cannot provide that path as an argument to the git executable and this error is returned.
-    #[error("path on local system is not a valid UTF8 string")]
-    PathNotValidUtf8,
+    #[error("path on local system is not a valid UTF8 string: {0}")]
+    PathNotValidUtf8(PathBuf),
+}
+
+impl Error {
+    fn running_git_command(cmd: &Command) -> Self {
+        Self::GitExecution(format!("{:?}", cmd))
+    }
+
+    fn running_git_command_with_output(cmd: &Command, output: &Output) -> Self {
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        let status = output.status;
+        Self::GitExecution(format!(
+            "{cmd:?}, with status: {status}, stdout: '{stdout}', stderr: '{stderr}'",
+        ))
+    }
 }
 
 /// List references that have been updated in the last 30 days.
@@ -78,26 +94,23 @@ pub fn clone_reference(
 fn get_all_references(transport: &Transport) -> Result<Vec<Reference>, Report<Error>> {
     // First, we need to make a temp directory and run `git init` in it
     let tmpdir = tempdir()
-        .context(Error::TempDirCreation)
-        .describe_lazy(|| format!("attempted to create temporary dir in '{}'", env::temp_dir().display()))
+        .context_lazy(|| Error::TempDirCreation(env::temp_dir()))
         .help("temporary directory location uses $TMPDIR on Linux and macOS; for Windows it uses the 'GetTempPath' system call")?;
 
     // initialize the repo
-    let args = vec!["init"];
-    run_git(transport, args, Some(tmpdir.path()))?;
+    run_git(transport, &["init"], Some(tmpdir.path()))?;
     let endpoint = transport.endpoint().to_string();
 
     // add the remote
-    let args = vec!["remote", "add", "origin", &endpoint[..]];
-    run_git(transport, args, Some(tmpdir.path()))?;
+    run_git(
+        transport,
+        &["remote", "add", "origin", endpoint.as_str()],
+        Some(tmpdir.path()),
+    )?;
 
     // Now that we have an initialized repo, we can get our references with `git ls-remote`
-    let args = vec!["ls-remote", "--quiet"];
-
-    let output = run_git(transport, args, Some(tmpdir.path()))?;
-    let output = String::from_utf8(output.stdout)
-        .context(Error::ParseGitOutput)
-        .describe("reading output of 'git ls-remote --quiet'")?;
+    let output = run_git(transport, &["ls-remote", "--quiet"], Some(tmpdir.path()))?;
+    let output = String::from_utf8(output.stdout).context(Error::ParseGitOutput)?;
     let references = parse_ls_remote(output)?;
 
     // Tags sometimes get duplicated in the output from `git ls-remote`, like this:
@@ -111,57 +124,36 @@ fn get_all_references(transport: &Transport) -> Result<Vec<Reference>, Report<Er
 }
 
 #[tracing::instrument(skip(transport))]
-fn run_git<I, S>(
+fn run_git(
     transport: &Transport,
-    args: I,
+    args: &[&str],
     cwd: Option<&Path>,
-) -> Result<Output, Report<Error>>
-where
-    I: IntoIterator<Item = S>,
-    I: core::fmt::Debug,
-    String: From<S>,
-{
-    let mut full_args = default_args(transport)?;
-    let mut args_as_vec: Vec<String> = args.into_iter().map(String::from).collect();
-    full_args.append(&mut args_as_vec);
+) -> Result<Output, Report<Error>> {
+    let args = default_args(transport)?
+        .into_iter()
+        .chain(args.iter().cloned().map_into())
+        .collect::<Vec<_>>();
 
     let mut ssh_key_file = NamedTempFile::new()
         .context(Error::SshKeyFileCreation)
-        .describe("creating temp file to write SSH key into in run_git")?;
+        .describe("Broker must create a temporary SSH key file (even if not using SSH key authentication) to ensure reproducible authentication")?;
     let env = env_vars(transport, &mut ssh_key_file)?;
 
     let mut command = Command::new("git");
-    command
-        .args(full_args.clone())
-        .envs(env)
-        .env_remove("GIT_ASKPASS");
+    command.args(&args).envs(env).env_remove("GIT_ASKPASS");
     if let Some(directory) = cwd {
         command.current_dir(directory);
     }
+
     let output = command
         .output()
-        .context(Error::GitExecution)
-        .describe_lazy(|| format!("ran git command: {:?}", full_args))?;
+        .context_lazy(|| Error::running_git_command(&command))?;
 
     if !output.status.success() {
-        let stderr = String::from_utf8_lossy(&output.stderr);
-        return Err(Error::GitExecution).into_report().describe_lazy(|| {
-            format!(
-                "running git command [{}], status was: {}, stderr: {}",
-                print_args(&full_args),
-                output.status,
-                stderr,
-            )
-        });
+        bail!(Error::running_git_command_with_output(&command, &output));
     }
-    Ok(output)
-}
 
-fn print_args(args: &[String]) -> String {
-    args.iter()
-        .map(|s| format!(r#""{}""#, s))
-        .collect::<Vec<_>>()
-        .join(", ")
+    Ok(output)
 }
 
 // Days until a commit is considered stale and will not be scanned
@@ -186,8 +178,7 @@ fn references_that_need_scanning(
     transport: &Transport,
     references: Vec<Reference>,
 ) -> Result<Vec<Reference>, Report<Error>> {
-    let tmpdir = blobless_clone(transport, None)
-        .describe("cloning into temp directory in references_that_need_scanning")?;
+    let tmpdir = blobless_clone(transport, None)?;
 
     let filtered_references: Vec<Reference> = references
         .into_iter()
@@ -232,7 +223,7 @@ fn reference_needs_scanning(
     // The author and committer dates are almost always the same, but we'll parse both and take the most
     // recent, just to be super safe
 
-    let output = run_git(transport, args, Some(&cloned_repo_dir))?;
+    let output = run_git(transport, &args, Some(&cloned_repo_dir))?;
     let date_strings = String::from_utf8_lossy(&output.stdout);
     let mut dates = date_strings.split(":::");
     let earliest_commit_date_that_needs_to_be_scanned =
@@ -266,34 +257,32 @@ fn blobless_clone(
     transport: &Transport,
     reference: Option<&Reference>,
 ) -> Result<TempDir, Report<Error>> {
-    let tmpdir = tempdir()
-        .context(Error::TempDirCreation)
-        .describe_lazy(|| format!("attempted to create temporary dir in '{}'", env::temp_dir().display()))
-        .help("temporary directory location uses $TMPDIR on Linux and macOS; for Windows it uses the 'GetTempPath' system call")?;
-    let mut args = vec![String::from("clone"), String::from("--filter=blob:none")];
+    let mut args = vec!["clone", "--filter=blob:none"];
     if let Some(reference) = reference {
-        args.append(&mut vec![
-            String::from("--branch"),
-            reference.name().clone(),
-        ]);
+        args.extend_from_slice(&["--branch", reference.name()]);
     }
-    let path = tmpdir
+
+    let endpoint = transport.endpoint().to_string();
+    let tmpdir = tempdir()
+        .context_lazy(|| Error::TempDirCreation(env::temp_dir()))
+        .help("temporary directory location uses $TMPDIR on Linux and macOS; for Windows it uses the 'GetTempPath' system call")?;
+    let tmp_path = tmpdir
         .path()
         .to_str()
-        .ok_or_else(|| report!(Error::PathNotValidUtf8))
-        .describe_lazy(|| format!("path provided: '{}'", tmpdir.path().display()))?;
-    args.append(&mut vec![
-        transport.endpoint().to_string(),
-        path.to_string(),
-    ]);
-    run_git(transport, args, None)?;
-    Ok(tmpdir)
+        .ok_or_else(|| report!(Error::PathNotValidUtf8(tmpdir.path().to_path_buf())))
+        .help("changing the system temporary directory to a path that is valid UTF-8 may resolve this issue")
+        .describe("Broker needs the temporary path to be valid UTF-8 because it's sent as an argument to the git executable")?;
+    args.extend_from_slice(&[endpoint.as_str(), tmp_path]);
+
+    run_git(transport, &args, None).map(|_| tmpdir)
 }
 
 #[tracing::instrument(skip(transport))]
 fn default_args(transport: &Transport) -> Result<Vec<String>, Report<Error>> {
     if let Transport::Http { endpoint, .. } = transport {
-        ensure!(endpoint.starts_with("http"), Error::HttpRemoteInvalid,);
+        if !endpoint.starts_with("http") {
+            bail!(Error::HttpRemoteInvalid(endpoint.to_string()));
+        }
     }
 
     let header_args = match transport.auth() {
@@ -312,11 +301,12 @@ fn default_args(transport: &Transport) -> Result<Vec<String>, Report<Error>> {
     };
 
     // Credential helpers can override the header provided by http.extraHeader, so we need to get rid of them by setting `credential-helper` to "".
-    let credential_helper_args = vec![String::from("-c"), String::from("credential.helper=")];
-    Ok(credential_helper_args
+    vec!["-c", "credential.helper="]
         .into_iter()
+        .map(String::from)
         .chain(header_args.into_iter())
-        .collect())
+        .collect::<Vec<_>>()
+        .wrap_ok()
 }
 
 #[tracing::instrument(skip(transport))]
@@ -358,8 +348,8 @@ fn env_vars(
 #[tracing::instrument]
 fn git_ssh_command(path: &Path) -> Result<String, Report<Error>> {
     path.to_str()
-        .ok_or_else(|| report!(Error::PathNotValidUtf8))
-        .describe_lazy(|| format!("path provided: '{}'", path.display()))
+        .ok_or_else(|| report!(Error::PathNotValidUtf8(path.to_path_buf())))
+        .describe("Broker requires that the path to the SSH key is valid UTF-8 because it's passed as an argument to the git executable")
         .map(|path| {
             format!("ssh -i {path} -o IdentitiesOnly=yes -o StrictHostKeyChecking=no -F /dev/null")
         })
