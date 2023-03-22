@@ -31,6 +31,16 @@ pub enum Error {
     #[error("parse 'latest' pseudo-tag redirect: '{0}'")]
     ParseRedirect(String),
 
+    /// If we find a local fossa, then we run `fossa --version`.
+    /// This error is returned if that fails
+    #[error("run local fossa --version")]
+    RunLocalFossaVersion,
+
+    /// If we find a local fossa, then we run `fossa --version` and parse the output to
+    /// find the current version
+    #[error("parse local fossa --version")]
+    ParseLocalFossaVersion(String),
+
     /// If the determined tag doesn't start with 'v', something went wrong in the parse.
     #[error("expected tag to start with 'v', but got '{0}'")]
     DeterminedTagFormat(String),
@@ -58,20 +68,64 @@ pub async fn ensure_fossa_cli() -> Result<PathBuf, Error> {
     let data_root = io::data_root().await.change_context(Error::SetDataRoot)?;
 
     // default to fossa that lives in ~/.config/fossa/broker/fossa
-    let command_in_config_dir = data_root.join(command);
-    if check_command_existence(&command_in_config_dir).await {
-        return Ok(command_in_config_dir);
-    }
-
     // if it does not exist in ~/.config/fossa/broker/fossa, then check to see if it is on the path
-    if check_command_existence(&PathBuf::from(&command)).await {
-        return Ok(PathBuf::from(command));
+    let command_in_config_dir = data_root.join(command);
+    let current_path: Option<PathBuf> = if check_command_existence(&command_in_config_dir).await {
+        Some(command_in_config_dir)
+    } else if check_command_existence(&PathBuf::from(&command)).await {
+        Some(PathBuf::from(command))
+    } else {
+        None
     };
 
-    // if it is not in either location, then download it
-    download(&data_root)
-        .await
-        .describe("fossa-cli not found in your path, attempting to download it")
+    let latest_release_version = latest_release_version().await?;
+    match current_path {
+        Some(current_path) => {
+            download_if_old(&data_root, current_path, latest_release_version).await
+        }
+        None => download(&data_root, latest_release_version).await,
+    }
+}
+
+/// If the cli exists locally, then compare the version of the local CLI to the latest release,
+/// and download it if it is different
+#[tracing::instrument]
+async fn download_if_old(
+    data_root: &PathBuf,
+    current_path: PathBuf,
+    latest_release_version: String,
+) -> Result<PathBuf, Error> {
+    let local_version = local_version(&current_path).await?;
+    if local_version == latest_release_version {
+        Ok(current_path)
+    } else {
+        download(data_root, latest_release_version).await
+    }
+}
+
+#[tracing::instrument]
+async fn local_version(current_path: &PathBuf) -> Result<String, Error> {
+    let output = Command::new(current_path)
+        .arg("--version")
+        .output()
+        .context(Error::RunLocalFossaVersion)?;
+    if !output.status.success() {
+        return Error::RunLocalFossaVersion.wrap_err().into_report();
+    }
+
+    // the output will look something like "fossa-cli version 3.7.2 (revision 49a37c0147dc compiled with ghc-9.0)"
+    let output = String::from_utf8(output.stdout).context(Error::RunLocalFossaVersion)?;
+    println!("output from fossa --version: {}", output);
+
+    let version = output
+        .strip_prefix("fossa-cli version ")
+        .ok_or(Error::ParseLocalFossaVersion(output.clone()))?;
+    let version = version
+        .split(' ')
+        .next()
+        .ok_or(Error::ParseLocalFossaVersion(output.clone()))?;
+
+    Ok(version.to_string())
 }
 
 /// Given a path to a possible fossa executable, return whether or not it successfully runs
@@ -98,9 +152,9 @@ fn command_name() -> &'static str {
     "fossa"
 }
 
-/// Download the CLI into the config_dir
+/// Get the version of the latest release on GitHub
 #[tracing::instrument]
-async fn download(config_dir: &PathBuf) -> Result<PathBuf, Error> {
+async fn latest_release_version() -> Result<String, Error> {
     let client = reqwest::Client::new();
     // This will follow the redirect, so latest_release_response.url().path() will be something like "/fossas/fossa-cli/releases/tag/v3.7.2"
     let latest_release_response = client
@@ -124,8 +178,12 @@ async fn download(config_dir: &PathBuf) -> Result<PathBuf, Error> {
             .wrap_err()
             .context(Error::FindVersion);
     }
-    let version = tag.trim_start_matches('v');
+    Ok(tag.trim_start_matches('v').to_string())
+}
 
+/// Download the CLI into the config_dir
+#[tracing::instrument]
+async fn download(config_dir: &PathBuf, version: String) -> Result<PathBuf, Error> {
     let content = download_from_github(version).await?;
 
     let final_path = config_dir.join(command_name());
@@ -149,7 +207,7 @@ fn download_url(version: &str) -> String {
 }
 
 #[cfg(target_os = "macos")]
-fn download_url(version: &str) -> String {
+fn download_url(version: String) -> String {
     format!("https://github.com/fossas/fossa-cli/releases/download/v{version}/fossa_{version}_darwin_amd64.zip")
 }
 
@@ -159,7 +217,7 @@ fn download_url(version: &str) -> String {
 }
 
 #[tracing::instrument]
-async fn download_from_github(version: &str) -> Result<Cursor<Bytes>, Error> {
+async fn download_from_github(version: String) -> Result<Cursor<Bytes>, Error> {
     let client = reqwest::Client::new();
     let response = client
         .get(download_url(version))
@@ -197,7 +255,8 @@ async fn unzip_zip(content: Cursor<Bytes>, final_path: &PathBuf) -> Result<(), E
     let zip_file = match archive.by_name(command_name()) {
         Ok(file) => file,
         Err(..) => {
-            return Err(Error::Extract)
+            return Error::Extract
+                .wrap_err()
                 .into_report()
                 .describe("finding fossa executable in downloaded fossa release");
         }
