@@ -20,7 +20,6 @@ use uuid::Uuid;
 use crate::api::remote::Reference;
 use crate::ext::tracing::span_record;
 use crate::queue::{self, Queue, Receiver, Sender};
-use crate::AppContext;
 use crate::{
     api::remote::{Integration, RemoteProvider},
     config::Config,
@@ -30,6 +29,7 @@ use crate::{
         result::DiscardResult,
     },
 };
+use crate::{fossa_cli, AppContext};
 
 /// Errors encountered during runtime.
 #[derive(Debug, thiserror::Error)]
@@ -47,6 +47,10 @@ pub enum Error {
     #[error("poll integration")]
     PollIntegration,
 
+    /// If we fail to clone a reference, this error is returned.
+    #[error("clone reference: {0:?}")]
+    CloneReference(Reference),
+
     /// If we fail to send tasks to the async task queue, this error is raised.
     #[error("enqueue task for processing")]
     TaskEnqueue,
@@ -55,9 +59,21 @@ pub enum Error {
     #[error("receive task for processing")]
     TaskReceive,
 
+    /// If we fail to handle a task, this error is raised.
+    #[error("handle task")]
+    TaskHandle,
+
     /// If we fail to mark a task complete, this error is raised.
     #[error("mark task complete")]
     TaskComplete,
+
+    /// If we fail to download FOSSA CLI, this error is raised.
+    #[error("download FOSSA CLI")]
+    DownloadFossaCli,
+
+    /// If we fail to run FOSSA CLI, this error is raised.
+    #[error("run FOSSA CLI")]
+    RunFossaCli,
 }
 
 /// The primary entrypoint.
@@ -71,7 +87,7 @@ pub async fn main(ctx: &AppContext, config: Config, db: impl Database) -> Result
     // Create them all, then just `try_join!` on all of them at the end.
     let healthcheck_worker = do_healthcheck(&db);
     let integration_worker = do_poll_integrations(&config, &db, scan_tx);
-    let scan_git_reference_worker = do_scan_git_references(&db, scan_rx);
+    let scan_git_reference_worker = do_scan_git_references(ctx, &db, scan_rx);
 
     // `try_join!` keeps all of the workers running until one of them fails,
     // at which point the failure is returned and remaining tasks are dropped.
@@ -253,27 +269,54 @@ async fn do_poll_integration(
 
 #[tracing::instrument(skip_all)]
 async fn do_scan_git_references(
+    ctx: &AppContext,
     db: &impl Database,
     mut receiver: Receiver<ScanGitVCSReference>,
 ) -> Result<(), Error> {
+    let cli = fossa_cli::find_or_download(ctx)
+        .await
+        .change_context(Error::DownloadFossaCli)
+        .describe("Broker relies on fossa-cli to perform analysis of your projects")?;
+
     loop {
         let guard = receiver.recv().await.change_context(Error::TaskReceive)?;
         let job = guard.item().change_context(Error::TaskReceive)?;
 
-        do_scan_git_reference(db, &job).await?;
+        do_scan_git_reference(db, &job, &cli)
+            .await
+            .change_context(Error::TaskHandle)?;
+
         guard.commit().change_context(Error::TaskComplete)?;
     }
 }
 
-#[tracing::instrument(skip(_db), fields(scan_id))]
+#[tracing::instrument(skip(_db), fields(scan_id, cli_version))]
 async fn do_scan_git_reference(
     _db: &impl Database,
     job: &ScanGitVCSReference,
+    cli: &fossa_cli::Location,
 ) -> Result<(), Error> {
     span_record!(scan_id, &job.scan_id);
-    info!(
-        "Pretending to scan {} at {}",
-        job.integration, job.reference
-    );
+
+    // Record the CLI version for debugging purposes.
+    let cli_version = cli.version().await.change_context(Error::RunFossaCli)?;
+    span_record!(cli_version, &cli_version);
+
+    // Clone the reference into a temporary directory.
+    let cloned_location = job
+        .integration
+        .clone_reference(&job.reference)
+        .await
+        .change_context_lazy(|| Error::CloneReference(job.reference.clone()))?;
+
+    // Run the scan.
+    let source_units = cli
+        .analyze(&job.scan_id, cloned_location.path())
+        .await
+        .change_context(Error::RunFossaCli)?;
+
+    info!("Scanned {} at {}", job.integration, job.reference);
+    info!("Found source units: {}", source_units);
+
     Ok(())
 }

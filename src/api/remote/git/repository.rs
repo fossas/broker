@@ -14,6 +14,7 @@ use time::{ext::NumericalDuration, format_description::well_known::Iso8601, Offs
 use tracing::debug;
 
 use super::Reference;
+use crate::ext::command::DescribeCommand;
 use crate::ext::error_stack::{ErrorHelper, IntoContext};
 use crate::ext::result::WrapOk;
 use crate::{api::http, api::remote::git, api::ssh, ext::error_stack::DescribeContext};
@@ -60,32 +61,11 @@ pub enum Error {
 
 impl Error {
     fn running_git_command(cmd: &Command) -> Self {
-        let (name, args, envs) = describe_cmd(cmd);
-        Self::GitExecution(format!(
-            "{name}\nargs: [{}]\nenv: {envs:?}",
-            // The debug format for Windows paths results in double backslashes, which we want to avoid.
-            args.into_iter()
-                .map(|arg| format!(r#""{arg}""#))
-                .collect::<Vec<_>>()
-                .join(", ")
-        ))
+        Self::GitExecution(cmd.describe().to_string())
     }
 
     fn running_git_command_with_output(cmd: &Command, output: &Output) -> Self {
-        let (name, args, envs) = describe_cmd(cmd);
-        let stdout = String::from_utf8_lossy(&output.stdout);
-        let stderr = String::from_utf8_lossy(&output.stderr);
-        let status = output.status.code().unwrap_or(-1);
-        Self::GitExecution(format!(
-            "{name}\nargs: [{}]\nenv: {envs:?}\nstatus: {status}\nstdout: '{}'\nstderr: '{}'",
-            // The debug format for Windows paths results in double backslashes, which we want to avoid.
-            args.into_iter()
-                .map(|arg| format!(r#""{arg}""#))
-                .collect::<Vec<_>>()
-                .join(", "),
-            stdout.trim(),
-            stderr.trim()
-        ))
+        Self::GitExecution(cmd.describe().with_output(output).to_string())
     }
 }
 
@@ -417,26 +397,4 @@ fn line_to_git_ref(line: &str) -> Option<Reference> {
             .strip_prefix("refs/heads/")
             .map(|branch| Reference::new_branch(branch.to_string(), commit))
     }
-}
-
-/// Returns a description of the command: its name, args, and env variables.
-fn describe_cmd(cmd: &Command) -> (String, Vec<String>, Vec<String>) {
-    let name = cmd.get_program().to_string_lossy().to_string();
-    let args = cmd
-        .get_args()
-        .map(|arg| arg.to_string_lossy().to_string())
-        .collect::<Vec<_>>();
-    let envs = cmd
-        .get_envs()
-        .map(|(key, value)| {
-            let key = key.to_string_lossy();
-            if let Some(value) = value {
-                let value = value.to_string_lossy();
-                format!("{}={}", key, value)
-            } else {
-                format!("{}=<REMOVED>", key)
-            }
-        })
-        .collect::<Vec<_>>();
-    (name, args, envs)
 }
