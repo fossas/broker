@@ -32,26 +32,6 @@ jobs:
     - run: cargo fmt
     - run: git diff --exit-code
 
-  # Ensure every crate can actually build on all platforms
-  build:
-    name: build ${{ matrix.os }}
-    strategy:
-      matrix:
-        include:
-        - os: ubuntu-latest
-        - os: macos-latest
-        - os: windows-latest
-
-    runs-on: ${{ matrix.os }}
-    steps:
-    - uses: actions/checkout@v3
-    - uses: actions-rs/toolchain@v1
-      with:
-        profile: minimal
-        toolchain: stable
-    - uses: Swatinem/rust-cache@v2
-    - run: cargo build
-
   # Ensure db is migrated
   db-migrated:
     runs-on: ubuntu-latest

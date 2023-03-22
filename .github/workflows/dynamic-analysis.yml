@@ -1,0 +1,54 @@
+name: dynamic-analysis
+on: push
+
+jobs:
+  # Ensure tests pass on all platforms.
+  test:
+    name: test ${{ matrix.os }}
+    strategy:
+      matrix:
+        include:
+        - os: ubuntu-latest
+        - os: macos-latest
+        - os: windows-latest
+    
+    runs-on: ${{ matrix.os }}
+    steps:
+    - uses: actions/checkout@v3
+    - uses: actions-rs/toolchain@v1
+      with:
+        profile: minimal
+        toolchain: stable
+    - uses: Swatinem/rust-cache@v2
+    - uses: taiki-e/install-action@v2
+      with:
+        tool: nextest
+    - run: cargo nextest run
+    # nextest doesn't run doctests, but does test everything else: https://github.com/nextest-rs/nextest/issues/16
+    # run doctests after; this won't result in any extra rebuilds and is very quick.
+    # doctest overview: https://doc.rust-lang.org/rustdoc/write-documentation/documentation-tests.html
+    - run: cargo test --doc
+
+  # Ensure every crate can actually build on all platforms.
+  # The library part of the crate is built during tests, but the binary part isn't.
+  build:
+    # Wait for the tests to pass. This reduces billed runtime compared to just running in parallel.
+    # Since it also gets to reuse the cache from the tests, it doesn't add much time to the overall process.
+    needs: test
+    name: build ${{ matrix.os }}
+    strategy:
+      matrix:
+        include:
+        - os: ubuntu-latest
+        - os: macos-latest
+        - os: windows-latest
+
+    runs-on: ${{ matrix.os }}
+    steps:
+    - uses: actions/checkout@v3
+    - uses: actions-rs/toolchain@v1
+      with:
+        profile: minimal
+        toolchain: stable
+    - uses: Swatinem/rust-cache@v2
+    - run: cargo build
