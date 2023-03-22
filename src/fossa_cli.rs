@@ -79,10 +79,8 @@ pub async fn find_or_download(ctx: &AppContext) -> Result<PathBuf, Error> {
 
     let latest_release_version = latest_release_version().await?;
     match current_path {
-        Some(current_path) => {
-            download_if_old(ctx.data_root(), current_path, latest_release_version).await
-        }
-        None => download(ctx.data_root(), latest_release_version).await,
+        Some(current_path) => download_if_old(&ctx, current_path, latest_release_version).await,
+        None => download(ctx, latest_release_version).await,
     }
 }
 
@@ -91,7 +89,7 @@ pub async fn find_or_download(ctx: &AppContext) -> Result<PathBuf, Error> {
 /// If there are any errors while finding the local version, then just download it.
 #[tracing::instrument]
 async fn download_if_old(
-    data_root: &PathBuf,
+    ctx: &AppContext,
     current_path: PathBuf,
     latest_release_version: String,
 ) -> Result<PathBuf, Error> {
@@ -99,10 +97,10 @@ async fn download_if_old(
         if local_version == latest_release_version {
             Ok(current_path)
         } else {
-            download(data_root, latest_release_version).await
+            download(ctx, latest_release_version).await
         }
     } else {
-        download(data_root, latest_release_version).await
+        download(ctx, latest_release_version).await
     }
 }
 
@@ -186,10 +184,10 @@ async fn latest_release_version() -> Result<String, Error> {
 
 /// Download the CLI into the config_dir
 #[tracing::instrument]
-async fn download(config_dir: &PathBuf, version: String) -> Result<PathBuf, Error> {
+async fn download(ctx: &AppContext, version: String) -> Result<PathBuf, Error> {
     let content = download_from_github(version).await?;
 
-    let final_path = config_dir.join(command_name());
+    let final_path = ctx.data_root().join(command_name());
     unzip_zip(content, &final_path).await?;
     Ok(final_path)
 }
