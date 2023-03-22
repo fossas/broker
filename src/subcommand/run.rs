@@ -167,7 +167,7 @@ async fn do_poll_integration(
         // Given that this operation is not latency sensitive, and temporary network issues can interfere,
         // retry several times before permanently failing since a permanent failure means Broker shuts down
         // entirely.
-        let strategy = ExponentialBackoff::from_millis(1000).map(jitter).take(1);
+        let strategy = ExponentialBackoff::from_millis(1000).map(jitter).take(10);
         let references = Retry::spawn(strategy, get_references)
             .await
             .change_context(Error::PollIntegration)
