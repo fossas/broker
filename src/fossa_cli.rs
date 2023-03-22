@@ -17,10 +17,6 @@ use crate::AppContext;
 /// Errors while downloading fossa-cli
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
-    /// Errors while finding the config root
-    #[error("find config root")]
-    SetDataRoot,
-
     /// Broker attempts to find the latest version of the CLI before downloading.
     /// It does this by checking the latest tag and parsing the redirect location.
     #[error("find latest FOSSA CLI version")]
