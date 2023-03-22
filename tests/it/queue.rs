@@ -1,29 +1,33 @@
-use crate::helper::{assert_error_stack_snapshot, set_temp_data_root};
+use crate::helper::{assert_error_stack_snapshot, temp_ctx};
 use broker::queue::{self, Queue, Receiver, Sender};
 
 #[tokio::test]
 async fn racing_senders_err() {
-    let _root = set_temp_data_root();
+    let ctx = temp_ctx!();
 
-    let _first: Sender<Vec<u8>> = Sender::open(Queue::Echo).await.expect("must open first");
-    let second: Result<Sender<Vec<u8>>, _> = Sender::open(Queue::Echo).await;
+    let _first: Sender<()> = Sender::open(&ctx, Queue::Echo)
+        .await
+        .expect("must open first");
+    let second: Result<Sender<()>, _> = Sender::open(&ctx, Queue::Echo).await;
     assert_error_stack_snapshot!(&"sender", second.expect_err("must fail to open second"));
 }
 
 #[tokio::test]
 async fn racing_receivers_err() {
-    let _root = set_temp_data_root();
+    let ctx = temp_ctx!();
 
-    let _first: Receiver<Vec<u8>> = Receiver::open(Queue::Echo).await.expect("must open first");
-    let second: Result<Receiver<Vec<u8>>, _> = Receiver::open(Queue::Echo).await;
+    let _first: Receiver<()> = Receiver::open(&ctx, Queue::Echo)
+        .await
+        .expect("must open first");
+    let second: Result<Receiver<()>, _> = Receiver::open(&ctx, Queue::Echo).await;
     assert_error_stack_snapshot!(&"receiver", second.expect_err("must fail to open second"));
 }
 
 #[tokio::test]
 async fn echo() {
-    let _root = set_temp_data_root();
+    let ctx = temp_ctx!();
 
-    let (mut tx, mut rx) = queue::open::<String>(Queue::Echo)
+    let (mut tx, mut rx) = queue::open::<String>(&ctx, Queue::Echo)
         .await
         .expect("must open queue");
 

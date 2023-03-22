@@ -176,8 +176,8 @@ async fn main_run(args: config::RawBaseArgs) -> Result<(), Error> {
         .change_context(Error::InternalSetup)?;
     debug!("fossa path: {:?}", fossa_path);
 
-    debug!("Loaded {conf:?}");
-    broker::subcommand::run::main(conf, db)
+    let ctx = broker::AppContext::new(args.data_root().to_path_buf());
+    broker::subcommand::run::main(ctx, conf, db)
         .await
         .change_context(Error::Runtime)
 }
