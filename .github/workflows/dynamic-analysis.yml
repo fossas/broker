@@ -20,6 +20,8 @@ jobs:
         profile: minimal
         toolchain: stable
     - uses: Swatinem/rust-cache@v2
+      with:
+        shared-key: "dynamic-analysis"
     - uses: taiki-e/install-action@v2
       with:
         tool: nextest
@@ -51,4 +53,6 @@ jobs:
         profile: minimal
         toolchain: stable
     - uses: Swatinem/rust-cache@v2
+      with:
+        shared-key: "dynamic-analysis"
     - run: cargo build
