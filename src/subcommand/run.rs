@@ -62,8 +62,8 @@ pub enum Error {
 
 /// The primary entrypoint.
 #[tracing::instrument(skip_all)]
-pub async fn main(ctx: AppContext, config: Config, db: impl Database) -> Result<(), Error> {
-    let (scan_tx, scan_rx) = queue::open(&ctx, Queue::Scan)
+pub async fn main(ctx: &AppContext, config: Config, db: impl Database) -> Result<(), Error> {
+    let (scan_tx, scan_rx) = queue::open(ctx, Queue::Scan)
         .await
         .change_context(Error::SetupPipeline)?;
 

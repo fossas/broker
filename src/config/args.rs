@@ -91,12 +91,11 @@ impl RawBaseArgs {
     /// it is assumed to be a sibling to the config file.
     /// Database implementations then create it if it does not exist.
     pub async fn validate(self) -> Result<BaseArgs, Report<Error>> {
-        let data_root = if let Some(data_root) = self.data_root {
+        let ctx = AppContext::new(if let Some(data_root) = self.data_root {
             data_root
         } else {
             default_data_root().await?
-        };
-        let ctx = AppContext::new(data_root.clone());
+        });
 
         let config_path = if let Some(provided_path) = self.config_file_path {
             ConfigFilePath::from(provided_path).wrap_ok()
@@ -177,7 +176,7 @@ impl RawBaseArgs {
             (Ok(config_path), Ok(database_path)) => Ok(BaseArgs {
                 config_path,
                 database_path,
-                data_root,
+                context: ctx,
             }),
             (Ok(_), Err(err)) => Err(err),
             (Err(err), Ok(_)) => Err(err),
@@ -196,14 +195,8 @@ pub struct BaseArgs {
     /// The path to the database file on disk.
     database_path: DatabaseFilePath,
 
-    /// The configured root data directory for Broker.
-    /// Broker uses this directory to store working state and to read configuration information.
-    ///
-    /// Users may configure this via CLI argument. The default value is:
-    ///
-    /// - On Linux and macOS: `~/.config/fossa/broker/`
-    /// - On Windows: `%USERPROFILE%\.config\fossa\broker`
-    data_root: PathBuf,
+    /// The configured application context.
+    context: AppContext,
 }
 
 /// The path to the config file.

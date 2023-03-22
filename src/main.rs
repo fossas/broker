@@ -171,13 +171,12 @@ async fn main_run(args: config::RawBaseArgs) -> Result<(), Error> {
         .await
         .change_context(Error::InternalSetup)?;
 
-    let fossa_path = download_fossa_cli::ensure_fossa_cli()
+    let fossa_path = download_fossa_cli::ensure_fossa_cli(args.context())
         .await
         .change_context(Error::InternalSetup)?;
     debug!("fossa path: {:?}", fossa_path);
 
-    let ctx = broker::AppContext::new(args.data_root().to_path_buf());
-    broker::subcommand::run::main(ctx, conf, db)
+    broker::subcommand::run::main(args.context(), conf, db)
         .await
         .change_context(Error::Runtime)
 }

@@ -63,12 +63,12 @@ mod ctx {
     /// As an example, the data dir for the program is a good candidate for context, as it is used in basically
     /// all functions that perform IO (which is most functions, since this program almost entirely revolves
     /// around doing IO and running FOSSA CLI).
-    #[derive(Debug, Clone, Getters)]
+    #[derive(Debug, Clone, PartialEq, Eq, Getters)]
     #[getset(get = "pub")]
     pub struct AppContext {
         /// The root directory for all data that the program needs to store.
         ///
-        /// Most modules use subdirectories inside this root;
+        /// Most modules should use subdirectories inside this root;
         /// to play it maximally safe and avoid collisions,
         /// consider using a subdirectory with the [`data_dir`] function.
         data_root: PathBuf,
