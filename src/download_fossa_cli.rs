@@ -96,11 +96,12 @@ async fn download_if_old(
     current_path: PathBuf,
     latest_release_version: String,
 ) -> Result<PathBuf, Error> {
-    let local_version = local_version(&current_path)
-        .await
-        .unwrap_or("0.0.0".to_string());
-    if local_version == latest_release_version {
-        Ok(current_path)
+    if let Ok(local_version) = local_version(&current_path).await {
+        if local_version == latest_release_version {
+            Ok(current_path)
+        } else {
+            download(data_root, latest_release_version).await
+        }
     } else {
         download(data_root, latest_release_version).await
     }
