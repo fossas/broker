@@ -11,8 +11,8 @@ use std::path::PathBuf;
 use std::process::Command;
 
 use crate::ext::error_stack::{DescribeContext, ErrorHelper, IntoContext};
-use crate::ext::io;
 use crate::ext::result::WrapErr;
+use crate::AppContext;
 
 /// Errors while downloading fossa-cli
 #[derive(Debug, thiserror::Error)]
@@ -63,13 +63,12 @@ pub enum Error {
 /// If we find `fossa` in your path, then just return "fossa"
 /// Otherwise, download the latest release, put it in `config_dir/fossa` and return that
 #[tracing::instrument]
-pub async fn ensure_fossa_cli() -> Result<PathBuf, Error> {
+pub async fn find_or_download(ctx: &AppContext) -> Result<PathBuf, Error> {
     let command = command_name();
-    let data_root = io::data_root().await.change_context(Error::SetDataRoot)?;
 
-    // default to fossa that lives in ~/.config/fossa/broker/fossa
-    // if it does not exist in ~/.config/fossa/broker/fossa, then check to see if it is on the path
-    let command_in_config_dir = data_root.join(command);
+    // default to fossa that lives in the data root
+    // if it does not exist in the data root, then check to see if it is on the path
+    let command_in_config_dir = ctx.data_root().join(command);
     let current_path: Option<PathBuf> = if check_command_existence(&command_in_config_dir).await {
         Some(command_in_config_dir)
     } else if check_command_existence(&PathBuf::from(&command)).await {
@@ -81,9 +80,9 @@ pub async fn ensure_fossa_cli() -> Result<PathBuf, Error> {
     let latest_release_version = latest_release_version().await?;
     match current_path {
         Some(current_path) => {
-            download_if_old(data_root, current_path, latest_release_version).await
+            download_if_old(ctx.data_root(), current_path, latest_release_version).await
         }
-        None => download(data_root, latest_release_version).await,
+        None => download(ctx.data_root(), latest_release_version).await,
     }
 }
 

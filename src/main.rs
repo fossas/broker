@@ -9,8 +9,8 @@ use atty::Stream;
 use broker::api::remote::RemoteProvider;
 use broker::db;
 use broker::doc::crate_version;
-use broker::download_fossa_cli;
 use broker::ext::error_stack::IntoContext;
+use broker::fossa_cli;
 use broker::{config, ext::error_stack::ErrorHelper};
 use broker::{
     doc,
@@ -171,13 +171,12 @@ async fn main_run(args: config::RawBaseArgs) -> Result<(), Error> {
         .await
         .change_context(Error::InternalSetup)?;
 
-    let fossa_path = download_fossa_cli::ensure_fossa_cli()
+    let fossa_path = fossa_cli::find_or_download(args.context())
         .await
         .change_context(Error::InternalSetup)?;
     debug!("fossa path: {:?}", fossa_path);
 
-    debug!("Loaded {conf:?}");
-    broker::subcommand::run::main(conf, db)
+    broker::subcommand::run::main(args.context(), conf, db)
         .await
         .change_context(Error::Runtime)
 }

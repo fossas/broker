@@ -92,7 +92,7 @@ impl Config {
         let content = io::read_to_string(path)
             .await
             .change_context(Error::ReadFile)
-            .describe_lazy(|| format!("read config file at {path:?}"))
+            .describe_lazy(|| format!("read config file at '{}'", path.display()))
             .help("ensure you have access to the file and that it exists")?;
 
         // Parsing just the version allows us to then choose the correct parser to use.

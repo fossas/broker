@@ -9,7 +9,7 @@ use tempfile::TempDir;
 
 macro_rules! temp_config {
     () => {{
-        let tmp = crate::helper::set_temp_data_root();
+        let tmp = tempfile::tempdir().expect("must create tempdir");
         let dir = tmp.path().join("debug");
         let content = indoc::formatdoc! {r#"
         fossa_endpoint: https://app.fossa.com

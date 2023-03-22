@@ -25,13 +25,15 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use error_stack::{Context, IntoReport, Report, ResultExt};
+use error_stack::{IntoReport, Report, ResultExt};
 use tokio::task;
 
-use crate::ext::error_stack::{DescribeContext, ErrorHelper, IntoContext};
+use crate::{
+    ext::error_stack::{DescribeContext, ErrorHelper, IntoContext},
+    AppContext,
+};
 
 pub mod sync;
-pub use sync::set_data_root;
 
 /// Errors that are possibly surfaced during IO actions.
 #[derive(Debug, thiserror::Error)]
@@ -45,42 +47,33 @@ pub enum Error {
     JoinWorker,
 }
 
-/// The root data directory for Broker.
-/// Broker uses this directory to store working state and to read configuration information.
-///
-/// - On Linux and macOS: `~/.config/fossa/broker/`
-/// - On Windows: `%USERPROFILE%\.config\fossa\broker`
-///
-/// Users may also customize this root via the [`DATA_ROOT_VAR`] environment variable.
-#[tracing::instrument]
-pub async fn data_root() -> Result<&'static PathBuf, Report<Error>> {
-    run_background(sync::data_root).await
-}
-
 /// Searches configured locations for the file with the provided name.
 ///
 /// Locations searched:
 /// - The [`data_root`] location.
 /// - The [`working_dir`] location.
 #[tracing::instrument]
-pub async fn find<S: AsRef<str> + fmt::Debug>(name: S) -> Result<PathBuf, Report<Error>> {
-    let name = name.as_ref().to_string();
-    run_background(move || sync::find(name)).await
+pub async fn find(ctx: &AppContext, name: &str) -> Result<PathBuf, Report<Error>> {
+    let ctx = ctx.to_owned();
+    let name = name.to_string();
+    run_background(move || sync::find(&ctx, &name)).await
 }
 
 /// Searches configured locations (see [`find`])
 /// for one of several provided names, returning the first one that was found.
 #[tracing::instrument]
-pub async fn find_some<V, S>(names: V) -> Result<PathBuf, Report<Error>>
-where
-    S: AsRef<str> + fmt::Debug,
-    V: IntoIterator<Item = S> + fmt::Debug,
-{
+pub async fn find_some(ctx: &AppContext, names: &[&str]) -> Result<PathBuf, Report<Error>> {
+    let ctx = ctx.to_owned();
     let names = names
-        .into_iter()
-        .map(|name| name.as_ref().to_string())
+        .iter()
+        .map(|name| name.to_string())
         .collect::<Vec<_>>();
-    run_background(move || sync::find_some(names)).await
+
+    run_background(move || {
+        let name_refs = names.iter().map(String::as_str).collect::<Vec<_>>();
+        sync::find_some(&ctx, &name_refs)
+    })
+    .await
 }
 
 /// Reads the provided file content to a string.
@@ -123,7 +116,7 @@ pub async fn home_dir() -> Result<&'static PathBuf, Report<Error>> {
 async fn run_background<T, E, F>(work: F) -> Result<T, Report<Error>>
 where
     T: Send + 'static,
-    E: Context,
+    E: error_stack::Context,
     F: FnOnce() -> Result<T, Report<E>> + Send + 'static,
 {
     task::spawn_blocking(work)
@@ -154,7 +147,7 @@ where
 pub async fn spawn_blocking<T, E, F>(work: F) -> Result<T, Report<Error>>
 where
     T: Send + 'static,
-    E: Context,
+    E: error_stack::Context,
     F: FnOnce() -> Result<T, Report<E>> + Send + 'static,
 {
     run_background(work).await

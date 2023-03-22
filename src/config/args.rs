@@ -9,10 +9,13 @@ use getset::{CopyGetters, Getters};
 use indoc::indoc;
 use serde::Serialize;
 
-use crate::ext::{
-    error_stack::{merge_error_stacks, DescribeContext, ErrorHelper},
-    io::{self, set_data_root},
-    result::{WrapErr, WrapOk},
+use crate::{
+    ext::{
+        error_stack::{merge_error_stacks, DescribeContext, ErrorHelper},
+        io,
+        result::{WrapErr, WrapOk},
+    },
+    AppContext,
 };
 
 /// The variable used to control whether Broker attempts to discover files.
@@ -29,9 +32,9 @@ pub enum Error {
     #[error("locate database file")]
     DbFileLocation,
 
-    /// The data root was not able to be configured.
-    #[error("set data root")]
-    SetDataRoot,
+    /// The data root was not able to be determined.
+    #[error("determine data root")]
+    DataRoot,
 }
 
 /// Base arguments, used in most Broker subcommands.
@@ -88,15 +91,16 @@ impl RawBaseArgs {
     /// it is assumed to be a sibling to the config file.
     /// Database implementations then create it if it does not exist.
     pub async fn validate(self) -> Result<BaseArgs, Report<Error>> {
-        // Need to set data root first, since other things in this function use it.
-        if let Some(data_root) = self.data_root {
-            set_data_root(data_root).change_context(Error::SetDataRoot)?;
-        }
+        let data_root = match self.data_root {
+            Some(data_root) => data_root,
+            None => default_data_root().await?,
+        };
+        let ctx = AppContext::new(data_root);
 
         let config_path = if let Some(provided_path) = self.config_file_path {
             ConfigFilePath::from(provided_path).wrap_ok()
         } else if discovery_enabled() {
-            ConfigFilePath::discover()
+            ConfigFilePath::discover(&ctx)
                 .await
                 .change_context(Error::ConfigFileLocation)
         } else {
@@ -108,7 +112,7 @@ impl RawBaseArgs {
         let database_path = if let Some(provided_path) = self.database_file_path {
             DatabaseFilePath::from(provided_path).wrap_ok()
         } else if discovery_enabled() {
-            DatabaseFilePath::discover()
+            DatabaseFilePath::discover(&ctx)
                 .await
                 .change_context(Error::DbFileLocation)
         } else {
@@ -172,6 +176,7 @@ impl RawBaseArgs {
             (Ok(config_path), Ok(database_path)) => Ok(BaseArgs {
                 config_path,
                 database_path,
+                context: ctx,
             }),
             (Ok(_), Err(err)) => Err(err),
             (Err(err), Ok(_)) => Err(err),
@@ -189,6 +194,9 @@ pub struct BaseArgs {
 
     /// The path to the database file on disk.
     database_path: DatabaseFilePath,
+
+    /// The configured application context.
+    context: AppContext,
 }
 
 /// The path to the config file.
@@ -207,8 +215,8 @@ pub struct ConfigFilePath {
 
 impl ConfigFilePath {
     /// Discover the location for the config file on disk.
-    async fn discover() -> Result<Self, Report<io::Error>> {
-        io::find_some(["config.yml", "config.yaml"])
+    async fn discover(ctx: &AppContext) -> Result<Self, Report<io::Error>> {
+        io::find_some(ctx, &["config.yml", "config.yaml"])
             .await
             .describe("searches for 'config.yml' or 'config.yaml'")
             .help("consider providing an explicit argument instead")
@@ -244,8 +252,8 @@ pub struct DatabaseFilePath {
 
 impl DatabaseFilePath {
     /// Discover the location for the config file on disk.
-    async fn discover() -> Result<Self, Report<io::Error>> {
-        io::find("db.sqlite")
+    async fn discover(ctx: &AppContext) -> Result<Self, Report<io::Error>> {
+        io::find(ctx, "db.sqlite")
             .await
             .describe("searches for 'db.sqlite'")
             .help("consider providing an explicit argument instead")
@@ -270,4 +278,11 @@ fn discovery_enabled() -> bool {
         .map(|value| vec!["true", "1"].contains(&value.as_str()))
         .map(|value| !value)
         .unwrap_or(true)
+}
+
+async fn default_data_root() -> Result<PathBuf, Report<Error>> {
+    io::home_dir()
+        .await
+        .map(|home| home.join(".config").join("fossa").join("broker"))
+        .change_context(Error::DataRoot)
 }

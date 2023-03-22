@@ -4,18 +4,16 @@
 //! as such each macro in this file must be independent of location.
 //! Mostly this just means "if the macro calls something else, it needs to reference it by fully qualified path".
 
-use tempfile::TempDir;
-
 pub mod duration;
 pub mod gen;
 
-/// Usually Broker uses a central location for its data root: see [`broker::ext::io::sync::data_root`] for details.
-/// This macro sets the data root to a temporary location for the duration of a test.
-#[must_use = "This temporary directory is deleted when this variable is dropped"]
-pub(crate) fn set_temp_data_root() -> TempDir {
-    let tmp = tempfile::tempdir().expect("must create temporary directory");
-    broker::ext::io::set_data_root(tmp.path()).expect("must set data root");
-    tmp
+/// Create a context in a temporary directory.
+macro_rules! temp_ctx {
+    () => {{
+        let tmp = tempfile::tempdir().expect("must create tempdir");
+        let root = tmp.path().to_path_buf();
+        (tmp, broker::AppContext::new(root))
+    }};
 }
 
 /// Tests are run independently by cargo nextest, so this macro configures settings used in snapshot tests.
@@ -113,3 +111,4 @@ pub(crate) use assert_error_stack_snapshot;
 pub(crate) use load_config;
 pub(crate) use load_config_err;
 pub(crate) use set_snapshot_vars;
+pub(crate) use temp_ctx;

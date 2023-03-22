@@ -184,6 +184,10 @@ pub trait IntoContext<C> {
     /// Converts the [`Err`] variant of the [`Result`] to a [`Report`],
     /// then immediately changes its context.
     fn context(self, context: C) -> Result<Self::Ok, Report<C>>;
+
+    /// Converts the [`Err`] variant of the [`Result`] to a [`Report`],
+    /// then lazily changes its context.
+    fn context_lazy<F: Fn() -> C>(self, context: F) -> Result<Self::Ok, Report<C>>;
 }
 
 impl<T, E, C> IntoContext<C> for core::result::Result<T, E>
@@ -198,5 +202,10 @@ where
     #[track_caller]
     fn context(self, context: C) -> Result<T, Report<C>> {
         self.into_report().change_context(context)
+    }
+
+    #[track_caller]
+    fn context_lazy<F: Fn() -> C>(self, context: F) -> Result<T, Report<C>> {
+        self.into_report().change_context_lazy(context)
     }
 }
