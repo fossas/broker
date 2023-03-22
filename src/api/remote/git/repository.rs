@@ -61,7 +61,13 @@ pub enum Error {
 impl Error {
     fn running_git_command(cmd: &Command) -> Self {
         let (name, args, envs) = describe_cmd(cmd);
-        Self::GitExecution(format!("{name}\nargs: {args:?}\nenv: {envs:?}"))
+        Self::GitExecution(format!(
+            "{name}\nargs: [{}]\nenv: {envs:?}",
+            args.into_iter()
+                .map(|arg| format!(r#""{arg}""#))
+                .collect::<Vec<_>>()
+                .join(", ")
+        ))
     }
 
     fn running_git_command_with_output(cmd: &Command, output: &Output) -> Self {
@@ -70,7 +76,11 @@ impl Error {
         let stderr = String::from_utf8_lossy(&output.stderr);
         let status = output.status.code().unwrap_or(-1);
         Self::GitExecution(format!(
-            "{name}\nargs: {args:?}\nenv: {envs:?}\nstatus: {status}\nstdout: '{}'\nstderr: '{}'",
+            "{name}\nargs: [{}]\nenv: {envs:?}\nstatus: {status}\nstdout: '{}'\nstderr: '{}'",
+            args.into_iter()
+                .map(|arg| format!(r#""{arg}""#))
+                .collect::<Vec<_>>()
+                .join(", "),
             stdout.trim(),
             stderr.trim()
         ))
