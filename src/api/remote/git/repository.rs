@@ -63,6 +63,7 @@ impl Error {
         let (name, args, envs) = describe_cmd(cmd);
         Self::GitExecution(format!(
             "{name}\nargs: [{}]\nenv: {envs:?}",
+            // The debug format for Windows paths results in double backslashes, which we want to avoid.
             args.into_iter()
                 .map(|arg| format!(r#""{arg}""#))
                 .collect::<Vec<_>>()
@@ -77,6 +78,7 @@ impl Error {
         let status = output.status.code().unwrap_or(-1);
         Self::GitExecution(format!(
             "{name}\nargs: [{}]\nenv: {envs:?}\nstatus: {status}\nstdout: '{}'\nstderr: '{}'",
+            // The debug format for Windows paths results in double backslashes, which we want to avoid.
             args.into_iter()
                 .map(|arg| format!(r#""{arg}""#))
                 .collect::<Vec<_>>()
