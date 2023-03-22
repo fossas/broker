@@ -88,14 +88,17 @@ pub async fn ensure_fossa_cli() -> Result<PathBuf, Error> {
 }
 
 /// If the cli exists locally, then compare the version of the local CLI to the latest release,
-/// and download it if it is different
+/// and download it if it is different.
+/// If there are any errors while finding the local version, then just download it.
 #[tracing::instrument]
 async fn download_if_old(
     data_root: &PathBuf,
     current_path: PathBuf,
     latest_release_version: String,
 ) -> Result<PathBuf, Error> {
-    let local_version = local_version(&current_path).await?;
+    let local_version = local_version(&current_path)
+        .await
+        .unwrap_or("0.0.0".to_string());
     if local_version == latest_release_version {
         Ok(current_path)
     } else {
