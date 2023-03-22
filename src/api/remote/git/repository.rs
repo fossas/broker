@@ -24,7 +24,7 @@ use super::transport::Transport;
 #[derive(Debug, Error)]
 pub enum Error {
     /// This module shells out to git, and that failed.
-    #[error("run git command: {0}")]
+    #[error("run git command: {}", str::trim(.0))]
     GitExecution(String),
 
     /// Creating a temporary directory failed.
@@ -60,15 +60,20 @@ pub enum Error {
 
 impl Error {
     fn running_git_command(cmd: &Command) -> Self {
-        Self::GitExecution(format!("{:?}", cmd))
+        let (name, args, envs) = describe_cmd(cmd);
+        Self::GitExecution(format!("'{name} {}'\nenv: {envs:?}", args.join(" ")))
     }
 
     fn running_git_command_with_output(cmd: &Command, output: &Output) -> Self {
+        let (name, args, envs) = describe_cmd(cmd);
         let stdout = String::from_utf8_lossy(&output.stdout);
         let stderr = String::from_utf8_lossy(&output.stderr);
-        let status = output.status;
+        let status = output.status.code().unwrap_or(-1);
         Self::GitExecution(format!(
-            "{cmd:?}, with status: {status}, stdout: '{stdout}', stderr: '{stderr}'",
+            "'{name} {}'\nenv: {envs:?}\nstatus: {status}\nstdout: '{}'\nstderr: '{}'",
+            args.join(" "),
+            stdout.trim(),
+            stderr.trim()
         ))
     }
 }
@@ -401,4 +406,26 @@ fn line_to_git_ref(line: &str) -> Option<Reference> {
             .strip_prefix("refs/heads/")
             .map(|branch| Reference::new_branch(branch.to_string(), commit))
     }
+}
+
+/// Returns a description of the command: its name, args, and env variables.
+fn describe_cmd(cmd: &Command) -> (String, Vec<String>, Vec<String>) {
+    let name = cmd.get_program().to_string_lossy().to_string();
+    let args = cmd
+        .get_args()
+        .map(|arg| arg.to_string_lossy().to_string())
+        .collect::<Vec<_>>();
+    let envs = cmd
+        .get_envs()
+        .map(|(key, value)| {
+            let key = key.to_string_lossy();
+            if let Some(value) = value {
+                let value = value.to_string_lossy();
+                format!("{}={}", key, value)
+            } else {
+                format!("{}=<REMOVED>", key)
+            }
+        })
+        .collect::<Vec<_>>();
+    (name, args, envs)
 }

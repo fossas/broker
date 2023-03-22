@@ -9,6 +9,9 @@ run external command
 ├─▶ IO layer error
 │   ╰╴at {source location}
 │
-╰─▶ git execution failed
-    ├╴at {source location}
-    ╰╴context: running git command ["-c", "credential.helper=", "ls-remote", "--quiet"], status was: exit status: 128, stderr: fatal: could not read Username for 'https://github.com': terminal prompts disabled
+╰─▶ run git command: 'git -c credential.helper= ls-remote --quiet'
+    env: ["GCM_INTERACTIVE=never", "GIT_ASKPASS=<REMOVED>", "GIT_TERMINAL_PROMPT=0"]
+    status: 128
+    stdout: ''
+    stderr: 'fatal: could not read Username for 'https://github.com': terminal prompts disabled'
+    ╰╴at {source location}
