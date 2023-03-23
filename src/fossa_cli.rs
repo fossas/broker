@@ -5,7 +5,7 @@ use error_stack::{Result, ResultExt};
 use indoc::indoc;
 use semver::Version;
 use std::fmt::Debug;
-use std::fs::{self};
+use std::fs;
 use std::io::copy;
 use std::io::{Cursor, Read};
 use std::path::PathBuf;
@@ -14,6 +14,7 @@ use tracing::debug;
 
 use crate::ext::error_stack::{DescribeContext, ErrorHelper, IntoContext};
 use crate::ext::result::WrapErr;
+use crate::ext::tracing::span_record;
 use crate::AppContext;
 
 /// Errors while downloading fossa-cli
@@ -130,7 +131,7 @@ async fn download_if_old(
     }
 }
 
-#[tracing::instrument]
+#[tracing::instrument(fields(fossa_version_output))]
 async fn local_version(current_path: &PathBuf) -> Result<String, Error> {
     let output = Command::new(current_path)
         .arg("--version")
@@ -142,6 +143,7 @@ async fn local_version(current_path: &PathBuf) -> Result<String, Error> {
 
     // the output will look something like "fossa-cli version 3.7.2 (revision 49a37c0147dc compiled with ghc-9.0)"
     let output = String::from_utf8(output.stdout).context(Error::RunLocalFossaVersion)?;
+    span_record!(fossa_version_output, debug output);
 
     let version = output
         .strip_prefix("fossa-cli version ")
