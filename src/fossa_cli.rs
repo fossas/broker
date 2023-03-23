@@ -3,6 +3,7 @@ use bytes::Bytes;
 use error_stack::IntoReport;
 use error_stack::{Result, ResultExt};
 use indoc::indoc;
+use semver::Version;
 use std::fmt::Debug;
 use std::fs::{self};
 use std::io::copy;
@@ -134,6 +135,9 @@ async fn local_version(current_path: &PathBuf) -> Result<String, Error> {
         .split(' ')
         .next()
         .ok_or(Error::ParseLocalFossaVersion(output.clone()))?;
+
+    // The string we found should be a valid version
+    Version::parse(version).context(Error::ParseLocalFossaVersion(output.clone()))?;
 
     Ok(version.to_string())
 }
