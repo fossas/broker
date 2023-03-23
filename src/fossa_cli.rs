@@ -54,12 +54,25 @@ pub enum Error {
     FinalCopy(String),
 }
 
+/// Which version of the fossa-cli you want to download.
+/// Currently, this is always the latest version
+#[derive(Debug)]
+pub enum DesiredVersion {
+    /// The latest version of the fossa-cli
+    Latest,
+    // In the future...
+    // Tagged(String), // Tag name
+}
+
 /// Ensure that the fossa cli exists and return its path, preferring fossa in config_dir/fossa over fossa in your path.
 /// If we find it in config_dir/fossa, then return that.
 /// If we find `fossa` in your path, then just return "fossa"
 /// Otherwise, download the latest release, put it in `config_dir/fossa` and return that
 #[tracing::instrument]
-pub async fn find_or_download(ctx: &AppContext) -> Result<PathBuf, Error> {
+pub async fn find_or_download(
+    ctx: &AppContext,
+    desired_version: DesiredVersion,
+) -> Result<PathBuf, Error> {
     let command = command_name();
 
     // default to fossa that lives in the data root
@@ -73,10 +86,10 @@ pub async fn find_or_download(ctx: &AppContext) -> Result<PathBuf, Error> {
         None
     };
 
-    let latest_release_version = latest_release_version().await?;
+    let desired_version = latest_release_version().await?;
     match current_path {
-        Some(current_path) => download_if_old(&ctx, current_path, latest_release_version).await,
-        None => download(ctx, latest_release_version).await,
+        Some(current_path) => download_if_old(ctx, current_path, desired_version).await,
+        None => download(ctx, desired_version).await,
     }
 }
 
@@ -87,16 +100,16 @@ pub async fn find_or_download(ctx: &AppContext) -> Result<PathBuf, Error> {
 async fn download_if_old(
     ctx: &AppContext,
     current_path: PathBuf,
-    latest_release_version: String,
+    desired_version: String,
 ) -> Result<PathBuf, Error> {
     if let Ok(local_version) = local_version(&current_path).await {
-        if local_version == latest_release_version {
+        if local_version == desired_version {
             Ok(current_path)
         } else {
-            download(ctx, latest_release_version).await
+            download(ctx, desired_version).await
         }
     } else {
-        download(ctx, latest_release_version).await
+        download(ctx, desired_version).await
     }
 }
 
