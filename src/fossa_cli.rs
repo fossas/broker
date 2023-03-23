@@ -13,7 +13,7 @@ use std::process::Command;
 use tracing::debug;
 
 use crate::ext::error_stack::{DescribeContext, ErrorHelper, IntoContext};
-use crate::ext::result::WrapErr;
+use crate::ext::result::{WrapErr, WrapOk};
 use crate::ext::tracing::span_record;
 use crate::AppContext;
 
@@ -154,9 +154,9 @@ async fn local_version(current_path: &PathBuf) -> Result<String, Error> {
         .ok_or_else(|| Error::ParseLocalFossaVersion(output.clone()))?;
 
     // The string we found should be a valid version
-    Version::parse(version).context(Error::ParseLocalFossaVersion(output.clone()))?;
-
-    Ok(version.to_string())
+    Version::parse(version)
+        .context_lazy(|| Error::ParseLocalFossaVersion(output.clone()))
+        .map(|version| version.to_string())
 }
 
 /// Given a path to a possible fossa executable, return whether or not it successfully runs
@@ -200,7 +200,7 @@ async fn latest_release_version() -> Result<String, Error> {
     let tag = path
         .rsplit('/')
         .next()
-        .ok_or(Error::ParseRedirect(String::from(path)))
+        .ok_or_else(|| Error::ParseRedirect(String::from(path)))
         .context(Error::FindVersion)
         .describe("uses the 'latest' pseudo-tag on Github to determine the tag representing the latest release")?;
 
@@ -209,7 +209,7 @@ async fn latest_release_version() -> Result<String, Error> {
             .wrap_err()
             .context(Error::FindVersion);
     }
-    Ok(tag.trim_start_matches('v').to_string())
+    tag.trim_start_matches('v').to_string().wrap_ok()
 }
 
 /// Download the CLI into the config_dir
@@ -332,9 +332,9 @@ where
         .mode(0o770)
         .open(final_path)
         .into_report()
-        .change_context(Error::FinalCopy(final_path_string.clone()))?;
+        .change_context_lazy(|| Error::FinalCopy(final_path_string.clone()))?;
     copy(&mut zip_file, &mut final_file)
         .into_report()
-        .change_context(Error::FinalCopy(final_path_string))?;
+        .change_context_lazy(|| Error::FinalCopy(final_path_string))?;
     Ok(())
 }
