@@ -91,11 +91,11 @@ impl RawBaseArgs {
     /// it is assumed to be a sibling to the config file.
     /// Database implementations then create it if it does not exist.
     pub async fn validate(self) -> Result<BaseArgs, Report<Error>> {
-        let ctx = AppContext::new(if let Some(data_root) = self.data_root {
-            data_root
-        } else {
-            default_data_root().await?
-        });
+        let data_root = match self.data_root {
+            Some(data_root) => data_root,
+            None => default_data_root().await?,
+        };
+        let ctx = AppContext::new(data_root);
 
         let config_path = if let Some(provided_path) = self.config_file_path {
             ConfigFilePath::from(provided_path).wrap_ok()

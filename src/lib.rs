@@ -83,7 +83,7 @@ mod ctx {
 
         /// Get the path to a subdirectory of the data root for a given module name.
         ///
-        /// Any name may be provided, but it's recommended to use `moudule_path!()`
+        /// Any name may be provided, but it's recommended to use `module_path!()`
         /// to minimize chance of collisions with other modules.
         ///
         /// See also [`data_dir!`], which is a macro that automatically uses the current module name.

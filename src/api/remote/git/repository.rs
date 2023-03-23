@@ -398,3 +398,25 @@ fn line_to_git_ref(line: &str) -> Option<Reference> {
             .map(|branch| Reference::new_branch(branch.to_string(), commit))
     }
 }
+
+/// Returns a description of the command: its name, args, and env variables.
+fn describe_cmd(cmd: &Command) -> (String, Vec<String>, Vec<String>) {
+    let name = cmd.get_program().to_string_lossy().to_string();
+    let args = cmd
+        .get_args()
+        .map(|arg| arg.to_string_lossy().to_string())
+        .collect::<Vec<_>>();
+    let envs = cmd
+        .get_envs()
+        .map(|(key, value)| {
+            let key = key.to_string_lossy();
+            if let Some(value) = value {
+                let value = value.to_string_lossy();
+                format!("{}={}", key, value)
+            } else {
+                format!("{}=<REMOVED>", key)
+            }
+        })
+        .collect::<Vec<_>>();
+    (name, args, envs)
+}

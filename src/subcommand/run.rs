@@ -20,6 +20,7 @@ use uuid::Uuid;
 use crate::api::remote::Reference;
 use crate::ext::tracing::span_record;
 use crate::queue::{self, Queue, Receiver, Sender};
+use crate::AppContext;
 use crate::{
     api::remote::{Integration, RemoteProvider},
     config::Config,

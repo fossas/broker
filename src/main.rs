@@ -10,6 +10,7 @@ use broker::api::remote::RemoteProvider;
 use broker::db;
 use broker::doc::crate_version;
 use broker::ext::error_stack::IntoContext;
+use broker::fossa_cli;
 use broker::{config, ext::error_stack::ErrorHelper};
 use broker::{
     doc,
