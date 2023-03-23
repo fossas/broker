@@ -10,6 +10,7 @@ use std::io::copy;
 use std::io::{Cursor, Read};
 use std::path::PathBuf;
 use std::process::Command;
+use tracing::debug;
 
 use crate::ext::error_stack::{DescribeContext, ErrorHelper, IntoContext};
 use crate::ext::result::WrapErr;
@@ -105,11 +106,26 @@ async fn download_if_old(
 ) -> Result<PathBuf, Error> {
     if let Ok(local_version) = local_version(&current_path).await {
         if local_version == desired_version {
+            debug!(
+                "local version of fossa-cli at {} matches desired version of {}",
+                current_path.display(),
+                desired_version
+            );
             Ok(current_path)
         } else {
+            debug!(
+                "local version of fossa-cli at {} has version of {}, which does not match desired version of {}. Downloading new version.",
+                current_path.display(),
+                local_version,
+                desired_version,
+            );
             download(ctx, desired_version).await
         }
     } else {
+        debug!(
+            "Error while getting version from local fossa-cli at {}. Downloading new version",
+            current_path.display()
+        );
         download(ctx, desired_version).await
     }
 }
@@ -126,7 +142,6 @@ async fn local_version(current_path: &PathBuf) -> Result<String, Error> {
 
     // the output will look something like "fossa-cli version 3.7.2 (revision 49a37c0147dc compiled with ghc-9.0)"
     let output = String::from_utf8(output.stdout).context(Error::RunLocalFossaVersion)?;
-    println!("output from fossa --version: {}", output);
 
     let version = output
         .strip_prefix("fossa-cli version ")
