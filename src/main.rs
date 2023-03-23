@@ -125,7 +125,9 @@ async fn main() -> Result<(), Error> {
 
 /// Initialize Broker configuration.
 async fn main_init() -> Result<(), Error> {
-    bail!(Error::SubcommandUnimplemented)
+    broker::subcommand::init::main()
+        .await
+        .change_context(Error::Runtime)
 }
 
 /// Guided interactive setup.
