@@ -91,8 +91,8 @@ pub async fn find_or_download(
 
     let desired_version = latest_release_version().await?;
     match current_path {
-        Some(current_path) => download_if_old(ctx, current_path, desired_version).await,
-        None => download(ctx, desired_version).await,
+        Some(current_path) => download_if_old(ctx, current_path, &desired_version).await,
+        None => download(ctx, &desired_version).await,
     }
 }
 
@@ -103,7 +103,7 @@ pub async fn find_or_download(
 async fn download_if_old(
     ctx: &AppContext,
     current_path: PathBuf,
-    desired_version: String,
+    desired_version: &str,
 ) -> Result<PathBuf, Error> {
     if let Ok(local_version) = local_version(&current_path).await {
         if local_version == desired_version {
@@ -214,7 +214,7 @@ async fn latest_release_version() -> Result<String, Error> {
 
 /// Download the CLI into the config_dir
 #[tracing::instrument]
-async fn download(ctx: &AppContext, version: String) -> Result<PathBuf, Error> {
+async fn download(ctx: &AppContext, version: &str) -> Result<PathBuf, Error> {
     let content = download_from_github(version).await?;
 
     let final_path = ctx.data_root().join(command_name());
@@ -233,22 +233,22 @@ async fn download(ctx: &AppContext, version: String) -> Result<PathBuf, Error> {
 // https://github.com/fossas/fossa-cli/releases/download/v3.7.2/fossa_3.7.2_darwin_amd64.zip
 // https://github.com/fossas/fossa-cli/releases/download/v3.7.2/fossa_3.7.2_linux_amd64.zip
 #[cfg(target_os = "windows")]
-fn download_url(version: String) -> String {
+fn download_url(version: &str) -> String {
     format!("https://github.com/fossas/fossa-cli/releases/download/v{version}/fossa_{version}_windows_amd64.zip")
 }
 
 #[cfg(target_os = "macos")]
-fn download_url(version: String) -> String {
+fn download_url(version: &str) -> String {
     format!("https://github.com/fossas/fossa-cli/releases/download/v{version}/fossa_{version}_darwin_amd64.zip")
 }
 
 #[cfg(target_os = "linux")]
-fn download_url(version: String) -> String {
+fn download_url(version: &str) -> String {
     format!("https://github.com/fossas/fossa-cli/releases/download/v{version}/fossa_{version}_linux_amd64.zip")
 }
 
 #[tracing::instrument]
-async fn download_from_github(version: String) -> Result<Cursor<Bytes>, Error> {
+async fn download_from_github(version: &str) -> Result<Cursor<Bytes>, Error> {
     let client = reqwest::Client::new();
     let response = client
         .get(download_url(version))
