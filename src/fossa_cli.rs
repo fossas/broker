@@ -147,11 +147,11 @@ async fn local_version(current_path: &PathBuf) -> Result<String, Error> {
 
     let version = output
         .strip_prefix("fossa-cli version ")
-        .ok_or(Error::ParseLocalFossaVersion(output.clone()))?;
+        .ok_or_else(|| Error::ParseLocalFossaVersion(output.clone()))?;
     let version = version
         .split(' ')
         .next()
-        .ok_or(Error::ParseLocalFossaVersion(output.clone()))?;
+        .ok_or_else(|| Error::ParseLocalFossaVersion(output.clone()))?;
 
     // The string we found should be a valid version
     Version::parse(version).context(Error::ParseLocalFossaVersion(output.clone()))?;
