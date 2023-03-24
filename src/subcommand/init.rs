@@ -72,7 +72,6 @@ fn write_default_config(data_root: PathBuf) -> Result<(), Error> {
 fn default_config_file(data_root: PathBuf) -> String {
     let debugging_dir = data_root.join("debugging");
     formatdoc! {r#"
-
 # fossa_endpoint sets the endpoint that broker will send requests to.
 # This field should only be modified if your FOSSA account lives on a different server than app.fossa.com.
 # This is most commonly needed with on-premise instances of FOSSA.
@@ -136,31 +135,50 @@ integrations:
     auth:
       type: http_basic
       # The username and password for the remote. These are the credentials that you would use to clone the repository.
-      # When using a github access token, set the username to "pat" and the password to your github access token/
+      # When using a github access token, set the username to "pat" and the password to your github access token
       # The github access token must have read permission for the repository.
       username: pat
       password: <ghp_the_rest_of_your_github_token>
 
-  # This is an example of using http basic auth with a username and password, as you would for bitbucket.
+  # This is an example of using http basic auth using a GitLab access token.
+  # The username can be any non-empty string. The password is the GitLab access token.
+  # The access token must have read_repository access and must have a role of at least reporter.
+  # You can generate a GitLab access token for your project by going to the project settings page and clicking on "Access Tokens".
+  - type: git
+    poll_interval: 1h
+    remote: https://gitlab.com/fossas/private_repository
+    auth:
+      type: http_basic
+      username: pat
+      password: glpat-the-rest-of-your-gitlab-token
+
+  # This is an example of using http basic auth on bitbucket with a repository access token.
+  # You can create a repository access token by going to the repository settings page and clicking on "Access Tokens".
+  # The access token must have read access for the repository.
   - type: git
     poll_interval: 1h
     remote: https://bitbucket.org/fossas/private_repository.git
     auth:
       type: http_basic
-      # The username and password for the remote. On bitbucket, the username is your bitbucket username.
+      # The username and password for the remote. For bitbucket repository access tokens, the username should be x-token-auth.
       # The password is a bitbucket access token with repo read access.
-      username: <your bitbucket username>
+      username: x-token-auth
       password: <bitbucket access token>
 
   # This is an example of using an http header for authentication.
   # The header will be passed to git like this: `git -c http.extraheader="<header>" clone <remote>`
-  # The header should like like this, where B64_BASIC_AUTH is a base64 encoded string of the format "username:password" or "pat:github_access_token".
-  # You can generate B64_BASIC_AUTH with the command `echo -n "username:password" | base64` or `echo -n "pat:github_access_token" | base64`
+  # The header should like like this, where B64_BASIC_AUTH is a base64 encoded string of the format "username:password":
+  # "AUTHORIZATION: BASIC B64_BASIC_AUTH"
+  # You can generate B64_BASIC_AUTH with the command `echo -n "<username>:<password>" | base64`
+  # When using a GitHub access token, the username should be "pat" and the password should be the access token.
+  # When using a GitLab access token, the username can be any non-empty string and the password should be the access token.
+  # When using a Bitbucket repository access token, the username should be "x-token-auth" and the password should be the access token.
   - type: git
     poll_interval: 1h
     remote: https://github.com/fossas/private.git
     auth:
       type: http_header
+      # header: "AUTHORIZATION: BASIC eAXR10...=="
       header: "AUTHORIZATION: BASIC B64_BASIC_AUTH"
 
   # This is an example of using an ssh key file for authentication.
