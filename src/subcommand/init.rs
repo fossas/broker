@@ -1,12 +1,13 @@
 //! Implementation for the `init` subcommand.
-use std::{fs, path::PathBuf};
+use std::{
+    fs,
+    path::{Path, PathBuf},
+};
 
 use crate::ext::{
     error_stack::{ErrorHelper, IntoContext},
-    result::WrapErr,
+    result::WrapOk,
 };
-
-use error_stack::IntoReport;
 use error_stack::Result;
 use indoc::formatdoc;
 
@@ -29,25 +30,31 @@ pub enum Error {
 /// generate the config and db files in the default location
 #[tracing::instrument(skip_all)]
 pub async fn main(data_root: PathBuf) -> Result<(), Error> {
-    let config_file_path = data_root.join("config.yml");
-    println!("writing config to {:?}", config_file_path);
-    write_default_config(data_root)?;
+    let default_already_exists = write_config(&data_root, "config.yml", false)?;
+    write_config(&data_root, "config.example.yml", true)?;
+    if default_already_exists {
+        println!(
+            "config file already exists at {:?}, so we have not overwritten it. We did, however, create a new example config file for you at {:?}",
+            data_root.join("config.yml"),
+            data_root.join("config.example.yml")
+        );
+    } else {
+        println!(
+            "writing config to {:?}. We also wrote the same contents to {:?} to serve as a reference for you in the future",
+            data_root.join("config.yml"),
+            data_root.join("config.example.yml")
+        );
+    }
     Ok(())
 }
 
-fn write_default_config(data_root: PathBuf) -> Result<(), Error> {
-    let config_file_path = data_root.join("config.yml");
-    if config_file_path.try_exists().unwrap_or(false) {
-        return Error::ConfigFileExists.wrap_err().into_report()
-            .help_lazy(|| formatdoc! {
-              r#"
-              A config file already exists at {}.
-              To avoid deleting a valid config file, broker init will not overwrite this file.
-              Please delete this file and run this command again if you would like to start with a fresh config file.
-              "#, config_file_path.display()});
+fn write_config(data_root: &PathBuf, filename: &str, force_write: bool) -> Result<bool, Error> {
+    let config_file_path = data_root.join(filename);
+    if config_file_path.try_exists().unwrap_or(false) && !force_write {
+        return true.wrap_ok();
     }
 
-    std::fs::create_dir_all(&data_root)
+    std::fs::create_dir_all(data_root)
         .context_lazy(|| Error::CreateDataRoot(data_root.clone()))
         .help_lazy(|| {
             formatdoc! {r#"
@@ -57,7 +64,7 @@ fn write_default_config(data_root: PathBuf) -> Result<(), Error> {
         "#, data_root.display()}
         })?;
 
-    fs::write(&config_file_path, default_config_file(data_root))
+    fs::write(&config_file_path, default_config_file(data_root.as_path()))
         .context_lazy(|| Error::WriteConfigFile(config_file_path.clone()))
         .help_lazy(|| {
             formatdoc! {r#"
@@ -66,10 +73,10 @@ fn write_default_config(data_root: PathBuf) -> Result<(), Error> {
         Please ensure that you can create a file at this location and try again
         "#, config_file_path.display()}
         })?;
-    Ok(())
+    false.wrap_ok()
 }
 
-fn default_config_file(data_root: PathBuf) -> String {
+fn default_config_file(data_root: &Path) -> String {
     let debugging_dir = data_root.join("debugging");
     formatdoc! {r#"
 # fossa_endpoint sets the endpoint that broker will send requests to.
