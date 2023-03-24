@@ -24,9 +24,13 @@ pub enum Error {
     #[error("config file exists")]
     ConfigFileExists,
 
+    /// Creating the data root directory
+    #[error("create data root")]
+    CreateDataRoot(PathBuf),
+
     /// Writing the file did not work
-    #[error("write file to default path")]
-    WriteConfigFile(String),
+    #[error("write config file")]
+    WriteConfigFile(PathBuf),
 }
 
 /// generate the config and db files in the default location
@@ -49,12 +53,12 @@ async fn write_default_config(data_root: PathBuf) -> Result<(), Error> {
               r#"
               A config file already exists at {}.
               To avoid deleting a valid config file, broker init will not overwrite this file.
-              Please delete this file and try again if you would like to start with a fresh config file.
+              Please delete this file and run this command again if you would like to start with a fresh config file.
               "#, config_file_path.display()});
     }
 
     std::fs::create_dir_all(&data_root)
-        .context_lazy(|| Error::WriteConfigFile(config_file_path.display().to_string()))
+        .context_lazy(|| Error::CreateDataRoot(data_root.clone()))
         .help_lazy(|| {
             formatdoc! {r#"
         We encountered an error while attempting to create the config directory {}.
@@ -63,7 +67,7 @@ async fn write_default_config(data_root: PathBuf) -> Result<(), Error> {
         "#, data_root.display()}
         })?;
     fs::write(&config_file_path, default_config_file(data_root))
-        .context_lazy(|| Error::WriteConfigFile(config_file_path.display().to_string()))
+        .context_lazy(|| Error::WriteConfigFile(config_file_path.clone()))
         .help_lazy(|| formatdoc!{r#"
         We encountered an error while attempting to write a sample config file to {}.
         This can happen if the directory does not exist or you do not have permission to write to it.
@@ -90,8 +94,7 @@ integrations:
     poll_interval: 1h
     remote: https://github.com/fossas/broker.git
     auth:
-      type: http_basic
-      username: "pat"
-      password: "your personal access token"
+      type: none
+      transport: http
   "#, debugging_dir.display()}
 }
