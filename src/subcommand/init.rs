@@ -33,17 +33,38 @@ pub async fn main(data_root: PathBuf) -> Result<(), Error> {
     let default_already_exists = write_config(&data_root, "config.yml", false)?;
     write_config(&data_root, "config.example.yml", true)?;
     if default_already_exists {
-        println!(
-            "config file already exists at {:?}, so we have not overwritten it. We did, however, create a new example config file for you at {:?}",
-            data_root.join("config.yml"),
-            data_root.join("config.example.yml")
-        );
+        let output = formatdoc! {r#"
+
+        fossa init detected a previously existing config file at {config}, so we have not overwritten it.
+
+        We did, however, create a new example config file for you at {example_config}.
+
+        This example config file contains a detailed explanation of everything you need to do to get broker up and running.
+
+        You can safely re-run `broker init` at any time to re-generate the "config.example.yml" file.
+        "#,
+            config = data_root.join("config.yml").display(),
+            example_config = data_root.join("config.example.yml").display(),
+        };
+        println!("{}", output);
     } else {
-        println!(
-            "writing config to {:?}. We also wrote the same contents to {:?} to serve as a reference for you in the future",
-            data_root.join("config.yml"),
-            data_root.join("config.example.yml")
-        );
+        let output = formatdoc! {r#"
+
+        fossa init created an example config to {config}.
+
+        The config file contains a detailed explanation of everything you need to do to get broker up and running.
+
+        The next step is to open {config} and follow the instructions to configure broker.
+
+        We also wrote the same example file to {example_config} to serve as a reference for you in the future.
+
+        You can safely re-run `broker init` at any time to re-generate the "config.example.yml" file.
+
+        "#,
+            config = data_root.join("config.yml").display(),
+            example_config = data_root.join("config.example.yml").display(),
+        };
+        println!("{}", output);
     }
     Ok(())
 }
