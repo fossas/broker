@@ -128,9 +128,7 @@ async fn main_init(args: config::RawBaseArgs) -> Result<(), Error> {
     let ctx = config::validate_init_args(args)
         .await
         .change_context(Error::DetermineEffectiveConfig)?;
-    broker::subcommand::init::main(ctx.data_root())
-        .await
-        .change_context(Error::Runtime)
+    broker::subcommand::init::main(ctx.data_root()).change_context(Error::Runtime)
 }
 
 /// Guided interactive setup.

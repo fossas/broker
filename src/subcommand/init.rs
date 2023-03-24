@@ -29,7 +29,7 @@ pub enum Error {
 
 /// generate the config and db files in the default location
 #[tracing::instrument(skip_all)]
-pub async fn main(data_root: &PathBuf) -> Result<(), Error> {
+pub fn main(data_root: &PathBuf) -> Result<(), Error> {
     let default_already_exists = write_config(data_root, "config.yml", false)?;
     write_config(data_root, "config.example.yml", true)?;
     if default_already_exists {
