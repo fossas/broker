@@ -280,7 +280,8 @@ fn discovery_enabled() -> bool {
         .unwrap_or(true)
 }
 
-async fn default_data_root() -> Result<PathBuf, Report<Error>> {
+/// The default data root
+pub async fn default_data_root() -> Result<PathBuf, Report<Error>> {
     io::home_dir()
         .await
         .map(|home| home.join(".config").join("fossa").join("broker"))
