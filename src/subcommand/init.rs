@@ -3,8 +3,13 @@ use std::{fs, path::PathBuf};
 
 use crate::{
     config,
-    ext::error_stack::{ErrorHelper, IntoContext},
+    ext::{
+        error_stack::{ErrorHelper, IntoContext},
+        result::WrapErr,
+    },
 };
+
+use error_stack::IntoReport;
 use error_stack::{Result, ResultExt};
 use indoc::formatdoc;
 
@@ -38,8 +43,25 @@ pub async fn main() -> Result<(), Error> {
 
 async fn write_default_config(data_root: PathBuf) -> Result<(), Error> {
     let config_file_path = data_root.join("config.yml");
+    if config_file_path.try_exists().unwrap_or(false) {
+        return Error::ConfigFileExists.wrap_err().into_report()
+            .help_lazy(|| formatdoc! {
+              r#"
+              A config file already exists at {}.
+              To avoid deleting a valid config file, broker init will not overwrite this file.
+              Please delete this file and try again if you would like to start with a fresh config file.
+              "#, config_file_path.display()});
+    }
+
     std::fs::create_dir_all(&data_root)
-        .context_lazy(|| Error::WriteConfigFile(config_file_path.display().to_string()))?;
+        .context_lazy(|| Error::WriteConfigFile(config_file_path.display().to_string()))
+        .help_lazy(|| {
+            formatdoc! {r#"
+        We encountered an error while attempting to create the config directory {}.
+        This can happen if you do not have permission to create the directory.
+        Please ensure that you can create a directory at this location and try again
+        "#, data_root.display()}
+        })?;
     fs::write(&config_file_path, default_config_file(data_root))
         .context_lazy(|| Error::WriteConfigFile(config_file_path.display().to_string()))
         .help_lazy(|| formatdoc!{r#"
