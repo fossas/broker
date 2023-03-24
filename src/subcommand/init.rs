@@ -1,25 +1,18 @@
 //! Implementation for the `init` subcommand.
 use std::{fs, path::PathBuf};
 
-use crate::{
-    config,
-    ext::{
-        error_stack::{ErrorHelper, IntoContext},
-        result::WrapErr,
-    },
+use crate::ext::{
+    error_stack::{ErrorHelper, IntoContext},
+    result::WrapErr,
 };
 
 use error_stack::IntoReport;
-use error_stack::{Result, ResultExt};
+use error_stack::Result;
 use indoc::formatdoc;
 
 /// Errors encountered during init.
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
-    /// Finding the default root
-    #[error("find default root")]
-    FindDefaultRoot,
-
     /// A config file already exists
     #[error("config file exists")]
     ConfigFileExists,
@@ -35,17 +28,14 @@ pub enum Error {
 
 /// generate the config and db files in the default location
 #[tracing::instrument(skip_all)]
-pub async fn main() -> Result<(), Error> {
-    let data_root = config::default_data_root()
-        .await
-        .change_context(Error::FindDefaultRoot)?;
+pub async fn main(data_root: PathBuf) -> Result<(), Error> {
     let config_file_path = data_root.join("config.yml");
     println!("writing config to {:?}", config_file_path);
-    write_default_config(data_root).await?;
+    write_default_config(data_root)?;
     Ok(())
 }
 
-async fn write_default_config(data_root: PathBuf) -> Result<(), Error> {
+fn write_default_config(data_root: PathBuf) -> Result<(), Error> {
     let config_file_path = data_root.join("config.yml");
     if config_file_path.try_exists().unwrap_or(false) {
         return Error::ConfigFileExists.wrap_err().into_report()
@@ -66,13 +56,16 @@ async fn write_default_config(data_root: PathBuf) -> Result<(), Error> {
         Please ensure that you can create a directory at this location and try again
         "#, data_root.display()}
         })?;
+
     fs::write(&config_file_path, default_config_file(data_root))
         .context_lazy(|| Error::WriteConfigFile(config_file_path.clone()))
-        .help_lazy(|| formatdoc!{r#"
+        .help_lazy(|| {
+            formatdoc! {r#"
         We encountered an error while attempting to write a sample config file to {}.
-        This can happen if the directory does not exist or you do not have permission to write to it.
+        This can happen if the you do not have permission to create files in that directory.
         Please ensure that you can create a file at this location and try again
-        "#, config_file_path.display()})?;
+        "#, config_file_path.display()}
+        })?;
     Ok(())
 }
 

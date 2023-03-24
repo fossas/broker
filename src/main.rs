@@ -125,7 +125,10 @@ async fn main() -> Result<(), Error> {
 
 /// Initialize Broker configuration.
 async fn main_init() -> Result<(), Error> {
-    broker::subcommand::init::main()
+    let data_root = config::default_data_root()
+        .await
+        .change_context(Error::DetermineEffectiveConfig)?;
+    broker::subcommand::init::main(data_root)
         .await
         .change_context(Error::Runtime)
 }
