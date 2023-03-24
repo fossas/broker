@@ -80,12 +80,23 @@ fn default_config_file(data_root: PathBuf) -> String {
     let debugging_dir = data_root.join("debugging");
     formatdoc! {r#"
 
+// The fossa_endpoint is the URL for the instance of fossa that you are uploading data to.
+// In most cases this will be https://app.fossa.com.
 fossa_endpoint: https://app.fossa.com
+
+// You can obtain a fossa API key at https://app.fossa.com/account/settings/integrations/api_tokens.
+// A push-only token will suffice, but you can use a full token as well if you wish.
 fossa_integration_key: abcd1234
+
+// The version of the config file format. This should remain as is.
 version: 1
 
+// The debugging section can probably remain as is.
 debugging:
+  // The location where your debug traces are written to. This can probably remain as is,
+  // but you can change it to an existing directory if you would like to write them to a different location.
   location: {}
+  // How many days we retain the debug trace files for. The suggested default is 7 days.
   retention:
     days: 7
 
