@@ -30,14 +30,16 @@ async fn downloads_latest_cli() {
 async fn analyze_runs() {
     let (_tmp, config, ctx) = temp_config!(load);
     let scan_id = Uuid::new_v4().to_string();
-    let project = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let project = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("testdata")
+        .join("fossa-analyze");
 
     println!("Downloading CLI");
     let location = fossa_cli::download(&ctx, config.debug().location(), DesiredVersion::Latest)
         .await
         .expect("must download CLI");
 
-    // Dogfood the scan on the broker repo.
+    // Scan our vendored node project to speed up tests.
     println!("Analyzing '{}' with scan id '{scan_id}'", project.display());
     let source_units = location
         .analyze(&scan_id, &project)
