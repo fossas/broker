@@ -38,6 +38,8 @@ pub async fn main() -> Result<(), Error> {
 
 async fn write_default_config(data_root: PathBuf) -> Result<(), Error> {
     let config_file_path = data_root.join("config.yml");
+    std::fs::create_dir_all(&data_root)
+        .context_lazy(|| Error::WriteConfigFile(config_file_path.display().to_string()))?;
     fs::write(&config_file_path, default_config_file(data_root))
         .context_lazy(|| Error::WriteConfigFile(config_file_path.display().to_string()))
         .help_lazy(|| formatdoc!{r#"
