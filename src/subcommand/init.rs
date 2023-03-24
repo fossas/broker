@@ -35,7 +35,7 @@ pub fn main(data_root: &PathBuf) -> Result<(), Error> {
     if default_already_exists {
         let output = formatdoc! {r#"
 
-        fossa init detected a previously existing config file at {config}, so we have not overwritten it.
+        `fossa init` detected a previously existing config file at {config}, so we have not overwritten it.
 
         We did, however, create a new example config file for you at {example_config}.
 
@@ -50,7 +50,7 @@ pub fn main(data_root: &PathBuf) -> Result<(), Error> {
     } else {
         let output = formatdoc! {r#"
 
-        fossa init created an example config to {config}.
+        `fossa init` created an example config in {config}.
 
         The config file contains a detailed explanation of everything you need to do to get broker up and running.
 
