@@ -1,26 +1,29 @@
-//! Tools to ensure that the fossa-cli exists and download it if it does not
+//! Module to download and interact with FOSSA CLI.
+
 use bytes::Bytes;
-use error_stack::{bail, IntoReport};
+use cached::proc_macro::cached;
+use error_stack::{bail, report, IntoReport};
 use error_stack::{Result, ResultExt};
 use futures::future::try_join3;
-use indoc::indoc;
+use indoc::formatdoc;
 use semver::Version;
+use serde_json::Value;
 use std::fmt::Debug;
-use std::fs;
-use std::io::copy;
 use std::io::{Cursor, Read};
 use std::path::{Path, PathBuf};
 use std::process::Stdio;
 use tempfile::tempdir;
 use tokio::io::{AsyncBufReadExt, AsyncReadExt, BufReader};
 use tokio::process::Command;
-use tracing::debug;
+use tracing::{debug, warn};
 
 use crate::ext::command::DescribeCommand;
 use crate::ext::error_stack::{DescribeContext, ErrorHelper, IntoContext};
+use crate::ext::io::{self, spawn_blocking};
+use crate::ext::result::DiscardResult;
 use crate::ext::result::{WrapErr, WrapOk};
 use crate::ext::tracing::span_record;
-use crate::AppContext;
+use crate::{debug, AppContext};
 
 /// Errors while downloading fossa-cli
 #[derive(Debug, thiserror::Error)]
@@ -97,7 +100,7 @@ impl Error {
 
 /// Which version of the fossa-cli you want to download.
 /// Currently, this is always the latest version
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum DesiredVersion {
     /// The latest version of the fossa-cli
     Latest,
@@ -105,63 +108,30 @@ pub enum DesiredVersion {
     // Tagged(String), // Tag name
 }
 
-/// Ensure that the fossa cli exists and return its path, preferring fossa in config_dir/fossa over fossa in your path.
-/// If we find it in config_dir/fossa, then return that.
-/// If we find `fossa` in your path, then just return "fossa"
-/// Otherwise, download the latest release, put it in `config_dir/fossa` and return that
-// #[tracing::instrument]
-// pub async fn find_or_download(ctx: &AppContext) -> Result<Location, Error> {
-//     let command = command_name();
-
-//     // default to fossa that lives directly in the data root.
-//     let command_in_config_dir = ctx.data_root().join(command);
-//     if check_command_existence(&command_in_config_dir).await {
-//         return Ok(command_in_config_dir.into());
-//     }
-
-//     // if it does not exist in the data root, then check to see if it is on the path.
-//     if check_command_existence(&PathBuf::from(&command)).await {
-//         return Ok(PathBuf::from(command).into());
-//     };
-
-//     // if it is not in either location, then download it
-//     download(ctx.data_root())
-//         .await
-//         .describe("fossa-cli not found in your path, attempting to download it")
-//         .map(Location::new)
-// }
-
 /// The result of running an analysis with FOSSA CLI.
 #[derive(Debug, serde::Deserialize)]
 struct AnalysisResult {
     /// The source unit output of the analysis.
     #[serde(rename = "sourceUnits")]
-    source_units: String,
+    source_units: Value,
 }
 
-/// A reference to the FOSSA CLI binary.
+/// A reference to the FOSSA CLI binary and other
+/// information used at runtime, for example where to store debug bundles.
 ///
 /// Allows easy disambiguation between another arbitrary path variable,
 /// and allows easy methods to run the CLI.
 #[derive(Debug)]
 pub struct Location {
-    path: PathBuf,
+    cli: PathBuf,
+    artifacts: debug::Root,
 }
 
 impl Location {
     /// Report the version of FOSSA CLI.
     #[tracing::instrument]
     pub async fn version(&self) -> Result<String, Error> {
-        let mut cmd = self.cmd();
-        cmd.arg("--version");
-        let output = cmd
-            .output()
-            .await
-            .context_lazy(|| Error::running_cli(&cmd))?;
-
-        String::from_utf8_lossy(&output.stdout)
-            .to_string()
-            .wrap_ok()
+        local_version(&self.cli).await
     }
 
     /// Analyze a project with FOSSA CLI, returning the unparsed `sourceUnits` output.
@@ -230,38 +200,54 @@ impl Location {
             bail!(Error::Execution(description.to_string()));
         }
 
+        // Move the debug bundle to the correct location.
+        // Don't error the process if this fails, as it's not critical to the scan process.
+        let debug_bundle = tmp.path().join("fossa.debug.json.gz");
+        let destination = self.artifacts.debug_bundle(scan_id);
+        match io::rename(&debug_bundle, &destination).await {
+            Ok(_) => debug!("stored FOSSA CLI debug bundle at {destination:?}"),
+            Err(err) => {
+                warn!("failed to store FOSSA CLI debug bundle at {destination:?}: {err:#}")
+            }
+        };
+
         // Parse the output. We only care about source units.
         serde_json::from_str::<AnalysisResult>(&stdout)
             .context_lazy(|| Error::ParseOutput(stdout.clone()))
-            .map(|result| result.source_units)
+            .map(|result| result.source_units.to_string())
     }
 
-    fn new(path: PathBuf) -> Self {
-        Self { path }
+    fn new(path: PathBuf, artifacts: debug::Root) -> Self {
+        Self {
+            cli: path,
+            artifacts,
+        }
     }
 
     fn cmd(&self) -> Command {
         // If we drop the future driving the command, there's no reason to keep the command running.
-        let mut cmd = Command::new(&self.path);
+        let mut cmd = Command::new(&self.cli);
         cmd.kill_on_drop(true);
         cmd
     }
 }
 
-impl From<PathBuf> for Location {
-    fn from(val: PathBuf) -> Self {
-        Location::new(val)
-    }
-}
-
+/// Find the location of the FOSSA CLI, downloading it if it doesn't exist or is outdated.
+/// If it is downloaded, it is placed in the data root of the provided [`AppContext`].
+///
+/// When the CLI is run, debug bundles are automatically placed in the provided `artifact_root`,
+/// based on the provided `scan_id` at the time of running FOSSA CLI.
+/// For this reason, it is recommended to use methods on the returned [`Location`] to run the CLI
+/// instead of trying to run the CLI by path directly.
+#[tracing::instrument]
 pub async fn find_or_download(
     ctx: &AppContext,
+    artifact_root: &debug::Root,
     desired_version: DesiredVersion,
-) -> Result<PathBuf, Error> {
-    let command = command_name();
-
+) -> Result<Location, Error> {
     // default to fossa that lives in the data root
     // if it does not exist in the data root, then check to see if it is on the path
+    let command = command_name();
     let command_in_config_dir = ctx.data_root().join(command);
     let current_path: Option<PathBuf> = if check_command_existence(&command_in_config_dir).await {
         Some(command_in_config_dir)
@@ -271,53 +257,73 @@ pub async fn find_or_download(
         None
     };
 
-    let desired_version = latest_release_version().await?;
-    match current_path {
-        Some(current_path) => download_if_old(ctx, current_path, &desired_version).await,
-        None => download(ctx, &desired_version).await,
-    }
-}
+    // If the CLI isn't already local, download it.
+    let Some(current_path) = current_path else {
+        return download(ctx, artifact_root, desired_version).await
+    };
 
-/// If the cli exists locally, then compare the version of the local CLI to the latest release,
-/// and download it if it is different.
-/// If there are any errors while finding the local version, then just download it.
-#[tracing::instrument]
-async fn download_if_old(
-    ctx: &AppContext,
-    current_path: PathBuf,
-    desired_version: &str,
-) -> Result<PathBuf, Error> {
-    if let Ok(local_version) = local_version(&current_path).await {
-        if local_version == desired_version {
+    // Now we know the CLI exists locally, check if it matches the desired version.
+    // If so, use its path. If not, download the desired version and use it.
+    let resolved_version = resolve_version(&desired_version).await?;
+    match local_version(&current_path).await {
+        Ok(local_version) if local_version == resolved_version => {
             debug!(
                 "local version of fossa-cli at {} matches desired version of {}",
                 current_path.display(),
-                desired_version
+                resolved_version
             );
-            Ok(current_path)
-        } else {
+            Location::new(current_path, artifact_root.clone()).wrap_ok()
+        }
+        Ok(local_version) => {
             debug!(
                 "local version of fossa-cli at {} has version of {}, which does not match desired version of {}. Downloading new version.",
                 current_path.display(),
                 local_version,
-                desired_version,
+                resolved_version,
             );
-            download(ctx, desired_version).await
+            download(ctx, artifact_root, desired_version).await
         }
-    } else {
-        debug!(
-            "Error while getting version from local fossa-cli at {}. Downloading new version",
-            current_path.display()
-        );
-        download(ctx, desired_version).await
+        Err(err) => {
+            debug!(
+                "Error while getting version from local fossa-cli at {}: {err:#}. Downloading new version",
+                current_path.display()
+            );
+            download(ctx, artifact_root, desired_version).await
+        }
+    }
+}
+
+/// Download FOSSA CLI, placing it in the data root of the provided [`AppContext`].
+///
+/// When the CLI is run, debug bundles are automatically placed in the provided `artifact_root`,
+/// based on the provided `scan_id` at the time of running FOSSA CLI.
+/// For this reason, it is recommended to use methods on the returned [`Location`] to run the CLI
+/// instead of trying to run the CLI by path directly.
+#[tracing::instrument]
+pub async fn download(
+    ctx: &AppContext,
+    artifact_root: &debug::Root,
+    desired_version: DesiredVersion,
+) -> Result<Location, Error> {
+    let resolved_version = resolve_version(&desired_version).await?;
+    let path = download_tag(ctx, &resolved_version).await?;
+    Location::new(path, artifact_root.clone()).wrap_ok()
+}
+
+/// Resolve a [`DesiredVersion`] to a concrete version.
+async fn resolve_version(desired_version: &DesiredVersion) -> Result<String, Error> {
+    match desired_version {
+        DesiredVersion::Latest => latest_release_version().await,
     }
 }
 
 #[tracing::instrument(fields(fossa_version_output))]
 async fn local_version(current_path: &PathBuf) -> Result<String, Error> {
     let output = Command::new(current_path)
+        .kill_on_drop(true)
         .arg("--version")
         .output()
+        .await
         .context(Error::RunLocalFossaVersion)?;
     if !output.status.success() {
         return Error::RunLocalFossaVersion.wrap_err().into_report();
@@ -368,9 +374,10 @@ fn command_name() -> &'static str {
     "fossa"
 }
 
-/// Get the version of the latest release on GitHub
+/// Get the version of the latest release on GitHub.
 #[tracing::instrument]
-async fn latest_release_version() -> Result<String, Error> {
+#[cached(time = 3600, sync_writes = true, result = true)]
+pub async fn latest_release_version() -> Result<String, Error> {
     let client = reqwest::Client::new();
     // This will follow the redirect, so latest_release_response.url().path() will be something like "/fossas/fossa-cli/releases/tag/v3.7.2"
     let latest_release_response = client
@@ -399,12 +406,13 @@ async fn latest_release_version() -> Result<String, Error> {
 
 /// Download the CLI into the config_dir
 #[tracing::instrument]
-async fn download(ctx: &AppContext, version: &str) -> Result<PathBuf, Error> {
+async fn download_tag(ctx: &AppContext, version: &str) -> Result<PathBuf, Error> {
     let content = download_from_github(version).await?;
 
     let final_path = ctx.data_root().join(command_name());
-    unzip_zip(content, &final_path).await?;
-    Ok(final_path)
+    spawn_blocking(move || unzip_zip(content, final_path))
+        .await
+        .change_context(Error::Download)
 }
 
 // currently supported os/arch combos:
@@ -434,14 +442,15 @@ fn download_url(version: &str) -> String {
 
 #[tracing::instrument]
 async fn download_from_github(version: &str) -> Result<Cursor<Bytes>, Error> {
+    let download_url = download_url(version);
     let client = reqwest::Client::new();
     let response = client
-        .get(download_url(version))
+        .get(&download_url)
         .send()
         .await
         .into_report()
         .change_context(Error::Download)
-        .help_lazy(|| indoc!{"
+        .help_lazy(|| formatdoc!{"
             Try downloading FOSSA CLI from '{download_url}' to determine if this is an issue with the local network.
             You also may be able to work around this issue by using the installation script for FOSSA CLI,
             located at https://github.com/fossas/fossa-cli#installation
@@ -453,7 +462,7 @@ async fn download_from_github(version: &str) -> Result<Cursor<Bytes>, Error> {
         .await
         .into_report()
         .change_context(Error::Download)
-        .help_lazy(|| indoc!{"
+        .help_lazy(|| formatdoc!{"
             Try downloading FOSSA CLI from '{download_url}' to determine if this is an issue with the local network.
             You also may be able to work around this issue by using the installation script for FOSSA CLI,
             located at https://github.com/fossas/fossa-cli#installation
@@ -464,41 +473,22 @@ async fn download_from_github(version: &str) -> Result<Cursor<Bytes>, Error> {
 }
 
 #[tracing::instrument(skip(content))]
-async fn unzip_zip(content: Cursor<Bytes>, final_path: &PathBuf) -> Result<(), Error> {
+fn unzip_zip(content: Cursor<Bytes>, final_path: PathBuf) -> Result<PathBuf, Error> {
     let mut archive = zip::ZipArchive::new(content)
         .context(Error::Extract)
         .describe("extracting zip file from downloaded fossa release")?;
     let zip_file = match archive.by_name(command_name()) {
         Ok(file) => file,
         Err(..) => {
-            return Error::Extract
+            return report!(Error::Extract)
                 .wrap_err()
-                .into_report()
                 .describe("finding fossa executable in downloaded fossa release");
         }
     };
 
-    write_zip_to_final_file(zip_file, final_path)?;
-    Ok(())
-}
-
-#[tracing::instrument(skip(zip_file))]
-#[cfg(target_family = "windows")]
-fn write_zip_to_final_file<R>(mut zip_file: R, final_path: &PathBuf) -> Result<(), Error>
-where
-    R: Read,
-{
-    let final_path_string = final_path.to_str().unwrap_or("").to_string();
-    let mut final_file = fs::OpenOptions::new()
-        .create(true)
-        .write(true)
-        .open(final_path)
-        .into_report()
-        .change_context_lazy(|| Error::FinalCopy(final_path_string.clone()))?;
-    copy(&mut zip_file, &mut final_file)
-        .into_report()
-        .change_context_lazy(|| Error::FinalCopy(final_path_string))?;
-    Ok(())
+    write_zip_to_final_file(zip_file, &final_path)
+        .change_context(Error::Extract)
+        .map(|_| final_path)
 }
 
 /// On unix we need to set the mode to 0o770 so that it is executable
@@ -509,17 +499,36 @@ fn write_zip_to_final_file<R>(mut zip_file: R, final_path: &PathBuf) -> Result<(
 where
     R: Read,
 {
-    use std::os::unix::prelude::OpenOptionsExt;
+    use std::os::unix::fs::OpenOptionsExt;
     let final_path_string = final_path.to_str().unwrap_or("").to_string();
-    let mut final_file = fs::OpenOptions::new()
+    let mut final_file = std::fs::OpenOptions::new()
         .create(true)
         .write(true)
         .mode(0o770)
         .open(final_path)
         .into_report()
         .change_context_lazy(|| Error::FinalCopy(final_path_string.clone()))?;
-    copy(&mut zip_file, &mut final_file)
+
+    std::io::copy(&mut zip_file, &mut final_file)
+        .context_lazy(|| Error::FinalCopy(final_path_string.clone()))
+        .discard_ok()
+}
+
+#[tracing::instrument(skip(zip_file))]
+#[cfg(target_family = "windows")]
+fn write_zip_to_final_file<R>(mut zip_file: R, final_path: &PathBuf) -> Result<(), Error>
+where
+    R: Read,
+{
+    let final_path_string = final_path.to_str().unwrap_or("").to_string();
+    let mut final_file = std::fs::OpenOptions::new()
+        .create(true)
+        .write(true)
+        .open(final_path)
         .into_report()
-        .change_context_lazy(|| Error::FinalCopy(final_path_string))?;
-    Ok(())
+        .change_context_lazy(|| Error::FinalCopy(final_path_string.clone()))?;
+
+    std::io::copy(&mut zip_file, &mut final_file)
+        .context_lazy(|| Error::FinalCopy(final_path_string.clone()))
+        .discard_ok()
 }

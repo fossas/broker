@@ -131,6 +131,19 @@ impl Config {
 #[derive(Debug, Clone, PartialEq, Eq, AsRef, From, new)]
 pub struct Root(PathBuf);
 
+impl Root {
+    /// The location of the root as a path.
+    pub fn as_path(&self) -> &Path {
+        self.as_ref()
+    }
+
+    /// The location for the debug bundle for a given scan ID.
+    pub fn debug_bundle(&self, scan_id: &str) -> PathBuf {
+        let file_name = format!("{}.fossa.debug.json.gz", scan_id);
+        self.as_ref().join(file_name)
+    }
+}
+
 /// Since observability artifacts are stored on disk, we obviously want to clean them up.
 /// These retention settings are used by a background process to keep artifact size in line.
 #[derive(Debug, Clone, PartialEq, CopyGetters, Eq, new)]

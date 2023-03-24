@@ -16,6 +16,58 @@ macro_rules! temp_ctx {
     }};
 }
 
+/// Create a config file inside a temporary directory `{TMP_DIR}`.
+///
+/// This config file:
+/// - Has no configured integrations.
+/// - Writes the config file to `{TMP_DIR}/config.yml`.
+/// - Specifies `{TMP_DIR}/debug` as the debug root.
+/// - Returns the `{TMP_DIR}`, along with the path to the config file.
+///
+/// If `load` is specified as an argument to this macro, the config is then also
+/// parsed, and loaded, and returned. The data root in the config is set to `{TMP_DIR}`.
+macro_rules! temp_config {
+    () => {{
+        let tmp = tempfile::tempdir().expect("must create tempdir");
+        let dir = tmp.path().join("debug");
+        let content = indoc::formatdoc! {r#"
+        fossa_endpoint: https://app.fossa.com
+        fossa_integration_key: abcd1234
+        version: 1
+        debugging:
+          location: {dir:?}
+          retention:
+            days: 1
+        integrations:
+        "#};
+
+        let path = tmp.path().join("config.yml");
+        std::fs::write(&path, content).expect("must write config file");
+
+        println!(
+            "wrote config to {path:?}: {}",
+            std::fs::read_to_string(&path).expect("must read config")
+        );
+
+        (tmp, path)
+    }};
+    (load) => {{
+        let (tmp, config_file_path) = temp_config!();
+        let base_args = RawBaseArgs::new(
+            Some(config_file_path.to_string_lossy().to_string()),
+            None, // Infer the DB path to be a sibling of the config file.
+            Some(tmp.path().to_path_buf()),
+        );
+
+        let args = broker::config::validate_args(base_args)
+            .await
+            .expect("must have validated");
+
+        let config = broker::config::load(&args).await.expect("must load config");
+        (tmp, config, args.context().clone())
+    }};
+}
+
 /// Tests are run independently by cargo nextest, so this macro configures settings used in snapshot tests.
 ///
 /// If using `assert_error_stack_snapshot`, there's no need to run this, as it is run automatically.
@@ -111,4 +163,5 @@ pub(crate) use assert_error_stack_snapshot;
 pub(crate) use load_config;
 pub(crate) use load_config_err;
 pub(crate) use set_snapshot_vars;
+pub(crate) use temp_config;
 pub(crate) use temp_ctx;

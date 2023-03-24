@@ -39,10 +39,10 @@ impl Display for CommandDescription {
             writeln!(f, "status: {}", status)?;
         }
         if let Some(stdout) = &self.stdout {
-            writeln!(f, "stdout: {}", stdout.trim())?;
+            writeln!(f, "stdout: '{}'", stdout.trim())?;
         }
         if let Some(stderr) = &self.stderr {
-            writeln!(f, "stderr: {}", stderr.trim())?;
+            writeln!(f, "stderr: '{}'", stderr.trim())?;
         }
         Ok(())
     }
@@ -106,7 +106,7 @@ impl CommandDescription {
     /// and Broker is running on Windows, the debug implementation doubles backslashes.
     pub fn display_envs(&self) -> String {
         let joined = self
-            .args
+            .envs
             .iter()
             .map(|a| format!(r#""{a}""#))
             .collect::<Vec<_>>()

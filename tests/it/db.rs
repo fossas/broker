@@ -1,1 +1,1 @@
-automod::dir!("tests/it/db");
+mod sqlite;
