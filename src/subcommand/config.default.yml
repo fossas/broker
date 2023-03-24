@@ -1,3 +1,14 @@
+# This config file is read whenever broker starts, and contains all of the information that broker needs in order to work.
+# To get up and running, follow the instructions in this file.
+# There are two things you will absolutely need to change: the `fossa_integration_key` and the `integrations`.
+# Everything else can probably be left as is.
+
+# By default there will be two .yml files in this directory.
+# config.example.yml is an example file that will not be used by broker, but can be used as a reference.
+# You can re-generate config.example.yml at any time by running `broker init`.
+#
+# config.yml is used by broker when it runs and should be edited to meet your needs.
+
 # fossa_endpoint sets the endpoint that broker will send requests to.
 # This field should only be modified if your FOSSA account lives on a different server than app.fossa.com.
 # This is most commonly needed with on-premise instances of FOSSA.
@@ -15,7 +26,8 @@ version: 1
 # The debugging section can probably remain as is.
 debugging:
   # The location where your debug traces are written to. This can probably remain as is,
-  # but you can change it to an existing directory if you would like to write them to a different location.
+  # but you can change it to a different directory if you would like to write them to a different location.
+  # This directory must exist and be writable.
   location: {debugging_dir}
   # How many days we retain the debug trace files for. The suggested default is 7 days.
   retention:
@@ -24,8 +36,15 @@ debugging:
 # The integrations section is where you configure the integrations that broker will analyze.
 # You will want to create one integration for every repository that you want broker to analyze.
 # The following integrations give examples for all supported auth types.
+#
+# Each integration must have the following fields. A more detailed description of the fields is given in the first integration below.
+#
+# type: The type of the integration. The only currently supported type is "git".
+# poll_interval: The interval at which we poll the remote for new data.
+# remote: The URL of the remote.
+# auth: The authentication information for the remote.
 integrations:
-  # "git" is the only type currently supported.
+  # "type" is the type of the remote. "git" is the only currently supported type.
   - type: git
     # "poll_interval" is the interval at which we poll the remote for new data. Some example intervals are:
     # 1h: one hour
@@ -38,8 +57,8 @@ integrations:
     # An ssh URL will start with 'ssh://' or 'git@'.
     remote: https://github.com/fossas/broker.git
     # auth is the authentication information for the remote. It must match the type of the remote URL.
-    # https or http URLs can have types of "none", "http_header" or "http_basic".
-    # ssh URLs can have auth types of "ssh_key" or "ssh_key_file".
+    # https or http remotes can have types of "none", "http_header" or "http_basic".
+    # ssh remotes can have auth types of "ssh_key" or "ssh_key_file".
     # There are examples of all these combinations below.
     auth:
       type: none
@@ -55,6 +74,9 @@ integrations:
       transport: http
 
   # This is an example of using http basic auth with a github access token.
+  # The username should be "pat". The password is your github access token.
+  # github access tokens with access to all repositories in your organization can be generated at https://github.com/settings/tokens.
+  # You can also create more fine-grained access tokens at https://github.com/settings/personal-access-tokens/new
   - type: git
     poll_interval: 1h
     remote: https://github.com/fossas/private.git
@@ -93,7 +115,7 @@ integrations:
 
   # This is an example of using an http header for authentication.
   # The header will be passed to git like this: `git -c http.extraheader="<header>" clone <remote>`
-  # The header should like like this, where B64_BASIC_AUTH is a base64 encoded string of the format "username:password":
+  # The header should like like this, where B64_BASIC_AUTH is a base64 encoded string with an input of "username:password":
   # "AUTHORIZATION: BASIC B64_BASIC_AUTH"
   # You can generate B64_BASIC_AUTH with the command `echo -n "<username>:<password>" | base64`
   # When using a GitHub access token, the username should be "pat" and the password should be the access token.
@@ -120,7 +142,7 @@ integrations:
   # This is an example of using an ssh key for authentication.
   # The ssh key field is the full contents of your private ssh key file.
   # We will write this key to a temporary file and use it to clone the repository.
-  # The `|` means that the next line is the start of the ssh key, that newlines will be respected and that a single newline at the end of the field will be kept
+  # Note on the YAML syntax: The `|` means that the next line is the start of the ssh key, that newlines will be respected and that a single newline at the end of the field will be kept
   - type: git
     poll_interval: 1h
     remote: git@github.com:fossas/private.git
