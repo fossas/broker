@@ -6,7 +6,7 @@ use crate::{
     ext::error_stack::{ErrorHelper, IntoContext},
 };
 use error_stack::{Result, ResultExt};
-use indoc::{formatdoc, indoc};
+use indoc::formatdoc;
 
 /// Errors encountered during init.
 #[derive(Debug, thiserror::Error)]
@@ -32,12 +32,13 @@ pub async fn main() -> Result<(), Error> {
         .change_context(Error::FindDefaultRoot)?;
     let config_file_path = data_root.join("config.yml");
     println!("writing config to {:?}", config_file_path);
-    write_default_config(config_file_path).await?;
+    write_default_config(data_root).await?;
     Ok(())
 }
 
-async fn write_default_config(config_file_path: PathBuf) -> Result<(), Error> {
-    fs::write(&config_file_path, default_config_file())
+async fn write_default_config(data_root: PathBuf) -> Result<(), Error> {
+    let config_file_path = data_root.join("config.yml");
+    fs::write(&config_file_path, default_config_file(data_root))
         .context_lazy(|| Error::WriteConfigFile(config_file_path.display().to_string()))
         .help_lazy(|| formatdoc!{r#"
         We encountered an error while attempting to write a sample config file to {}.
@@ -47,15 +48,16 @@ async fn write_default_config(config_file_path: PathBuf) -> Result<(), Error> {
     Ok(())
 }
 
-fn default_config_file() -> &'static str {
-    indoc! {r#"
+fn default_config_file(data_root: PathBuf) -> String {
+    let debugging_dir = data_root.join("debugging");
+    formatdoc! {r#"
 
 fossa_endpoint: https://app.fossa.com
 fossa_integration_key: abcd1234
 version: 1
 
 debugging:
-  location: /Users/scott/.config/fossa/broker/debugging/
+  location: {}
   retention:
     days: 7
 
@@ -67,5 +69,5 @@ integrations:
       type: http_basic
       username: "pat"
       password: "your personal access token"
-  "#}
+  "#, debugging_dir.display()}
 }
