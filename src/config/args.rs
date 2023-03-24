@@ -183,6 +183,16 @@ impl RawBaseArgs {
             (Err(first), Err(second)) => Err(merge_error_stacks!(first, second)),
         }
     }
+
+    /// validate the args for the init subcommand
+    pub async fn validate_init(self) -> Result<AppContext, Report<Error>> {
+        let data_root = match self.data_root {
+            Some(data_root) => data_root,
+            None => default_data_root().await?,
+        };
+
+        AppContext::new(data_root).wrap_ok()
+    }
 }
 
 /// Base arguments, used in most Broker subcommands.

@@ -47,7 +47,7 @@ struct Opts {
 #[derive(Debug, Subcommand)]
 enum Commands {
     /// Initialize Broker configuration.
-    Init,
+    Init(config::RawBaseArgs),
 
     /// Guided setup.
     Setup,
@@ -83,7 +83,7 @@ async fn main() -> Result<(), Error> {
     let Opts { command } = Opts::parse();
     let subcommand = || async {
         match command {
-            Commands::Init => main_init().await,
+            Commands::Init(args) => main_init(args).await,
             Commands::Setup => main_setup().await,
             Commands::Config(args) => main_config(args).await,
             Commands::Fix(args) => main_fix(args).await,
@@ -124,11 +124,11 @@ async fn main() -> Result<(), Error> {
 }
 
 /// Initialize Broker configuration.
-async fn main_init() -> Result<(), Error> {
-    let data_root = config::default_data_root()
+async fn main_init(args: config::RawBaseArgs) -> Result<(), Error> {
+    let ctx = config::validate_init_args(args)
         .await
         .change_context(Error::DetermineEffectiveConfig)?;
-    broker::subcommand::init::main(data_root)
+    broker::subcommand::init::main(ctx.data_root())
         .await
         .change_context(Error::Runtime)
 }

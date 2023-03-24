@@ -10,6 +10,8 @@ mod file;
 pub use args::{default_data_root, BaseArgs, RawBaseArgs, DISABLE_FILE_DISCOVERY_VAR};
 pub use file::Config;
 
+use crate::AppContext;
+
 /// Errors that are possibly surfaced during validation of config values.
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
@@ -34,6 +36,14 @@ pub enum Error {
 pub async fn validate_args(provided: RawBaseArgs) -> Result<BaseArgs, Error> {
     provided
         .validate()
+        .await
+        .change_context(Error::ValidateArgs)
+}
+
+/// Validate the args provided for the init subcommand by the user.
+pub async fn validate_init_args(provided: RawBaseArgs) -> Result<AppContext, Error> {
+    provided
+        .validate_init()
         .await
         .change_context(Error::ValidateArgs)
 }
