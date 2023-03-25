@@ -1,4 +1,5 @@
 # This config file is read whenever broker starts, and contains all of the information that broker needs in order to work.
+#
 # To get up and running, follow the instructions in this file.
 # There are two things you will absolutely need to change: the `fossa_integration_key` and the `integrations`.
 # Everything else can probably be left as is.
@@ -6,8 +7,8 @@
 # By default there will be two .yml files in this directory.
 # config.example.yml is an example file that will not be used by broker, but can be used as a reference.
 # You can re-generate config.example.yml at any time by running `broker init`.
-#
-# config.yml is used by broker when it runs and should be edited to meet your needs.
+
+# ==========
 
 # fossa_endpoint sets the endpoint that broker will send requests to.
 # This field should only be modified if your FOSSA account lives on a different server than app.fossa.com.
@@ -20,10 +21,10 @@ fossa_endpoint: https://app.fossa.com
 # A push-only token will suffice, but you can use a full token as well if you wish.
 fossa_integration_key: abcd1234
 
-# The version of the config file format. "1" is the only currently supported version.
+# version is the version of the config file format. "1" is the only currently supported version.
 version: 1
 
-# The debugging section can probably remain as is.
+# debugging configures where debug logs are written and how long they are kept for. The debugging section can probably remain as is.
 debugging:
   # The location where your debug traces are written to. This can probably remain as is,
   # but you can change it to a different directory if you would like to write them to a different location.
@@ -33,8 +34,10 @@ debugging:
   retention:
     days: 7
 
-# The integrations section is where you configure the integrations that broker will analyze.
-# You will want to create one integration for every repository that you want broker to analyze.
+# integrations configures the repositories that broker analyzes.
+#
+# You will need to create one integration for every repository that you want broker to analyze.
+#
 # The following integrations give examples for all supported auth types.
 #
 # Each integration must have the following fields. A more detailed description of the fields is given in the first integration below.
