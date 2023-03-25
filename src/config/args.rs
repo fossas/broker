@@ -291,7 +291,7 @@ fn discovery_enabled() -> bool {
 }
 
 /// The default data root
-pub async fn default_data_root() -> Result<PathBuf, Report<Error>> {
+async fn default_data_root() -> Result<PathBuf, Report<Error>> {
     io::home_dir()
         .await
         .map(|home| home.join(".config").join("fossa").join("broker"))
