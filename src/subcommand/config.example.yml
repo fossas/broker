@@ -145,7 +145,6 @@ integrations:
   # This is an example of using an ssh key for authentication.
   # The ssh key field is the full contents of your private ssh key file.
   # We will write this key to a temporary file and use it to clone the repository.
-  # Note on the YAML syntax: The `|` means that the next line is the start of the ssh key, that newlines will be respected and that a single newline at the end of the field will be kept
   - type: git
     poll_interval: 1h
     remote: git@github.com:fossas/private.git
