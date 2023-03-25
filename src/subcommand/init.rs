@@ -35,9 +35,9 @@ pub fn main(data_root: &PathBuf) -> Result<(), Error> {
     if default_already_exists {
         let output = formatdoc! {r#"
 
-        `fossa init` detected a previously existing config file at {config}, so we have not overwritten it.
+        `broker init` detected a previously existing config file at {config} and left it as is.
 
-        We did, however, create a new example config file for you at {example_config}.
+        `broker init` did, however, create a new example config file for you at {example_config}.
 
         This example config file contains a detailed explanation of everything you need to do to get broker up and running.
 
@@ -50,7 +50,7 @@ pub fn main(data_root: &PathBuf) -> Result<(), Error> {
     } else {
         let output = formatdoc! {r#"
 
-        `fossa init` created an example config in {config}.
+        `broker init` created an example config in {config}.
 
         The config file contains a detailed explanation of everything you need to do to get broker up and running.
 
@@ -79,7 +79,7 @@ fn write_config(data_root: &PathBuf, filename: &str, force_write: bool) -> Resul
         .context_lazy(|| Error::CreateDataRoot(data_root.clone()))
         .help_lazy(|| {
             formatdoc! {r#"
-        We encountered an error while attempting to create the config directory {}.
+        `broker init` encountered an error while attempting to create the config directory {}.
         This can happen if you do not have permission to create the directory.
         Please ensure that you can create a directory at this location and try again
         "#, data_root.display()}
@@ -89,7 +89,7 @@ fn write_config(data_root: &PathBuf, filename: &str, force_write: bool) -> Resul
         .context_lazy(|| Error::WriteConfigFile(config_file_path.clone()))
         .help_lazy(|| {
             formatdoc! {r#"
-        We encountered an error while attempting to write a sample config file to {}.
+        `broker init` encountered an error while attempting to write a sample config file to {}.
         This can happen if the you do not have permission to create files in that directory.
         Please ensure that you can create a file at this location and try again
         "#, config_file_path.display()}
