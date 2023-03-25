@@ -290,7 +290,6 @@ fn discovery_enabled() -> bool {
         .unwrap_or(true)
 }
 
-/// The default data root
 async fn default_data_root() -> Result<PathBuf, Report<Error>> {
     io::home_dir()
         .await
