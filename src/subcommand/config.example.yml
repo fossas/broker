@@ -86,7 +86,7 @@ integrations:
       # When using a github access token, set the username to "pat" and the password to your github access token
       # The github access token must have read permission for the repository.
       username: pat
-      password: <ghp_the_rest_of_your_github_token>
+      password: ghp-the-rest-of-your-github-token
 
   # This is an example of using http basic auth using a GitLab access token.
   # The username can be any non-empty string. The password is the GitLab access token.
@@ -111,7 +111,7 @@ integrations:
       # The username and password for the remote. For bitbucket repository access tokens, the username should be x-token-auth.
       # The password is a bitbucket access token with repo read access.
       username: x-token-auth
-      password: <bitbucket access token>
+      password: bitbucket-access-token
 
   # This is an example of using an http header for authentication.
   # The header will be passed to git like this: `git -c http.extraheader="<header>" clone <remote>`
