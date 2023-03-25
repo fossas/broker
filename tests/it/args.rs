@@ -34,6 +34,13 @@ async fn validates_args() {
 }
 
 #[tokio::test]
+async fn validates_init_args() {
+    let base = RawBaseArgs::new(None, None, Some(PathBuf::from("some/path")));
+    let ctx = config::validate_init_args(base).await.expect("valid args");
+    assert_eq!(ctx.data_root(), &PathBuf::from("some/path"));
+}
+
+#[tokio::test]
 async fn infers_db_path() {
     std::env::set_var(broker::config::DISABLE_FILE_DISCOVERY_VAR, "1");
 
