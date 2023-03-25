@@ -7,9 +7,18 @@ async fn on_empty_dir_creates_config_and_example() {
     broker::subcommand::init::main(&tmpdir).expect("should init");
 
     let config_file_path = tmpdir.join("config.yml");
-    assert!(config_file_path.try_exists().unwrap_or(false));
+    assert!(
+      fs::read_to_string(config_file_path)
+        .expect("should read config file")
+        .starts_with("# This config file is read whenever broker starts, and contains all of the information that broker needs in order to work.")
+    );
+
     let example_file_path = tmpdir.join("config.example.yml");
-    assert!(example_file_path.try_exists().unwrap_or(false));
+    assert!(
+      fs::read_to_string(example_file_path)
+        .expect("should read config.example file")
+        .starts_with("# This config file is read whenever broker starts, and contains all of the information that broker needs in order to work.")
+    );
 }
 
 #[tokio::test]
