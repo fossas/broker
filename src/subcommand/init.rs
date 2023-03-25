@@ -99,6 +99,6 @@ fn write_config(data_root: &PathBuf, filename: &str, force_write: bool) -> Resul
 
 fn default_config_file(data_root: &Path) -> String {
     let debugging_dir = data_root.join("debugging");
-    let default_config_format_string = include_str!("config.default.yml");
+    let default_config_format_string = include_str!("config.example.yml");
     default_config_format_string.replace("{debugging_dir}", &debugging_dir.display().to_string())
 }
