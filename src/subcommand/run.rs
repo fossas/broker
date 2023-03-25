@@ -327,10 +327,6 @@ async fn do_scan_git_reference<D: Database>(
         .await
         .change_context_lazy(|| Error::CloneReference(job.reference.clone()))?;
 
-    // TODO: Ensure that this reference hasn't already been scanned.
-    //       Need to have the clone return the current state so we can check it against the DB.
-    //       This'll be implemented in a stacked PR.
-
     // Record the CLI version for debugging purposes.
     let cli_version = cli.version().await.change_context(Error::RunFossaCli)?;
     span_record!(cli_version, &cli_version);
