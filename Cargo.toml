@@ -57,7 +57,7 @@ cached = "0.42.0"
 tracing-test = { version = "0.2.4", features = ["no-env-filter"] }
 
 [dev-dependencies]
-insta = { version = "1.28.0", features = ["filters", "json", "yaml"] }
+insta = { version = "1.29.0", features = ["filters", "json", "yaml"] }
 proptest = "1.1.0"
 strum = { version = "0.24.1", features = ["derive"] }
 test-strategy = "0.3.0"
