@@ -1,9 +1,10 @@
 # This config file is read whenever broker starts, and contains all of the information that broker needs in order to work.
 #
 # To get up and running, follow the instructions in this file.
+#
 # There are two things you will absolutely need to change: the `fossa_integration_key` and the `integrations`.
 # Everything else can probably be left as is.
-
+#
 # By default there will be two .yml files in this directory.
 # config.example.yml is an example file that will not be used by broker, but can be used as a reference.
 # You can re-generate config.example.yml at any time by running `broker init`.
@@ -78,6 +79,7 @@ integrations:
 
   # This is an example of using http basic auth with a github access token.
   # The username should be "pat". The password is your github access token.
+  # The access token must have read access to the repository.
   # github access tokens with access to all repositories in your organization can be generated at https://github.com/settings/tokens.
   # You can also create more fine-grained access tokens at https://github.com/settings/personal-access-tokens/new
   - type: git
@@ -104,8 +106,8 @@ integrations:
       password: glpat-the-rest-of-your-gitlab-token
 
   # This is an example of using http basic auth on bitbucket with a repository access token.
+  # The access token must have read access to the repository.
   # You can create a repository access token by going to the repository settings page and clicking on "Access Tokens".
-  # The access token must have read access for the repository.
   - type: git
     poll_interval: 1h
     remote: https://bitbucket.org/fossas/private_repository.git
