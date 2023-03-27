@@ -46,7 +46,7 @@ pub fn main(data_root: &PathBuf) -> Result<(), Error> {
             config = data_root.join("config.yml").display(),
             example_config = data_root.join("config.example.yml").display(),
         };
-        println!("{}", output);
+        println!("{output}");
     } else {
         let output = formatdoc! {r#"
 
