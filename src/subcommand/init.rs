@@ -29,7 +29,7 @@ pub enum Error {
 
 /// generate the config and db files in the default location
 #[tracing::instrument]
-pub fn main(data_root: &PathBuf) -> Result<(), Error> {
+pub fn main(data_root: &Path) -> Result<(), Error> {
     let default_already_exists = write_config(data_root, "config.yml", false)?;
     write_config(data_root, "config.example.yml", true)?;
     if default_already_exists {
@@ -69,14 +69,14 @@ pub fn main(data_root: &PathBuf) -> Result<(), Error> {
     Ok(())
 }
 
-fn write_config(data_root: &PathBuf, filename: &str, force_write: bool) -> Result<bool, Error> {
+fn write_config(data_root: &Path, filename: &str, force_write: bool) -> Result<bool, Error> {
     let config_file_path = data_root.join(filename);
     if config_file_path.try_exists().unwrap_or(false) && !force_write {
         return true.wrap_ok();
     }
 
     std::fs::create_dir_all(data_root)
-        .context_lazy(|| Error::CreateDataRoot(data_root.clone()))
+        .context_lazy(|| Error::CreateDataRoot(PathBuf::from(data_root)))
         .help_lazy(|| {
             formatdoc! {r#"
         `broker init` encountered an error while attempting to create the config directory {}.
@@ -85,7 +85,7 @@ fn write_config(data_root: &PathBuf, filename: &str, force_write: bool) -> Resul
         "#, data_root.display()}
         })?;
 
-    fs::write(&config_file_path, default_config_file(data_root.as_path()))
+    fs::write(&config_file_path, default_config_file(data_root))
         .context_lazy(|| Error::WriteConfigFile(config_file_path.clone()))
         .help_lazy(|| {
             formatdoc! {r#"
