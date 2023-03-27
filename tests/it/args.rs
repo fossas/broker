@@ -2,7 +2,7 @@ use std::path::PathBuf;
 
 use broker::{
     api::fossa::{Endpoint, Key},
-    config::{self, RawInitArgs, RawRunArgs},
+    config::{RawInitArgs, RawRunArgs},
 };
 use proptest::{prop_assert, prop_assert_eq};
 use url::Url;
@@ -21,7 +21,7 @@ async fn validates_args() {
         "testdata/database/empty.sqlite",
     );
 
-    let validated = config::validate_args(base).await;
+    let validated = base.validate().await;
     let validated = validated.expect("args must have passed validation");
     assert_eq!(
         validated.config_path().path(),
@@ -36,7 +36,7 @@ async fn validates_args() {
 #[tokio::test]
 async fn validates_init_args() {
     let base = RawInitArgs::new(Some(PathBuf::from("some/path")));
-    let ctx = config::validate_init_args(base).await.expect("valid args");
+    let ctx = base.validate().await.expect("valid args");
     assert_eq!(ctx.data_root(), &PathBuf::from("some/path"));
 }
 
@@ -45,7 +45,7 @@ async fn infers_db_path() {
     std::env::set_var(broker::config::DISABLE_FILE_DISCOVERY_VAR, "1");
 
     let base = RawRunArgs::new(Some(String::from("testdata/config/basic.yml")), None, None);
-    let validated = config::validate_args(base).await;
+    let validated = base.validate().await;
     let validated = validated.expect("args must have passed validation");
     assert_eq!(
         validated.config_path().path(),
@@ -64,7 +64,7 @@ async fn infers_db_path_failing_config() {
     std::env::set_var(broker::config::DISABLE_FILE_DISCOVERY_VAR, "1");
 
     let base = RawRunArgs::new(Some(String::from("")), None, None);
-    let validated = config::validate_args(base.clone()).await;
+    let validated = base.clone().validate().await;
     let err = validated.expect_err("must have errored");
     assert_error_stack_snapshot!(&base, err);
 }

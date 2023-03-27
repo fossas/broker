@@ -125,7 +125,8 @@ async fn main() -> Result<(), Error> {
 
 /// Initialize Broker configuration.
 async fn main_init(args: config::RawInitArgs) -> Result<(), Error> {
-    let ctx = config::validate_init_args(args)
+    let ctx = args
+        .validate()
         .await
         .change_context(Error::DetermineEffectiveConfig)?;
     broker::subcommand::init::main(ctx.data_root()).change_context(Error::Runtime)
@@ -154,7 +155,7 @@ async fn main_backup(_args: config::RawRunArgs) -> Result<(), Error> {
 
 /// Run Broker with the current config.
 async fn main_run(args: config::RawRunArgs) -> Result<(), Error> {
-    let args = config::validate_args(args)
+    let args = args.validate()
         .await
         .change_context(Error::DetermineEffectiveConfig)
         .help("try running Broker with the '--help' argument to see available options and usage suggestions")?;
@@ -188,7 +189,7 @@ async fn main_run(args: config::RawRunArgs) -> Result<(), Error> {
 /// 1. get a list of remotes
 /// 2. For each remote, clone it into a directory and check out the tag or branch
 async fn main_clone(args: config::RawRunArgs) -> Result<(), Error> {
-    let args = config::validate_args(args)
+    let args = args.validate()
         .await
         .change_context(Error::DetermineEffectiveConfig)
         .help("try running Broker with the '--help' argument to see available options and usage suggestions")?;

@@ -10,8 +10,6 @@ mod file;
 pub use args::{RawInitArgs, RawRunArgs, RunArgs, DISABLE_FILE_DISCOVERY_VAR};
 pub use file::Config;
 
-use crate::AppContext;
-
 /// Errors that are possibly surfaced during validation of config values.
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
@@ -30,22 +28,6 @@ pub enum Error {
     /// and bubbles up the context from [`file`] to the user.
     #[error("load config file")]
     LoadConfigFile,
-}
-
-/// Validate the args provided by the user.
-pub async fn validate_args(provided: RawRunArgs) -> Result<RunArgs, Error> {
-    provided
-        .validate()
-        .await
-        .change_context(Error::ValidateArgs)
-}
-
-/// Validate the args provided for the init subcommand by the user.
-pub async fn validate_init_args(provided: RawInitArgs) -> Result<AppContext, Error> {
-    provided
-        .validate()
-        .await
-        .change_context(Error::ValidateArgs)
 }
 
 /// Load the config for the application.

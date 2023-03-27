@@ -4,13 +4,11 @@ expression: err
 info:
   config_file_path: ""
   database_file_path: ~
+  data_root: ~
 ---
-validate command line arguments
+locate database file
 ├╴at {source location}
-│
-╰─▶ locate database file
-    ├╴at {source location}
-    ├╴help: discovery is disabled via 'DISABLE_FILE_DISCOVERY' env var
-    ╰╴context: Usually in this case Broker assumes the DB path to be next to the config file path,
-      but the config path's parent could not be determined and so the db path was unable
-      to be constructed.
+├╴help: discovery is disabled via 'DISABLE_FILE_DISCOVERY' env var
+╰╴context: Usually in this case Broker assumes the DB path to be next to the config file path,
+  but the config path's parent could not be determined and so the db path was unable
+  to be constructed.

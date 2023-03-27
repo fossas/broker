@@ -90,6 +90,7 @@ impl RawRunArgs {
     /// In the case of the database file, if one was not provided _and_ not found,
     /// it is assumed to be a sibling to the config file.
     /// Database implementations then create it if it does not exist.
+    #[tracing::instrument]
     pub async fn validate(self) -> Result<RunArgs, Report<Error>> {
         let data_root = match self.data_root {
             Some(data_root) => data_root,
@@ -216,6 +217,7 @@ pub struct RawInitArgs {
 
 impl RawInitArgs {
     /// validate the args for the init subcommand
+    #[tracing::instrument]
     pub async fn validate(self) -> Result<AppContext, Report<Error>> {
         let data_root = match self.data_root {
             Some(data_root) => data_root,
