@@ -45,7 +45,7 @@ reqwest = "0.11.14"
 zip = "0.6.4"
 bytes = "1.4.0"
 sqlx = { version = "0.6.2", features = ["runtime-tokio-rustls", "sqlite", "migrate", "macros", "time", "offline"] }
-async-trait = "0.1.67"
+async-trait = "0.1.68"
 semver = { version = "1.0.17", features = ["serde"] }
 tap = "1.0.1"
 automod = "1.0.8"
