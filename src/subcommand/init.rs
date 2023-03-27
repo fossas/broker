@@ -4,10 +4,7 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use crate::ext::{
-    error_stack::{ErrorHelper, IntoContext},
-    result::WrapOk,
-};
+use crate::ext::error_stack::{ErrorHelper, IntoContext};
 use error_stack::Result;
 use indoc::formatdoc;
 
@@ -72,7 +69,7 @@ pub fn main(data_root: &Path) -> Result<(), Error> {
 fn write_config(data_root: &Path, filename: &str, force_write: bool) -> Result<bool, Error> {
     let config_file_path = data_root.join(filename);
     if config_file_path.try_exists().unwrap_or(false) && !force_write {
-        return true.wrap_ok();
+        return Ok(true);
     }
 
     std::fs::create_dir_all(data_root)
@@ -94,7 +91,7 @@ fn write_config(data_root: &Path, filename: &str, force_write: bool) -> Result<b
         Please ensure that you can create a file at this location and try again
         "#, config_file_path.display()}
         })?;
-    false.wrap_ok()
+    Ok(false)
 }
 
 fn default_config_file(data_root: &Path) -> String {
