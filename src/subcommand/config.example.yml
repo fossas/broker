@@ -3,7 +3,7 @@
 # To get up and running, follow the instructions in this file.
 #
 # There are two things you will absolutely need to change: the `fossa_integration_key` and the `integrations`.
-# We have set reasonable defaults for everything else that you probably won't need to change.
+# We have attempted to set reasonable defaults for everything else.
 #
 # By default there will be two .yml files in this directory.
 # config.example.yml is an example file that will not be used by broker, but can be used as a reference.
@@ -25,13 +25,22 @@ fossa_integration_key: abcd1234
 # version is the version of the config file format. "1" is the only currently supported version.
 version: 1
 
-# The `debugging` key configures where debug logs and other artifacts are written and for how long they are kept.
+# The debugging key configures where debug logs and other artifacts are written and how long they are kept for.
 # We've configured suggested defaults for the debugging section below, see each key for details.
 debugging:
-  # The location where your debug traces are written to.
-  # This directory must exist and be writable.
+  # location is the directory where Broker stores debug information, such as its debug log file and FOSSA CLI debug bundles.
+  # We've configured the suggested default below based on the data root
+  # provided to Broker at the time this file was created.
+  # These files are only ever needed if you're reporting an issue with Broker to FOSSA.
+  # If you do provide a different path, note that the path specified must be a directory and the user
+  # running Broker must have access to create files and subdirectories in that directory.
   location: {debugging_dir}
-  # How many days we retain the debug trace files for. The suggested default is 7 days.
+
+  # retention configures how long Broker retains debug information in the `location` provided above
+  # before deleting it.
+  # The default is 7 days. We chose this because it should give users plenty of time to report an issue to FOSSA
+  # and copy the debugging information out of the directory before it is cleaned up, without storing too much data.
+  # The minimum retention is 1 day, and there is no maximum.
   retention:
     days: 7
 
@@ -61,7 +70,7 @@ integrations:
     # An ssh URL will start with 'ssh://' or 'git@'.
     remote: https://github.com/fossas/broker.git
     # auth is the authentication information for the remote. It must match the type of the remote URL.
-    # https or http remotes can have types of "none", "http_header" or "http_basic".
+    # https or http remotes can have auth types of "none", "http_header" or "http_basic".
     # ssh remotes can have auth types of "ssh_key" or "ssh_key_file".
     # There are examples of all these combinations below.
     auth:
