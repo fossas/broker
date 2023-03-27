@@ -7,7 +7,7 @@ use error_stack::{Result, ResultExt};
 mod args;
 mod file;
 
-pub use args::{RawRunArgs, RunArgs, DISABLE_FILE_DISCOVERY_VAR};
+pub use args::{RawInitArgs, RawRunArgs, RunArgs, DISABLE_FILE_DISCOVERY_VAR};
 pub use file::Config;
 
 use crate::AppContext;
@@ -41,9 +41,9 @@ pub async fn validate_args(provided: RawRunArgs) -> Result<RunArgs, Error> {
 }
 
 /// Validate the args provided for the init subcommand by the user.
-pub async fn validate_init_args(provided: RawRunArgs) -> Result<AppContext, Error> {
+pub async fn validate_init_args(provided: RawInitArgs) -> Result<AppContext, Error> {
     provided
-        .validate_init()
+        .validate()
         .await
         .change_context(Error::ValidateArgs)
 }

@@ -183,16 +183,6 @@ impl RawRunArgs {
             (Err(first), Err(second)) => Err(merge_error_stacks!(first, second)),
         }
     }
-
-    /// validate the args for the init subcommand
-    pub async fn validate_init(self) -> Result<AppContext, Report<Error>> {
-        let data_root = match self.data_root {
-            Some(data_root) => data_root,
-            None => default_data_root().await?,
-        };
-
-        AppContext::new(data_root).wrap_ok()
-    }
 }
 
 /// Arguments used by the "run" command.
@@ -207,6 +197,33 @@ pub struct RunArgs {
 
     /// The configured application context.
     context: AppContext,
+}
+
+/// Arguments used by the "init" command.
+/// The "Raw" prefix indicates that this is the initial parsed value before any validation.
+/// See the comments on [`RawRunArgs`] for a more detailed explanation of why we need this pre-validation struct.
+#[derive(Debug, Clone, Parser, Serialize, new)]
+#[command(version, about)]
+pub struct RawInitArgs {
+    /// The root data directory for Broker.
+    /// Broker uses this directory to store working state and to read configuration information.
+    ///
+    /// - On Linux and macOS: `~/.config/fossa/broker/`
+    /// - On Windows: `%USERPROFILE%\.config\fossa\broker`
+    #[arg(short = 'r', long)]
+    data_root: Option<PathBuf>,
+}
+
+impl RawInitArgs {
+    /// validate the args for the init subcommand
+    pub async fn validate(self) -> Result<AppContext, Report<Error>> {
+        let data_root = match self.data_root {
+            Some(data_root) => data_root,
+            None => default_data_root().await?,
+        };
+
+        AppContext::new(data_root).wrap_ok()
+    }
 }
 
 /// The path to the config file.

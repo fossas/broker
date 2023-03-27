@@ -47,7 +47,7 @@ struct Opts {
 #[derive(Debug, Subcommand)]
 enum Commands {
     /// Initialize Broker configuration.
-    Init(config::RawRunArgs),
+    Init(config::RawInitArgs),
 
     /// Guided setup.
     Setup,
@@ -124,7 +124,7 @@ async fn main() -> Result<(), Error> {
 }
 
 /// Initialize Broker configuration.
-async fn main_init(args: config::RawRunArgs) -> Result<(), Error> {
+async fn main_init(args: config::RawInitArgs) -> Result<(), Error> {
     let ctx = config::validate_init_args(args)
         .await
         .change_context(Error::DetermineEffectiveConfig)?;
