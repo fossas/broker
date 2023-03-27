@@ -3,7 +3,7 @@
 # To get up and running, follow the instructions in this file.
 #
 # There are two things you will absolutely need to change: the `fossa_integration_key` and the `integrations`.
-# Everything else can probably be left as is.
+# We have set reasonable defaults for everything else that you probably won't need to change.
 #
 # By default there will be two .yml files in this directory.
 # config.example.yml is an example file that will not be used by broker, but can be used as a reference.
@@ -25,10 +25,10 @@ fossa_integration_key: abcd1234
 # version is the version of the config file format. "1" is the only currently supported version.
 version: 1
 
-# debugging configures where debug logs are written and how long they are kept for. The debugging section can probably remain as is.
+# The `debugging` key configures where debug logs and other artifacts are written and for how long they are kept.
+# We've configured suggested defaults for the debugging section below, see each key for details.
 debugging:
-  # The location where your debug traces are written to. This can probably remain as is,
-  # but you can change it to a different directory if you would like to write them to a different location.
+  # The location where your debug traces are written to.
   # This directory must exist and be writable.
   location: {debugging_dir}
   # How many days we retain the debug trace files for. The suggested default is 7 days.
