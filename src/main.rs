@@ -47,26 +47,26 @@ struct Opts {
 #[derive(Debug, Subcommand)]
 enum Commands {
     /// Initialize Broker configuration.
-    Init(config::RawBaseArgs),
+    Init(config::RawRunArgs),
 
     /// Guided setup.
     Setup,
 
     /// Guided configuration changes.
-    Config(config::RawBaseArgs),
+    Config(config::RawRunArgs),
 
     /// Automatically detect problems with Broker and fix them.
-    Fix(config::RawBaseArgs),
+    Fix(config::RawRunArgs),
 
     /// Back up or restore Broker's current config and database.
-    Backup(config::RawBaseArgs),
+    Backup(config::RawRunArgs),
 
     /// Run Broker with the current config.
-    Run(config::RawBaseArgs),
+    Run(config::RawRunArgs),
 
     /// Attempt to do a git clone.
     #[clap(hide = true)]
-    Clone(config::RawBaseArgs),
+    Clone(config::RawRunArgs),
 }
 
 #[tokio::main]
@@ -124,7 +124,7 @@ async fn main() -> Result<(), Error> {
 }
 
 /// Initialize Broker configuration.
-async fn main_init(args: config::RawBaseArgs) -> Result<(), Error> {
+async fn main_init(args: config::RawRunArgs) -> Result<(), Error> {
     let ctx = config::validate_init_args(args)
         .await
         .change_context(Error::DetermineEffectiveConfig)?;
@@ -137,23 +137,23 @@ async fn main_setup() -> Result<(), Error> {
 }
 
 /// Guided interactive configuration changes.
-async fn main_config(_args: config::RawBaseArgs) -> Result<(), Error> {
+async fn main_config(_args: config::RawRunArgs) -> Result<(), Error> {
     bail!(Error::SubcommandUnimplemented)
 }
 
 /// Automatically detect problems with Broker and fix them.
 /// If they can't be fixed, generate a debug bundle.
-async fn main_fix(_args: config::RawBaseArgs) -> Result<(), Error> {
+async fn main_fix(_args: config::RawRunArgs) -> Result<(), Error> {
     bail!(Error::SubcommandUnimplemented)
 }
 
 /// Back up or restore Broker's current config and database.
-async fn main_backup(_args: config::RawBaseArgs) -> Result<(), Error> {
+async fn main_backup(_args: config::RawRunArgs) -> Result<(), Error> {
     bail!(Error::SubcommandUnimplemented)
 }
 
 /// Run Broker with the current config.
-async fn main_run(args: config::RawBaseArgs) -> Result<(), Error> {
+async fn main_run(args: config::RawRunArgs) -> Result<(), Error> {
     let args = config::validate_args(args)
         .await
         .change_context(Error::DetermineEffectiveConfig)
@@ -187,7 +187,7 @@ async fn main_run(args: config::RawBaseArgs) -> Result<(), Error> {
 /// Workflow:
 /// 1. get a list of remotes
 /// 2. For each remote, clone it into a directory and check out the tag or branch
-async fn main_clone(args: config::RawBaseArgs) -> Result<(), Error> {
+async fn main_clone(args: config::RawRunArgs) -> Result<(), Error> {
     let args = config::validate_args(args)
         .await
         .change_context(Error::DetermineEffectiveConfig)

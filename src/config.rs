@@ -7,7 +7,7 @@ use error_stack::{Result, ResultExt};
 mod args;
 mod file;
 
-pub use args::{BaseArgs, RawBaseArgs, DISABLE_FILE_DISCOVERY_VAR};
+pub use args::{RawRunArgs, RunArgs, DISABLE_FILE_DISCOVERY_VAR};
 pub use file::Config;
 
 use crate::AppContext;
@@ -16,7 +16,7 @@ use crate::AppContext;
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
     /// This crate doesn't actually parse command line arguments, it only validates them.
-    /// It hands off parsing to `clap` by exporting [`args::BaseArgs`].
+    /// It hands off parsing to `clap` by exporting [`args::RunArgs`].
     ///
     /// Given this, the error message is only concerned with _validating_ the args,
     /// since `clap` already reports parse errors itself.
@@ -33,7 +33,7 @@ pub enum Error {
 }
 
 /// Validate the args provided by the user.
-pub async fn validate_args(provided: RawBaseArgs) -> Result<BaseArgs, Error> {
+pub async fn validate_args(provided: RawRunArgs) -> Result<RunArgs, Error> {
     provided
         .validate()
         .await
@@ -41,7 +41,7 @@ pub async fn validate_args(provided: RawBaseArgs) -> Result<BaseArgs, Error> {
 }
 
 /// Validate the args provided for the init subcommand by the user.
-pub async fn validate_init_args(provided: RawBaseArgs) -> Result<AppContext, Error> {
+pub async fn validate_init_args(provided: RawRunArgs) -> Result<AppContext, Error> {
     provided
         .validate_init()
         .await
@@ -49,7 +49,7 @@ pub async fn validate_init_args(provided: RawBaseArgs) -> Result<AppContext, Err
 }
 
 /// Load the config for the application.
-pub async fn load(args: &BaseArgs) -> Result<file::Config, Error> {
+pub async fn load(args: &RunArgs) -> Result<file::Config, Error> {
     file::Config::load(args.config_path().path())
         .await
         .change_context(Error::LoadConfigFile)

@@ -37,7 +37,7 @@ pub enum Error {
     DataRoot,
 }
 
-/// Base arguments, used in most Broker subcommands.
+/// Arguments used by the "run" command.
 /// The "Raw" prefix indicates that this is the initial parsed value before any validation.
 ///
 /// # Background
@@ -50,11 +50,11 @@ pub enum Error {
 /// as `clap` steps in and shows the user errors in this case. By the time `clap` hands
 /// us this structure, it's been successfully parsed.
 ///
-/// This odd dichotomy is why we have to leak the `RawBaseArgs` implementation to the package consumer,
+/// This odd dichotomy is why we have to leak the `RawRunArgs` implementation to the package consumer,
 /// because the consumer (`main`) needs to be able to give this type to `clap` for it to be parsed.
 #[derive(Debug, Clone, Parser, Serialize, new)]
 #[command(version, about)]
-pub struct RawBaseArgs {
+pub struct RawRunArgs {
     /// The path to the Broker config file.
     ///
     /// If unset, Broker searches (in order) for `config.yml` or `config.yaml` in
@@ -80,7 +80,7 @@ pub struct RawBaseArgs {
     data_root: Option<PathBuf>,
 }
 
-impl RawBaseArgs {
+impl RawRunArgs {
     /// Validate the raw args provided.
     ///
     /// In practice, if the user provided a path to the db and config file, the validation is straightforward.
@@ -90,7 +90,7 @@ impl RawBaseArgs {
     /// In the case of the database file, if one was not provided _and_ not found,
     /// it is assumed to be a sibling to the config file.
     /// Database implementations then create it if it does not exist.
-    pub async fn validate(self) -> Result<BaseArgs, Report<Error>> {
+    pub async fn validate(self) -> Result<RunArgs, Report<Error>> {
         let data_root = match self.data_root {
             Some(data_root) => data_root,
             None => default_data_root().await?,
@@ -173,7 +173,7 @@ impl RawBaseArgs {
         // If we start adding too many more, we should really consider making this better.
         // Seeing the below, you can imagine how unweidly this'll get with 3 or 4 errors.
         match (config_path, database_path) {
-            (Ok(config_path), Ok(database_path)) => Ok(BaseArgs {
+            (Ok(config_path), Ok(database_path)) => Ok(RunArgs {
                 config_path,
                 database_path,
                 context: ctx,
@@ -195,10 +195,10 @@ impl RawBaseArgs {
     }
 }
 
-/// Base arguments, used in most Broker subcommands.
+/// Arguments used by the "run" command.
 #[derive(Debug, Clone, PartialEq, Eq, Getters)]
 #[getset(get = "pub")]
-pub struct BaseArgs {
+pub struct RunArgs {
     /// The path to the config file on disk.
     config_path: ConfigFilePath,
 
