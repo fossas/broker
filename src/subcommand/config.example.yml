@@ -1,0 +1,167 @@
+# This config file is read whenever broker starts, and contains all of the information that broker needs in order to work.
+#
+# To get up and running, follow the instructions in this file.
+#
+# There are two things you will absolutely need to change: the `fossa_integration_key` and the `integrations`.
+# We have attempted to set reasonable defaults for everything else.
+#
+# By default there will be two .yml files in this directory.
+# config.example.yml is an example file that will not be used by broker, but can be used as a reference.
+# You can re-generate config.example.yml at any time by running `broker init`.
+
+# ==========
+
+# fossa_endpoint sets the endpoint that broker will send requests to.
+# This field should only be modified if your FOSSA account lives on a different server than app.fossa.com.
+# This is most commonly needed with on-premise instances of FOSSA.
+# In most cases this will be https://app.fossa.com.
+fossa_endpoint: https://app.fossa.com
+
+# fossa_api_key is the API key for your FOSSA account.
+# You can obtain a fossa API key at https://app.fossa.com/account/settings/integrations/api_tokens.
+# A push-only token will suffice, but you can use a full token as well if you wish.
+fossa_integration_key: abcd1234
+
+# version is the version of the config file format. "1" is the only currently supported version.
+version: 1
+
+# The debugging key configures where debug logs and other artifacts are written and how long they are kept for.
+# We've configured suggested defaults for the debugging section below, see each key for details.
+debugging:
+  # location is the directory where Broker stores debug information, such as its debug log file and FOSSA CLI debug bundles.
+  # We've configured the suggested default below based on the data root
+  # provided to Broker at the time this file was created.
+  # These files are only ever needed if you're reporting an issue with Broker to FOSSA.
+  # If you do provide a different path, note that the path specified must be a directory and the user
+  # running Broker must have access to create files and subdirectories in that directory.
+  location: {debugging_dir}
+
+  # retention configures how long Broker retains debug information in the `location` provided above
+  # before deleting it.
+  # The default is 7 days. We chose this because it should give users plenty of time to report an issue to FOSSA
+  # and copy the debugging information out of the directory before it is cleaned up, without storing too much data.
+  # The minimum retention is 1 day, and there is no maximum.
+  retention:
+    days: 7
+
+# integrations configures the repositories that broker analyzes.
+#
+# You will need to create one integration for every repository that you want broker to analyze.
+#
+# The following integrations give examples for all supported auth types.
+#
+# Each integration must have the following fields. A more detailed description of the fields is given in the first integration below.
+#
+# type: The type of the integration. The only currently supported type is "git".
+# poll_interval: The interval at which we poll the remote for new data.
+# remote: The URL of the remote.
+# auth: The authentication information for the remote.
+integrations:
+  # "type" is the type of the remote. "git" is the only currently supported type.
+  - type: git
+    # "poll_interval" is the interval at which we poll the remote for new data. Some example intervals are:
+    # 1h: one hour
+    # 30m: 30 minutes
+    # 1d: one day
+    # 1w: one week
+    poll_interval: 1h
+    # "remote" is the remote URL for the git repository. This can be an http or ssh URL. The auth section below must match the type of URL.
+    # An http URL will start with 'http://' or 'https://'.
+    # An ssh URL will start with 'ssh://' or 'git@'.
+    remote: https://github.com/fossas/broker.git
+    # auth is the authentication information for the remote. It must match the type of the remote URL.
+    # https or http remotes can have auth types of "none", "http_header" or "http_basic".
+    # ssh remotes can have auth types of "ssh_key" or "ssh_key_file".
+    # There are examples of all these combinations below.
+    auth:
+      type: none
+      transport: http
+
+  # This is an example of using an auth type of "none" with an HTTP URL
+  # This can be used for public repositories on github, gitlab, etc.
+  - type: git
+    poll_interval: 1h
+    remote: https://github.com/fossas/broker.git
+    auth:
+      type: none
+      transport: http
+
+  # This is an example of using http basic auth with a github access token.
+  # The username should be "pat". The password is your github access token.
+  # The access token must have read access to the repository.
+  # github access tokens with access to all repositories in your organization can be generated at https://github.com/settings/tokens.
+  # You can also create more fine-grained access tokens at https://github.com/settings/personal-access-tokens/new
+  - type: git
+    poll_interval: 1h
+    remote: https://github.com/fossas/private.git
+    auth:
+      type: http_basic
+      # The username and password for the remote. These are the credentials that you would use to clone the repository.
+      # When using a github access token, set the username to "pat" and the password to your github access token
+      # The github access token must have read permission for the repository.
+      username: pat
+      password: ghp-the-rest-of-your-github-token
+
+  # This is an example of using http basic auth using a GitLab access token.
+  # The username can be any non-empty string. The password is the GitLab access token.
+  # The access token must have read_repository access and must have a role of at least reporter.
+  # You can generate a GitLab access token for your project by going to the project settings page and clicking on "Access Tokens".
+  - type: git
+    poll_interval: 1h
+    remote: https://gitlab.com/fossas/private_repository
+    auth:
+      type: http_basic
+      username: pat
+      password: glpat-the-rest-of-your-gitlab-token
+
+  # This is an example of using http basic auth on bitbucket with a repository access token.
+  # The access token must have read access to the repository.
+  # You can create a repository access token by going to the repository settings page and clicking on "Access Tokens".
+  - type: git
+    poll_interval: 1h
+    remote: https://bitbucket.org/fossas/private_repository.git
+    auth:
+      type: http_basic
+      # The username and password for the remote. For bitbucket repository access tokens, the username should be x-token-auth.
+      # The password is a bitbucket access token with repo read access.
+      username: x-token-auth
+      password: bitbucket-access-token
+
+  # This is an example of using an http header for authentication.
+  # The header will be passed to git like this: `git -c http.extraheader="<header>" clone <remote>`
+  # The header should like like this, where B64_BASIC_AUTH is a base64 encoded string with an input of "username:password":
+  # "AUTHORIZATION: BASIC B64_BASIC_AUTH"
+  # You can generate B64_BASIC_AUTH with the command `echo -n "<username>:<password>" | base64`
+  # When using a GitHub access token, the username should be "pat" and the password should be the access token.
+  # When using a GitLab access token, the username can be any non-empty string and the password should be the access token.
+  # When using a Bitbucket repository access token, the username should be "x-token-auth" and the password should be the access token.
+  - type: git
+    poll_interval: 1h
+    remote: https://github.com/fossas/private.git
+    auth:
+      type: http_header
+      # header: "AUTHORIZATION: BASIC eAXR10...=="
+      header: "AUTHORIZATION: BASIC B64_BASIC_AUTH"
+
+  # This is an example of using an ssh key file for authentication.
+  # The path field is the path to the private ssh key file.
+  # The private key file must have permissions of 0600.
+  - type: git
+    poll_interval: 1h
+    remote: git@github.com:fossas/private.git
+    auth:
+      type: ssh_key_file
+      path: "/Users/me/.ssh/id_ed25519"
+
+  # This is an example of using an ssh key for authentication.
+  # The ssh key field is the full contents of your private ssh key file.
+  # We will write this key to a temporary file and use it to clone the repository.
+  - type: git
+    poll_interval: 1h
+    remote: git@github.com:fossas/private.git
+    auth:
+      type: ssh_key
+      key: |
+        -----BEGIN OPENSSH PRIVATE KEY-----
+        contents of your private key
+        -----END OPENSSH PRIVATE KEY-----

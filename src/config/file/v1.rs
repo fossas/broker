@@ -37,7 +37,7 @@ pub fn load(content: String) -> Result<super::Config, Report<Error>> {
 /// Config values as parsed from disk.
 /// The "Raw" prefix indicates that this is the initial parsed value before any validation.
 ///
-/// Unlike `RawBaseArgs`, we don't have to leak this to consumers of the `config` module,
+/// Unlike `RawRunArgs`, we don't have to leak this to consumers of the `config` module,
 /// so we don't.
 #[derive(Debug, Deserialize)]
 struct RawConfigV1 {
