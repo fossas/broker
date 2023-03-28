@@ -1,0 +1,34 @@
+---
+source: tests/it/fossa_cli.rs
+expression: err
+info: /Users/jessica/projects/broker/testdata/fossa-analyze-does-not-exist
+---
+run FOSSA CLI: {tmp data root}/fossa
+args: ["analyze", "--debug", "--output", "{cargo dir}/testdata/fossa-analyze-does-not-exist"]
+env: []
+status: 1
+stdout: ''
+stderr: '[DEBUG] Loading configuration file from "{cargo dir}/testdata/fossa-analyze-does-not-exist/"
+[ERROR] ----------
+  An issue occurred
+
+  >>> Details
+
+    Cannot collect revision data without a valid base directory
+
+  >>> Relevant errors
+
+    Error
+
+      Directory does not exist: {cargo dir}/testdata/fossa-analyze-does-not-exist/
+
+      Traceback:
+        - Validating configuration
+
+    Error
+
+      Directory does not exist: {cargo dir}/testdata/fossa-analyze-does-not-exist/
+
+      Traceback:
+        - Validating configuration'
+╰╴at {source location}

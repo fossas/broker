@@ -93,22 +93,46 @@ macro_rules! set_snapshot_vars {
 /// - When validating a config, `context` is the raw config struct.
 /// - When parsing a config, `context` is the string being parsed.
 macro_rules! assert_error_stack_snapshot {
+    (@default_filters) => {{
+        // The intent is to filter output that changes per test environment
+        // or is inconsequential to the human understanding of the error message.
+        vec![
+            // Some tests are based on the current workspace directory,
+            // but this path should be abstracted.
+            (env!("CARGO_MANIFEST_DIR"), "{cargo dir}"),
+            // Some tests output Broker's version, but it should be abstracted.
+            (env!("CARGO_PKG_VERSION"), "{current broker version}"),
+            // github gives different errors depending on whether you are logged in or not
+            (r"(git@github.com|ERROR): (Permission denied \(publickey\)|Repository not found)", "{permission denied}"),
+            // Rust source locations (`at /some/path/to/src/internal/foo.rs:81:82`)
+            (r"at .*src.+:\d+:\d+", "at {source location}"),
+            // Unix-style abs file paths inside common delimiters (`'/Users/jessica/.config/fossa/broker/queue/Echo'`)
+            (r#"['"`](?:/[^/\pC]+)+['"`]"#, "{file path}"),
+            // Windows-style abs file paths inside common delimiters (`'C:\Users\jessica\.config\fossa\broker\queue\Echo'`)
+            (r#"['"`]\PC:(?:\\[^\\\pC]+)+['"`]"#, "{file path}"),
+        ]
+    }};
     ($context:expr, $inner:expr) => {{
         crate::helper::set_snapshot_vars!();
+        let filters = assert_error_stack_snapshot!(@default_filters);
+
         insta::with_settings!({
-            // The program state that led to this error.
             info => $context,
-            // Don't fail the snapshot on source code location changes.
-            filters => vec![
-                // github gives different errors depending on whether you are logged in or not
-                (r"(git@github.com|ERROR): (Permission denied \(publickey\)|Repository not found)", "{permission denied}"),
-                // Rust source locations (`at /some/path/to/src/internal/foo.rs:81:82`)
-                (r"at .*src.+:\d+:\d+", "at {source location}"),
-                // Unix-style abs file paths inside common delimiters (`'/Users/jessica/.config/fossa/broker/queue/Echo'`)
-                (r#"['"`](?:/[^/\pC]+)+['"`]"#, "{file path}"),
-                // Windows-style abs file paths inside common delimiters (`'C:\Users\jessica\.config\fossa\broker\queue\Echo'`)
-                (r#"['"`]\PC:(?:\\[^\\\pC]+)+['"`]"#, "{file path}"),
-            ]
+            filters => filters,
+        }, {
+            insta::assert_debug_snapshot!($inner);
+        });
+    }};
+    ($context:expr, $inner:expr, $tmp_data_root:expr) => {{
+        crate::helper::set_snapshot_vars!();
+
+        let mut filters = assert_error_stack_snapshot!(@default_filters);
+        let data_root = $tmp_data_root.to_string_lossy().to_string();
+        filters.push((data_root.as_str(), "{tmp data root}"));
+
+        insta::with_settings!({
+            info => $context,
+            filters => filters,
         }, {
             insta::assert_debug_snapshot!($inner);
         });

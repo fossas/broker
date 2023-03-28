@@ -55,6 +55,8 @@ atty = "0.2.14"
 serde_json = "1.0.94"
 cached = "0.42.0"
 tracing-test = { version = "0.2.4", features = ["no-env-filter"] }
+duplicate = "1.0.0"
+aho-corasick = "0.7.20"
 
 [dev-dependencies]
 insta = { version = "1.28.0", features = ["filters", "json", "yaml"] }

@@ -74,3 +74,12 @@ impl From<String> for ComparableSecretString {
         Self(secret)
     }
 }
+
+/// Implement this for tests only though, so that we have less `String::from` there.
+#[cfg(test)]
+impl From<&str> for ComparableSecretString {
+    fn from(value: &str) -> Self {
+        let secret = Secret::new(String::from(value));
+        Self(secret)
+    }
+}

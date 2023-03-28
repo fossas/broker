@@ -7,7 +7,7 @@ use broker::{
 use tracing_test::traced_test;
 use uuid::Uuid;
 
-use crate::helper::temp_config;
+use crate::helper::{assert_error_stack_snapshot, temp_config};
 
 #[tokio::test]
 async fn downloads_latest_cli() {
@@ -63,4 +63,30 @@ async fn analyze_runs() {
         logs_contain("[ INFO] Scan Summary"),
         "must have traced CLI logs"
     );
+}
+
+#[tokio::test]
+async fn analyze_fails() {
+    let (tmp, config, ctx) = temp_config!(load);
+    let scan_id = Uuid::new_v4().to_string();
+
+    // Provide a path that doesn't exist, so that analysis fails.
+    let project = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("testdata")
+        .join("fossa-analyze-does-not-exist");
+
+    println!("Downloading CLI");
+    let location = fossa_cli::download(&ctx, config.debug().location(), DesiredVersion::Latest)
+        .await
+        .expect("must download CLI");
+
+    // Scan our path taht does not exist.
+    println!("Analyzing '{}' with scan id '{scan_id}'", project.display());
+    let err = location
+        .analyze(&scan_id, &project)
+        .await
+        .expect_err("must fail to analyze");
+
+    // Snapshot the error message.
+    assert_error_stack_snapshot!(&project, err, tmp.path());
 }

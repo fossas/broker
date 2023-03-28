@@ -14,7 +14,7 @@ use time::{ext::NumericalDuration, format_description::well_known::Iso8601, Offs
 use tracing::debug;
 
 use super::Reference;
-use crate::ext::command::DescribeCommand;
+use crate::ext::command::CommandDescriber;
 use crate::ext::error_stack::{ErrorHelper, IntoContext};
 use crate::ext::result::WrapOk;
 use crate::{api::http, api::remote::git, api::ssh, ext::error_stack::DescribeContext};

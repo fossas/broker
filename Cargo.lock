@@ -32,6 +32,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "aho-corasick"
+version = "0.7.20"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "cc936419f96fa211c1b9166887b38e5e40b19958e5b895be7c1f93adec7071ac"
+dependencies = [
+ "memchr",
+]
+
+[[package]]
 name = "android_system_properties"
 version = "0.1.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -144,6 +153,7 @@ dependencies = [
 name = "broker"
 version = "0.1.0-pre"
 dependencies = [
+ "aho-corasick",
  "async-trait",
  "atty",
  "base64",
@@ -157,6 +167,7 @@ dependencies = [
  "derive-new",
  "derive_more",
  "dirs",
+ "duplicate",
  "error-stack",
  "futures",
  "getset",
@@ -637,6 +648,16 @@ name = "dotenvy"
 version = "0.15.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1aaf95b3e5c8f23aa320147307562d361db0ae0d51242340f558153b4eb2439b"
+
+[[package]]
+name = "duplicate"
+version = "1.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "de78e66ac9061e030587b2a2e75cc88f22304913c907b11307bca737141230cb"
+dependencies = [
+ "heck",
+ "proc-macro-error",
+]
 
 [[package]]
 name = "either"
