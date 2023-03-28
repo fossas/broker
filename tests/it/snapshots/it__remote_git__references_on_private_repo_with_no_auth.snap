@@ -10,7 +10,7 @@ run external command
 │   ╰╴at {source location}
 │
 ╰─▶ run command: git
-    args: ["-c", "credential.helper=", "ls-remote", "--quiet"]
+    args: ["-c", "credential.helper=", "ls-remote", "--quiet", "http://github.com/github/doesnotexist.git"]
     env: ["GCM_INTERACTIVE=never", "GIT_ASKPASS=<REMOVED>", "GIT_TERMINAL_PROMPT=0"]
     status: 128
     stdout: ''

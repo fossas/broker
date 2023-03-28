@@ -108,24 +108,16 @@ pub fn clone_reference(
 
 #[tracing::instrument(skip(transport))]
 fn get_all_references(transport: &Transport) -> Result<Vec<Reference>, Report<Error>> {
-    // First, we need to make a temp directory and run `git init` in it
-    let tmpdir = tempdir()
-        .context_lazy(|| Error::TempDirCreation(env::temp_dir()))
-        .help("temporary directory location uses $TMPDIR on Linux and macOS; for Windows it uses the 'GetTempPath' system call")?;
-
-    // initialize the repo
-    run_git(transport, &["init"], Some(tmpdir.path()))?;
-    let endpoint = transport.endpoint().to_string();
-
-    // add the remote
-    run_git(
+    // run `git ls-remote --quiet <endpoint>` to get a list of references
+    let output = run_git(
         transport,
-        &["remote", "add", "origin", endpoint.as_str()],
-        Some(tmpdir.path()),
+        &[
+            "ls-remote",
+            "--quiet",
+            transport.endpoint().to_string().as_str(),
+        ],
+        None,
     )?;
-
-    // Now that we have an initialized repo, we can get our references with `git ls-remote`
-    let output = run_git(transport, &["ls-remote", "--quiet"], Some(tmpdir.path()))?;
     let output = String::from_utf8(output.stdout).context(Error::ParseGitOutput)?;
     let references = parse_ls_remote(output)?;
 
