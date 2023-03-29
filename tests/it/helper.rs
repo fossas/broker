@@ -172,6 +172,9 @@ macro_rules! assert_error_stack_snapshot {
             // Ensure this is below other file path filters, they should take precendence;
             // this is only a stopgap for if paths are not properly redacted.
             (env!("CARGO_MANIFEST_DIR"), "{cargo dir}"),
+            // Paths to binaries are also platform dependent.
+            // Just strip .exe off any path.
+            (r"\.exe", ""),
         ]
     }};
     // Build FOSSA CLI filters.
