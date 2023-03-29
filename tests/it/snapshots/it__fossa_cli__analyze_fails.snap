@@ -1,14 +1,14 @@
 ---
 source: tests/it/fossa_cli.rs
 expression: err
-info: /Users/jessica/projects/broker/testdata/fossa-analyze-does-not-exist
+info: /var/folders/q7/3nvvpy0d6js28m8lypw3tcx80000gn/T/.tmpDPjTj7
 ---
 run FOSSA CLI: {data root}/fossa
 args: ["analyze", "--debug", "--output", "{cargo dir}/testdata/fossa-analyze-does-not-exist"]
 env: []
 status: 1
 stdout: ''
-stderr: '[DEBUG] Loading configuration file from "{cargo dir}/testdata/fossa-analyze-does-not-exist/"
+stderr: '[DEBUG] Loading configuration file from "{config path}"
 [ERROR] ----------
   An issue occurred
 
