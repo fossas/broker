@@ -129,8 +129,8 @@ macro_rules! assert_error_stack_snapshot {
         let mut filters = assert_error_stack_snapshot!(@default_filters);
         let data_root = $data_root.to_string_lossy().to_string();
 
-        // Using this path as a regex input. Escape backslashes.
-        let data_root = data_root.replace(r#"\"#, r#"\\"#);
+        // Using this path as a regex input, escape it.
+        let data_root = regex::escape(&data_root);
         filters.push((data_root.as_str(), "{data root}"));
 
         insta::with_settings!({
