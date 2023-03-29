@@ -157,9 +157,6 @@ macro_rules! assert_error_stack_snapshot {
         // The intent is to filter output that changes per test environment
         // or is inconsequential to the human understanding of the error message.
         vec![
-            // Some tests are based on the current workspace directory,
-            // but this path should be abstracted.
-            (env!("CARGO_MANIFEST_DIR"), "{cargo dir}"),
             // Some tests output Broker's version, but it should be abstracted.
             (env!("CARGO_PKG_VERSION"), "{current broker version}"),
             // github gives different errors depending on whether you are logged in or not
@@ -170,6 +167,11 @@ macro_rules! assert_error_stack_snapshot {
             (r#"['"`](?:/[^/\pC]+)+['"`]"#, "{file path}"),
             // Windows-style abs file paths inside common delimiters (`'C:\Users\jessica\.config\fossa\broker\queue\Echo'`)
             (r#"['"`]\PC:(?:\\[^\\\pC]+)+['"`]"#, "{file path}"),
+            // Some tests are based on the current workspace directory,
+            // but this path should be abstracted.
+            // Ensure this is below other file path filters, they should take precendence;
+            // this is only a stopgap for if paths are not properly redacted.
+            (env!("CARGO_MANIFEST_DIR"), "{cargo dir}"),
         ]
     }};
     // Build FOSSA CLI filters.

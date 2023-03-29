@@ -1,10 +1,10 @@
 ---
 source: tests/it/fossa_cli.rs
 expression: err
-info: /var/folders/q7/3nvvpy0d6js28m8lypw3tcx80000gn/T/.tmpDPjTj7
+info: /var/folders/q7/3nvvpy0d6js28m8lypw3tcx80000gn/T/.tmp6PIQd7
 ---
 run FOSSA CLI: {data root}/fossa
-args: ["analyze", "--debug", "--output", "{cargo dir}/testdata/fossa-analyze-does-not-exist"]
+args: ["analyze", "--debug", "--output", {file path}]
 env: []
 status: 1
 stdout: ''
