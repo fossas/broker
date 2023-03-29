@@ -1,0 +1,16 @@
+---
+source: tests/it/remote_git.rs
+expression: err
+info: cloning private repo with bad auth
+---
+run external command
+├╴at {source location}
+│
+╰─▶ run command: git
+    args: ["-c", "credential.helper=", "-c", "http.extraHeader=<REDACTED>", "clone", "--filter=blob:none", "--branch", "main", "https://github.com/fossas/does-not-exist.git", {file path}]
+    env: ["GIT_TERMINAL_PROMPT=0", "GCM_INTERACTIVE=never", "GIT_ASKPASS=<REMOVED>"]
+    status: 128
+    stdout: ''
+    stderr: 'Cloning into {file path}...
+    fatal: could not read Username for 'https://github.com': terminal prompts disabled'
+    ╰╴at {source location}
