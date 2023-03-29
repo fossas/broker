@@ -24,16 +24,6 @@ pub enum Error {
     /// An underlying IO error occurred.
     #[error("underlying IO error: {}", .0.trim())]
     IO(String),
-
-    /// Running the command failed.
-    #[error("IO error '{}' executing command: {}", .cause.trim(), .description.trim())]
-    Execution {
-        /// The underlying cause of the error.
-        cause: String,
-
-        /// The description of the command.
-        description: String,
-    },
 }
 
 impl Error {
