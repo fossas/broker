@@ -174,10 +174,12 @@ macro_rules! assert_error_stack_snapshot {
     }};
     // Build FOSSA CLI filters.
     (@cli_filters) => {{
-        // standardize some CLI path output, since FOSSA CLI doesn't enclose some paths in quotes
+        // standardize some CLI path output, since FOSSA CLI doesn't enclose some paths in quotes.
         vec![
             (r"Directory does not exist: [^\n]+", "Directory does not exist: {directory}"),
-            (r#"[DEBUG] Loading configuration file from ".+""#, r#"[DEBUG] Loading configuration file from "{config path}""#)
+            // This path is in quotes, but it (incorrectly) doubles the backslashes, which we don't want to add to the
+            // usual path filters because we want to catch incorrectly escaped backslashes.
+            (r#"\[DEBUG\] Loading configuration file from ".+""#, r#"[DEBUG] Loading configuration file from "{config path}""#)
         ]
     }};
     // Combine multiple filter vecs into one.
