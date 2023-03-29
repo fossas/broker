@@ -1,12 +1,13 @@
 //! Implementation for the fix command
 
 use colored::Colorize;
-use error_stack::{Report, Result};
+use core::result::Result;
+use error_stack::Report;
 
 use crate::{
     api::remote::{git::repository, Integration, Protocol, Remote},
     config::Config,
-    ext::tracing::span_record,
+    ext::{result::WrapErr, tracing::span_record},
     AppContext,
 };
 
@@ -14,7 +15,7 @@ use crate::{
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
     /// Check the integration
-    #[error("checking integration for {}\n{}", remote, error)]
+    #[error("check integration for {}\n{}", remote, error)]
     CheckIntegration {
         /// the remote that the integration check failed for
         remote: Remote,
@@ -47,14 +48,18 @@ pub async fn main(_ctx: &AppContext, config: Config) -> Result<(), Report<Error>
             "\n{}\n",
             "Errors found while checking integrations".bold().red()
         );
-        for error in integration_errors {
-            println!("{}", error);
+        for err in integration_errors {
+            match err {
+                Error::CheckIntegration { remote, error } => {
+                    println!("❌ {}\n{}", remote.to_string().red(), error);
+                }
+            }
         }
     }
     Ok(())
 }
 
-async fn check_integrations(ctx: &CmdContext) -> Vec<String> {
+async fn check_integrations(ctx: &CmdContext) -> Vec<Error> {
     let title = "Diagnosing connections to configured repositories\n"
         .bold()
         .blue()
@@ -69,7 +74,7 @@ async fn check_integrations(ctx: &CmdContext) -> Vec<String> {
             }
             Err(err) => {
                 println!("❌ {}", integration.remote());
-                errors.push(err.to_string());
+                errors.push(err);
             }
         }
     }
@@ -79,15 +84,12 @@ async fn check_integrations(ctx: &CmdContext) -> Vec<String> {
 #[tracing::instrument]
 async fn check_integration(integration: &Integration) -> Result<(), Error> {
     let Protocol::Git(transport) = integration.protocol();
-    let result = repository::ls_remote(transport);
-    match result {
-        Ok(_) => Ok(()),
-        Err(err) => {
-            let error = Error::CheckIntegration {
-                remote: integration.remote().clone(),
-                error: err.to_string(),
-            };
-            Err(err.change_context(error))
+    repository::ls_remote(transport).or_else(|err| {
+        Error::CheckIntegration {
+            remote: integration.remote().clone(),
+            error: err.to_string(),
         }
-    }
+        .wrap_err()
+    })?;
+    Ok(())
 }
