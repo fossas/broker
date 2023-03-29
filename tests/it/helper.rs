@@ -210,9 +210,15 @@ macro_rules! assert_error_stack_snapshot {
     (@run $filters:expr; data_root => $data_root:expr; $context:expr, $inner:expr) => {{
         crate::helper::set_snapshot_vars!();
 
+        // Filter the data root.
+        // Additionally normalize trailing slash/backslashes to slash, since these are platform dependent.
         let mut filters = $filters;
         let data_root = PathBuf::from($data_root).to_string_lossy().to_string();
         let data_root = regex::escape(&data_root);
+
+        // This will turn into a regular expression, so escape the backslash.
+        let with_trailing_slash = regex::Regex::new(&format!("{}(/|\\\\)", data_root)).expect("must create valid regex");
+        filters.push((with_trailing_slash.as_str(), "{data root}/"));
         filters.push((data_root.as_str(), "{data root}"));
 
         insta::with_settings!({
