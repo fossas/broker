@@ -102,6 +102,8 @@ macro_rules! assert_error_stack_snapshot {
             (env!("CARGO_MANIFEST_DIR"), "{cargo dir}"),
             // Some tests output Broker's version, but it should be abstracted.
             (env!("CARGO_PKG_VERSION"), "{current broker version}"),
+            // standardize some CLI path output, since CLI doesn't enclose the path in quotes
+            (r"Directory does not exist: [^\n]+", "Directory does not exist: {directory}"),
             // github gives different errors depending on whether you are logged in or not
             (r"(git@github.com|ERROR): (Permission denied \(publickey\)|Repository not found)", "{permission denied}"),
             // Rust source locations (`at /some/path/to/src/internal/foo.rs:81:82`)
