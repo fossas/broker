@@ -20,14 +20,14 @@ stderr: '[DEBUG] Loading configuration file from "{cargo dir}/testdata/fossa-ana
 
     Error
 
-      Directory does not exist: {cargo dir}/testdata/fossa-analyze-does-not-exist/
+      Directory does not exist: {directory}
 
       Traceback:
         - Validating configuration
 
     Error
 
-      Directory does not exist: {cargo dir}/testdata/fossa-analyze-does-not-exist/
+      Directory does not exist: {directory}
 
       Traceback:
         - Validating configuration'
