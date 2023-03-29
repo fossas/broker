@@ -106,9 +106,9 @@ pub fn clone_reference(
     Ok(tmpdir)
 }
 
-#[tracing::instrument(skip(transport))]
-fn get_all_references(transport: &Transport) -> Result<Vec<Reference>, Report<Error>> {
-    // run `git ls-remote --quiet <endpoint>` to get a list of references
+/// run `git ls-remote --quiet <endpoint>` to get a list of references
+#[tracing::instrument]
+pub fn ls_remote(transport: &Transport) -> Result<String, Report<Error>> {
     let output = run_git(
         transport,
         &[
@@ -119,6 +119,12 @@ fn get_all_references(transport: &Transport) -> Result<Vec<Reference>, Report<Er
         None,
     )?;
     let output = String::from_utf8(output.stdout).context(Error::ParseGitOutput)?;
+    Ok(output)
+}
+
+#[tracing::instrument(skip(transport))]
+fn get_all_references(transport: &Transport) -> Result<Vec<Reference>, Report<Error>> {
+    let output = ls_remote(transport)?;
     let references = parse_ls_remote(output)?;
 
     // Tags sometimes get duplicated in the output from `git ls-remote`, like this:

@@ -144,8 +144,26 @@ async fn main_config(_args: config::RawRunArgs) -> Result<(), Error> {
 
 /// Automatically detect problems with Broker and fix them.
 /// If they can't be fixed, generate a debug bundle.
-async fn main_fix(_args: config::RawRunArgs) -> Result<(), Error> {
-    bail!(Error::SubcommandUnimplemented)
+async fn main_fix(args: config::RawRunArgs) -> Result<(), Error> {
+    let args = args.validate()
+        .await
+        .change_context(Error::DetermineEffectiveConfig)
+        .help("try running Broker with the '--help' argument to see available options and usage suggestions")?;
+
+    let conf = config::load(&args)
+        .await
+        .change_context(Error::DetermineEffectiveConfig)
+        .documentation_lazy(doc::link::config_file_reference)?;
+    debug!("Loaded {conf:?}");
+
+    let _tracing_guard = conf
+        .debug()
+        .run_tracing_sink()
+        .change_context(Error::InternalSetup)?;
+
+    broker::subcommand::fix::main(args.context(), conf)
+        .await
+        .change_context(Error::Runtime)
 }
 
 /// Back up or restore Broker's current config and database.
