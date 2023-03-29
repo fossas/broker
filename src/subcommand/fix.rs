@@ -14,7 +14,7 @@ use crate::{
 /// Errors encountered when running the fix command.
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
-    /// Check the integration
+    /// Check an integration
     #[error("check integration for {}\n{}", remote, error)]
     CheckIntegration {
         /// the remote that the integration check failed for
@@ -22,6 +22,14 @@ pub enum Error {
         /// the error returned by the integration check
         error: String,
     },
+
+    /// Make a GET request to a fossa endpoint that does not require authentication
+    #[error("check fossa connection with no authentication required")]
+    CheckFossaGetWithNoAuth(String),
+
+    /// Make a GET Request to a fossa endpoint that requires authentication
+    #[error("check fossa connection with authentication")]
+    CheckFossaGetWithAuth(String),
 }
 
 /// Similar to [`AppContext`], but scoped for this subcommand.
@@ -43,22 +51,51 @@ pub async fn main(_ctx: &AppContext, config: Config) -> Result<(), Report<Error>
     };
     span_record!(cmd_context, debug ctx);
     let integration_errors = check_integrations(&ctx).await;
-    if !integration_errors.is_empty() {
-        println!(
-            "\n{}\n",
-            "Errors found while checking integrations".bold().red()
-        );
-        for err in integration_errors {
+    let fossa_connection_errors = check_fossa_connection(&ctx).await;
+    print_errors(
+        "Errors found while checking integrations"
+            .bold()
+            .red()
+            .to_string(),
+        integration_errors,
+    );
+    print_errors(
+        "Errors found while checking connection to FOSSA"
+            .bold()
+            .red()
+            .to_string(),
+        fossa_connection_errors,
+    );
+    Ok(())
+}
+
+#[tracing::instrument]
+fn print_errors(msg: String, errors: Vec<Error>) {
+    if !errors.is_empty() {
+        println!("\n{}\n", msg,);
+        for err in errors {
             match err {
                 Error::CheckIntegration { remote, error } => {
                     println!("❌ {}\n{}", remote.to_string().red(), error);
                 }
+                Error::CheckFossaGetWithNoAuth(msg) => {
+                    println!("❌ Error checking connection to FOSSA for endpoint with no auth required: {}", msg);
+                }
+                Error::CheckFossaGetWithAuth(msg) => {
+                    println!(
+                        "❌ Error checking connection to FOSSA for endpoint with auth required: {}",
+                        msg
+                    );
+                }
             }
         }
     }
-    Ok(())
 }
 
+/// Check that we can connect to the integrations
+/// This is currently done by running `git ls-remote <remote>` using the authentication
+/// info from the transport.
+#[tracing::instrument(skip(ctx))]
 async fn check_integrations(ctx: &CmdContext) -> Vec<Error> {
     let title = "Diagnosing connections to configured repositories\n"
         .bold()
@@ -92,4 +129,40 @@ async fn check_integration(integration: &Integration) -> Result<(), Error> {
         .wrap_err()
     })?;
     Ok(())
+}
+
+#[tracing::instrument(skip(ctx))]
+async fn check_fossa_connection(ctx: &CmdContext) -> Vec<Error> {
+    let mut errors = Vec::new();
+
+    let get_with_no_auth = check_fossa_get_with_no_auth(ctx).await;
+    match get_with_no_auth {
+        Ok(()) => {
+            println!("✅ check fossa API connection with no auth required");
+        }
+        Err(err) => {
+            println!("❌ check fossa API connection with no auth required");
+            errors.push(err)
+        }
+    }
+    let get_with_auth = check_fossa_get_with_auth(ctx).await;
+    match get_with_auth {
+        Ok(()) => {
+            println!("✅ check fossa API connection with auth required");
+        }
+        Err(err) => {
+            println!("❌ check fossa API connection with auth required");
+            errors.push(err)
+        }
+    }
+
+    errors
+}
+
+async fn check_fossa_get_with_no_auth(ctx: &CmdContext) -> Result<(), Error> {
+    Error::CheckFossaGetWithNoAuth("Some error".to_string()).wrap_err()
+}
+
+async fn check_fossa_get_with_auth(ctx: &CmdContext) -> Result<(), Error> {
+    Error::CheckFossaGetWithAuth("Some error".to_string()).wrap_err()
 }
