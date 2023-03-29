@@ -88,7 +88,12 @@ async fn analyze_fails() {
         .expect_err("must fail to analyze");
 
     // Snapshot the error message.
-    assert_error_stack_snapshot!(&project, err, ctx.data_root());
+    assert_error_stack_snapshot!(
+        fossa_cli;
+        data_root => ctx.data_root();
+        &ctx.data_root().to_string_lossy().to_string(),
+        err
+    );
 }
 
 #[tokio::test]
@@ -106,5 +111,10 @@ async fn parse_version_fails() {
     // Try to parse the version, and snapshot the error.
     let cli = Location::new(cli_path, config.debug().location());
     let err = cli.version().await.expect_err("must fail to parse version");
-    assert_error_stack_snapshot!(ctx.data_root(), err, ctx.data_root());
+    assert_error_stack_snapshot!(
+        fossa_cli;
+        data_root => ctx.data_root();
+        &ctx.data_root().to_string_lossy().to_string(),
+        err
+    );
 }

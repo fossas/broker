@@ -85,14 +85,74 @@ macro_rules! set_snapshot_vars {
 
 /// Run an error stack snapshot.
 ///
-/// Automatically redacts the source code location in the error stack since that's
-/// not something we care about keeping stable.
+/// Automatically redacts the items in the error stack that we don't need to keep stable across tests.
 /// Additionally sets the standard snapshot vars.
 ///
 /// `context` should describe the program state that led to this error. Examples:
 /// - When validating a config, `context` is the raw config struct.
 /// - When parsing a config, `context` is the string being parsed.
+///
+/// # Usage
+///
+/// `([<modifier>]; context, err)`
+///
+/// Modifiers:
+/// - `fossa_cli`: Set FOSSA CLI specific redactions, mostly around file paths.
+/// - `data_root => {data_root}`: Redact the data root set at runtime.
+///
+/// Modifiers are separated by semicolon and must come before `context` and `err`.
+/// They also must be listed in the order above if present.
+///
+/// Examples:
+/// ```ignore
+/// assert_error_stack_snapshot!(fossa_cli; data_root => ctx.data_root(); &config, err);
+/// assert_error_stack_snapshot!(data_root => ctx.data_root(); &config, err);
+/// ```
+///
+/// This is invalid, as they're in the wrong order:
+/// ```ignore
+/// assert_error_stack_snapshot!(data_root => ctx.data_root(); fossa_cli; &config, err);
+/// ```
+///
+/// The ordering requirement is a quirk of how this macro is written in an attempt to keep it simple;
+/// if we get 1-2 more modifiers to this macro we'll refactor to make it more generic.
+//
+// Implementation note
+//
+// If we need to make this more smart in the future, we should either:
+// - Split into multiple macros.
+// - Utilize 'push down accumulation' in combination with making this an 'incremental tt muncher'.
+//   - https://danielkeep.github.io/tlborm/book/pat-push-down-accumulation.html
+//   - https://danielkeep.github.io/tlborm/book/pat-incremental-tt-munchers.html
+//
+// This obviously makes the macro WAY more complicated, but is required to make it smarter:
+// - Handling many modifiers in arbitrary order requires incremental tt munching.
+// - Building the vector of filters during that incremental process requires push down accumulation.
+//
 macro_rules! assert_error_stack_snapshot {
+    // Handle the `fossa_cli` case.
+    (fossa_cli; $context:expr, $inner:expr) => {{
+        let extra_filters = assert_error_stack_snapshot!(@cli_filters);
+        assert_error_stack_snapshot!(@run extra_filters => $context, $inner);
+    }};
+    // Handle the `fossa_cli` + `data_root` case.
+    (fossa_cli; data_root => $data_root:expr; $context:expr, $inner:expr) => {{
+        let default_filters = assert_error_stack_snapshot!(@default_filters);
+        let extra_filters = assert_error_stack_snapshot!(@cli_filters);
+        let filters = assert_error_stack_snapshot!(@combine_filters default_filters, extra_filters);
+        assert_error_stack_snapshot!(@run filters; data_root => $data_root; $context, $inner);
+    }};
+    // Handle the `data_root` case.
+    (data_root => $data_root:expr; $context:expr, $inner:expr) => {{
+        let filters = assert_error_stack_snapshot!(@default_filters);
+        assert_error_stack_snapshot!(@run filters; data_root => $data_root; $context, $inner);
+    }};
+    // Handle with no modifiers.
+    ($context:expr, $inner:expr) => {{
+        let filters = assert_error_stack_snapshot!(@default_filters);
+        assert_error_stack_snapshot!(@run filters; $context, $inner);
+    }};
+    // Build default filters.
     (@default_filters) => {{
         // The intent is to filter output that changes per test environment
         // or is inconsequential to the human understanding of the error message.
@@ -102,8 +162,6 @@ macro_rules! assert_error_stack_snapshot {
             (env!("CARGO_MANIFEST_DIR"), "{cargo dir}"),
             // Some tests output Broker's version, but it should be abstracted.
             (env!("CARGO_PKG_VERSION"), "{current broker version}"),
-            // standardize some CLI path output, since CLI doesn't enclose the path in quotes
-            (r"Directory does not exist: [^\n]+", "Directory does not exist: {directory}"),
             // github gives different errors depending on whether you are logged in or not
             (r"(git@github.com|ERROR): (Permission denied \(publickey\)|Repository not found)", "{permission denied}"),
             // Rust source locations (`at /some/path/to/src/internal/foo.rs:81:82`)
@@ -114,24 +172,42 @@ macro_rules! assert_error_stack_snapshot {
             (r#"['"`]\PC:(?:\\[^\\\pC]+)+['"`]"#, "{file path}"),
         ]
     }};
-    ($context:expr, $inner:expr) => {{
+    // Build FOSSA CLI filters.
+    (@cli_filters) => {{
+        // standardize some CLI path output, since FOSSA CLI doesn't enclose some paths in quotes
+        vec![
+            (r"Directory does not exist: [^\n]+", "Directory does not exist: {directory}"),
+            (r#"[DEBUG] Loading configuration file from ".+""#, r#"[DEBUG] Loading configuration file from "{config path}""#)
+        ]
+    }};
+    // Combine multiple filter vecs into one.
+    (@combine_filters $($filter_group:expr),*) => {{
+        let mut combined = vec![];
+        $(
+            for extra_filter in $filter_group {
+                combined.push(extra_filter);
+            }
+        )*
+        combined
+    }};
+    // Run with the provided filters.
+    (@run $filters:expr; $context:expr, $inner:expr) => {{
         crate::helper::set_snapshot_vars!();
-        let filters = assert_error_stack_snapshot!(@default_filters);
-
         insta::with_settings!({
             info => $context,
-            filters => filters,
+            filters => $filters,
         }, {
             insta::assert_debug_snapshot!($inner);
         });
     }};
-    ($context:expr, $inner:expr, $data_root:expr) => {{
+    // Run with filters and data root.
+    // Data root can't be integrated into filters since it relies on the `as_str` method of the `Regex` type,
+    // which doesn't live long enough otherwise.
+    (@run $filters:expr; data_root => $data_root:expr; $context:expr, $inner:expr) => {{
         crate::helper::set_snapshot_vars!();
 
-        let mut filters = assert_error_stack_snapshot!(@default_filters);
-        let data_root = $data_root.to_string_lossy().to_string();
-
-        // Using this path as a regex input, escape it.
+        let mut filters = $filters;
+        let data_root = PathBuf::from($data_root).to_string_lossy().to_string();
         let data_root = regex::escape(&data_root);
         filters.push((data_root.as_str(), "{data root}"));
 
