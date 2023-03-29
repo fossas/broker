@@ -3,7 +3,7 @@ source: tests/it/fossa_cli.rs
 expression: err
 info: /Users/jessica/projects/broker/testdata/fossa-analyze-does-not-exist
 ---
-run FOSSA CLI: {tmp data root}/fossa
+run FOSSA CLI: {data root}/fossa
 args: ["analyze", "--debug", "--output", "{cargo dir}/testdata/fossa-analyze-does-not-exist"]
 env: []
 status: 1

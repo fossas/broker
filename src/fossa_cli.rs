@@ -45,11 +45,6 @@ pub enum Error {
     #[error("parse 'latest' pseudo-tag redirect: '{0}'")]
     ParseRedirect(String),
 
-    /// If we find a local fossa, then we run `fossa --version`.
-    /// This error is returned if that fails
-    #[error("run local fossa --version")]
-    RunLocalFossaVersion,
-
     /// If we find a local fossa, then we run `fossa --version` and parse the output to
     /// find the current version
     #[error("parse FOSSA CLI version")]
@@ -132,6 +127,18 @@ pub struct Location {
 }
 
 impl Location {
+    /// Create a new instance with the CLI asserted at the provided path,
+    /// storing debug artifacts in the provided debug root.
+    ///
+    /// It is recommended that most users use `find_or_download` instead.
+    #[tracing::instrument]
+    pub fn new(path: PathBuf, artifact_root: &debug::Root) -> Self {
+        Self {
+            cli: path,
+            artifacts: artifact_root.to_owned(),
+        }
+    }
+
     /// Report the version of FOSSA CLI.
     #[tracing::instrument]
     pub async fn version(&self) -> Result<String, Error> {
@@ -233,13 +240,6 @@ impl Location {
             .change_context_lazy(|| Error::ParseOutput(stdout.clone()))
             .map(|result| result.source_units.to_string())
     }
-
-    fn new(path: PathBuf, artifacts: debug::Root) -> Self {
-        Self {
-            cli: path,
-            artifacts,
-        }
-    }
 }
 
 /// Find the location of the FOSSA CLI, downloading it if it doesn't exist or is outdated.
@@ -282,7 +282,7 @@ pub async fn find_or_download(
                 current_path.display(),
                 resolved_version
             );
-            Location::new(current_path, artifact_root.clone()).wrap_ok()
+            Location::new(current_path, artifact_root).wrap_ok()
         }
         Ok(local_version) => {
             debug!(
@@ -317,7 +317,7 @@ pub async fn download(
 ) -> Result<Location, Error> {
     let resolved_version = resolve_version(&desired_version).await?;
     let path = download_tag(ctx, &resolved_version).await?;
-    Location::new(path, artifact_root.clone()).wrap_ok()
+    Location::new(path, artifact_root).wrap_ok()
 }
 
 /// Resolve a [`DesiredVersion`] to a concrete version.
@@ -329,13 +329,13 @@ async fn resolve_version(desired_version: &DesiredVersion) -> Result<String, Err
 
 #[tracing::instrument(fields(fossa_version_output))]
 async fn local_version(current_path: &PathBuf) -> Result<String, Error> {
-    let output = Command::new(current_path)
-        .arg_plain("--version")
+    let cmd = Command::new(current_path).arg_plain("--version");
+    let output = cmd
         .output()
         .await
-        .context(Error::RunLocalFossaVersion)?;
+        .context_lazy(|| Error::running_cli(&cmd))?;
     if !output.status().success() {
-        bail!(Error::Execution(output.describe().to_string()));
+        bail!(Error::running_cli(&output));
     }
 
     // the output will look something like "fossa-cli version 3.7.2 (revision 49a37c0147dc compiled with ghc-9.0)"

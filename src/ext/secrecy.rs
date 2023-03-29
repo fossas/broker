@@ -8,6 +8,9 @@ use serde::{Deserialize, Serialize};
 use serde_yaml::with::singleton_map::serialize;
 use subtle::ConstantTimeEq;
 
+/// The literal to use in place of a redacted secret in debugging output.
+pub const REDACTION_LITERAL: &str = "<REDACTED>";
+
 /// [`Secret`], specialized to [`String`], with constant-time comparisons.
 ///
 /// Only implements `From<String>` because this type should take ownership of the secret.
@@ -48,13 +51,13 @@ impl ComparableSecretString {
 
 impl Debug for ComparableSecretString {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str("ComparableSecret(REDACTED)")
+        f.write_str("ComparableSecret({REDACTION_LITERAL})")
     }
 }
 
 impl Display for ComparableSecretString {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str("<REDACTED>")
+        f.write_str(REDACTION_LITERAL)
     }
 }
 

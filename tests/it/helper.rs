@@ -123,12 +123,12 @@ macro_rules! assert_error_stack_snapshot {
             insta::assert_debug_snapshot!($inner);
         });
     }};
-    ($context:expr, $inner:expr, $tmp_data_root:expr) => {{
+    ($context:expr, $inner:expr, $data_root:expr) => {{
         crate::helper::set_snapshot_vars!();
 
         let mut filters = assert_error_stack_snapshot!(@default_filters);
-        let data_root = $tmp_data_root.to_string_lossy().to_string();
-        filters.push((data_root.as_str(), "{tmp data root}"));
+        let data_root = $data_root.to_string_lossy().to_string();
+        filters.push((data_root.as_str(), "{data root}"));
 
         insta::with_settings!({
             info => $context,

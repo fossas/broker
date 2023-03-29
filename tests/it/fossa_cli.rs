@@ -2,7 +2,7 @@ use std::path::PathBuf;
 
 use broker::{
     config::RawBaseArgs,
-    fossa_cli::{self, DesiredVersion},
+    fossa_cli::{self, DesiredVersion, Location},
 };
 use tracing_test::traced_test;
 use uuid::Uuid;
@@ -67,7 +67,7 @@ async fn analyze_runs() {
 
 #[tokio::test]
 async fn analyze_fails() {
-    let (tmp, config, ctx) = temp_config!(load);
+    let (_tmp, config, ctx) = temp_config!(load);
     let scan_id = Uuid::new_v4().to_string();
 
     // Provide a path that doesn't exist, so that analysis fails.
@@ -88,5 +88,23 @@ async fn analyze_fails() {
         .expect_err("must fail to analyze");
 
     // Snapshot the error message.
-    assert_error_stack_snapshot!(&project, err, tmp.path());
+    assert_error_stack_snapshot!(&project, err, ctx.data_root());
+}
+
+#[tokio::test]
+async fn parse_version_fails() {
+    let (_tmp, config, ctx) = temp_config!(load);
+
+    // Pretend Broker is FOSSA CLI
+    println!("Copying broker into data root as if it was FOSSA CLI");
+    let broker_path = PathBuf::from(env!("CARGO_BIN_EXE_broker"));
+    let cli_path = ctx.data_root().join("fossa");
+    tokio::fs::copy(&broker_path, &cli_path)
+        .await
+        .expect("must copy broker");
+
+    // Try to parse the version, and snapshot the error.
+    let cli = Location::new(cli_path, config.debug().location());
+    let err = cli.version().await.expect_err("must fail to parse version");
+    assert_error_stack_snapshot!(ctx.data_root(), err, ctx.data_root());
 }

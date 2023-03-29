@@ -14,6 +14,8 @@ use itertools::Itertools;
 use thiserror::Error;
 use tokio::process::{Child, ChildStderr, ChildStdout};
 
+use crate::ext::secrecy::REDACTION_LITERAL;
+
 use super::{result::WrapOk, secrecy::ComparableSecretString};
 
 /// Any error encountered running the program.
@@ -85,8 +87,8 @@ impl Command {
     }
 
     /// Adds an argument to pass to the program.
-    pub fn arg<V: AsRef<Value>>(mut self, value: V) -> Self {
-        self.args.push(value.as_ref().to_owned());
+    pub fn arg<V: Into<Value>>(mut self, value: V) -> Self {
+        self.args.push(value.into());
         self
     }
 
@@ -104,9 +106,58 @@ impl Command {
     }
 
     /// Adds multiple arguments to pass to the program.
-    pub fn args<V: AsRef<Value>>(mut self, values: &[V]) -> Self {
-        let values = values.iter().map(AsRef::as_ref).cloned().collect_vec();
+    pub fn args<V, I>(mut self, values: I) -> Self
+    where
+        V: Into<Value>,
+        I: IntoIterator<Item = V>,
+    {
+        let values = values.into_iter().map(|v| v.into()).collect_vec();
         self.args.extend_from_slice(&values);
+        self
+    }
+
+    /// Set an environment variable for the child.
+    pub fn env<K: Into<String>, V: Into<Value>>(mut self, key: K, value: V) -> Self {
+        self.envs.push((key.into(), Some(value.into())));
+        self
+    }
+
+    /// Set an environment variable for the child as plain text.
+    pub fn env_plain<K: Into<String>, V: Into<String>>(mut self, key: K, value: V) -> Self {
+        let value = Value::new_plain(value.into());
+        self.envs.push((key.into(), Some(value)));
+        self
+    }
+
+    /// Set an environment variable for the child as a secret.
+    pub fn env_secret<K, V>(mut self, key: K, value: V) -> Self
+    where
+        K: Into<String>,
+        V: Into<ComparableSecretString>,
+    {
+        let value = Value::new_secret(value.into());
+        self.envs.push((key.into(), Some(value)));
+        self
+    }
+
+    /// Set multiple environment variables for the child.
+    pub fn envs<K, V, I>(mut self, pairs: I) -> Self
+    where
+        K: Into<String>,
+        V: Into<Value>,
+        I: IntoIterator<Item = (K, V)>,
+    {
+        let pairs = pairs.into_iter().map(|(k, v)| (k.into(), Some(v.into())));
+        self.envs.extend(pairs);
+        self
+    }
+
+    /// Clear an environment variable.
+    pub fn env_remove<K: Into<String>>(mut self, key: K) -> Self {
+        // Note: unimplemented for now because no need yet,
+        // but if we need to clear everything just implement `cmd.clear_env()`
+        // in `as_cmd`.
+        self.envs.push((key.into(), None));
         self
     }
 
@@ -341,6 +392,73 @@ pub enum Value {
     /// Secrets are redacted from debugging output.
     Secret(ComparableSecretString),
 
+    /// Secrets that are redacted from debugging output with the provided format string.
+    ///
+    /// This format string is slightly different than the ones used in the `format!` (and similar) macros,
+    /// since this is done at runtime instead of compile time.
+    ///
+    /// The formatter looks for instances of the literal `{secret}` and replaces them with the
+    /// current redaction string. For example, if secrets are redacted with the value `<REDACTED>`,
+    /// then the input:
+    /// ```ignore
+    /// Value::new_secret(
+    ///     "AUTHORIZATION: Basic username:password",
+    ///     "AUTHORIZATION: Basic {secret}",
+    /// )
+    /// ```
+    /// Is output as:
+    /// ```not_rust
+    /// AUTHORIZATION: Basic <REDACTED>
+    /// ```
+    ///
+    /// If there are _no_ `{secret}` literals, the string is used as-is.
+    /// If there are _multiple_ `{secret}` literals, they are all replaced.
+    ///
+    /// The literal actually used at runtime is managed by [`REDACTION_LITERAL`].
+    ///
+    /// # Background
+    ///
+    /// Generally intended to be used when an entire string is provided as a value, but only part of it is actually secret,
+    /// to support showing as much as possible of the input.
+    ///
+    /// For example, the git arguments:
+    /// ```not_rust
+    /// git -c 'http.extraHeader=AUTHORIZATION: Basic username:password'
+    /// ```
+    ///
+    /// Would be have to be passed in as:
+    /// ```ignore
+    /// vec![Value::new_plain("-c"), Value::new_secret("http.extraHeader=AUTHORIZATION: Basic username:password")]
+    /// ```
+    ///
+    /// Which would result in less than helpful output, since the entire secret output is redacted:
+    /// ```not_rust
+    /// run git: /some/path/to/git
+    /// args: ["-c", "<REDACTED>"]
+    /// ```
+    ///
+    /// But using this variant:
+    /// ```ignore
+    /// vec![
+    ///     Value::new_plain("-c"),
+    ///     Value::new_secret_format(
+    ///         "http.extraHeader=AUTHORIZATION: Basic username:password",
+    ///         "http.extraHeader=AUTHORIZATION: Basic {}"
+    ///     ),
+    /// ]
+    /// ```
+    ///
+    /// We can get back more useful debugging output:
+    /// ```ignore
+    /// run git: /some/path/to/git
+    /// args: ["-c", "http.extraHeader=AUTHORIZATION: Basic <REDACTED>"]
+    /// ```
+    ///
+    /// Note that this only applies to debug output generated by Broker;
+    /// redactions applied to output generated by the child process
+    /// uses the simpler initial form.
+    SecretFormat(ComparableSecretString, String),
+
     /// Plain text, not redacted in debugging output.
     Plain(String),
 }
@@ -351,6 +469,19 @@ impl Value {
     /// `Secret` variants are automatically redacted in debugging output.
     pub fn new_secret<S: Into<ComparableSecretString>>(value: S) -> Self {
         Self::Secret(value.into())
+    }
+
+    /// Create a new instance as a `Secret` variant, with a format to use when printing the secret.
+    ///
+    /// `Secret` variants are automatically redacted in debugging output,
+    /// but this version applies the redacted string to the provided format string.
+    /// See [`Value::SecretFormat`] for more details.
+    pub fn new_secret_format<S, F>(value: S, format: F) -> Self
+    where
+        S: Into<ComparableSecretString>,
+        F: Into<String>,
+    {
+        Self::SecretFormat(value.into(), format.into())
     }
 
     /// Create a new instance as a `Plain` variant.
@@ -364,6 +495,7 @@ impl Value {
     fn expose_secret(&self) -> &str {
         match self {
             Value::Secret(secret) => secret.expose_secret(),
+            Value::SecretFormat(secret, _) => secret.expose_secret(),
             Value::Plain(value) => value,
         }
     }
@@ -372,7 +504,10 @@ impl Value {
 impl Display for Value {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Value::Secret(secret) => write!(f, "{secret}"),
+            Value::Secret(_) => write!(f, "{REDACTION_LITERAL}"),
+            Value::SecretFormat(_, format) => {
+                write!(f, "{}", format.replace("{secret}", REDACTION_LITERAL))
+            }
             Value::Plain(value) => write!(f, "{value}"),
         }
     }
@@ -420,6 +555,16 @@ impl Display for Description {
 }
 
 impl Description {
+    /// Create a new description.
+    fn new(name: String, args: Vec<String>, envs: Vec<String>) -> Self {
+        Self {
+            name,
+            args,
+            envs,
+            ..Default::default()
+        }
+    }
+
     /// Enrich the command description with the command's stdout.
     pub fn with_stdout(self, stdout: String) -> Self {
         Self {
@@ -509,12 +654,7 @@ impl CommandDescriber for Command {
             })
             .collect_vec();
 
-        Description {
-            name,
-            args,
-            envs,
-            ..Default::default()
-        }
+        Description::new(name, args, envs)
     }
 }
 
@@ -534,12 +674,7 @@ impl CommandDescriber for std::process::Command {
             })
             .collect_vec();
 
-        Description {
-            name,
-            args,
-            envs,
-            ..Default::default()
-        }
+        Description::new(name, args, envs)
     }
 }
 
@@ -665,7 +800,7 @@ impl Redacter {
 fn redact_str(provided: &str, engine: &AhoCorasick) -> String {
     let mut redacted = String::new();
     engine.replace_all_with(provided, &mut redacted, |_, _, dst| {
-        dst.push_str("<REDACTED>");
+        dst.push_str(REDACTION_LITERAL);
         true
     });
     redacted
@@ -675,7 +810,7 @@ fn redact_str(provided: &str, engine: &AhoCorasick) -> String {
 fn redact_bytes(provided: &[u8], engine: &AhoCorasick) -> Vec<u8> {
     let mut redacted = Vec::new();
     engine.replace_all_with_bytes(provided, &mut redacted, |_, _, dst| {
-        dst.extend_from_slice(b"<REDACTED>");
+        dst.extend_from_slice(REDACTION_LITERAL.as_bytes());
         true
     });
     redacted

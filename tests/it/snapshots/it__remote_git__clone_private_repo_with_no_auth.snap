@@ -6,12 +6,9 @@ info: cloning private repo with bad auth
 run external command
 ├╴at {source location}
 │
-├─▶ IO layer error
-│   ╰╴at {source location}
-│
 ╰─▶ run command: git
     args: ["-c", "credential.helper=", "clone", "--filter=blob:none", "--branch", "main", "http://github.com/github/doesnotexist.git", {file path}]
-    env: ["GCM_INTERACTIVE=never", "GIT_ASKPASS=<REMOVED>", "GIT_TERMINAL_PROMPT=0"]
+    env: ["GIT_TERMINAL_PROMPT=0", "GCM_INTERACTIVE=never", "GIT_ASKPASS=<REMOVED>"]
     status: 128
     stdout: ''
     stderr: 'Cloning into {file path}...
