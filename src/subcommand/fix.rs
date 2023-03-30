@@ -2,13 +2,13 @@
 
 use colored::Colorize;
 use core::result::Result;
-use error_stack::{IntoReport, Report};
+use error_stack::Report;
 use std::time::Duration;
 
 use crate::{
     api::remote::{git::repository, Integration, Protocol, Remote},
     config::Config,
-    ext::{error_stack::IntoContext, result::WrapErr, tracing::span_record},
+    ext::{result::WrapErr, tracing::span_record},
     AppContext,
 };
 
@@ -156,10 +156,7 @@ async fn check_fossa_connection(ctx: &CmdContext) -> Vec<Error> {
         }
         Err(err) => {
             println!("❌ check fossa API connection with no auth required");
-            println!("report: {}", err);
-            errors.push(Error::CheckFossaGet {
-                msg: err.to_string(),
-            })
+            errors.push(err)
         }
     }
     let get_with_auth = check_fossa_get_with_auth(ctx).await;
@@ -169,29 +166,27 @@ async fn check_fossa_connection(ctx: &CmdContext) -> Vec<Error> {
         }
         Err(err) => {
             println!("❌ check fossa API connection with auth required");
-            errors.push(Error::CheckFossaGet {
-                msg: err.to_string(),
-            });
+            errors.push(err);
         }
     }
 
     errors
 }
 
-async fn check_fossa_get_with_no_auth(ctx: &CmdContext) -> Result<(), Report<Error>> {
+async fn check_fossa_get_with_no_auth(ctx: &CmdContext) -> Result<(), Error> {
     let endpoint = ctx.config.fossa_api().endpoint().as_ref();
     let path = "/api/cli/organization";
     let client = reqwest::Client::builder()
         .redirect(reqwest::redirect::Policy::none())
         .connect_timeout(Duration::from_secs(1))
         .build()
-        .context(Error::CreateFullFossaUrl {
+        .map_err(|_| Error::CreateFullFossaUrl {
             remote: endpoint.clone(),
             path: path.to_string(),
         })?;
     let url = endpoint
         .join("/health")
-        .context(Error::CreateFullFossaUrl {
+        .map_err(|_| Error::CreateFullFossaUrl {
             remote: endpoint.clone(),
             path: path.to_string(),
         })?;
@@ -202,28 +197,28 @@ async fn check_fossa_get_with_no_auth(ctx: &CmdContext) -> Result<(), Report<Err
         .await;
 
     match health_check_response {
-        Err(health_check_err) => err_from_request(health_check_err).wrap_err().into_report(),
+        Err(health_check_err) => err_from_request(health_check_err).wrap_err(),
         Ok(health_check_ok) => {
             if let Err(status_err) = health_check_ok.error_for_status() {
-                return err_from_request(status_err).wrap_err().into_report();
+                return err_from_request(status_err).wrap_err();
             }
             Ok(())
         }
     }
 }
 
-async fn check_fossa_get_with_auth(ctx: &CmdContext) -> Result<(), Report<Error>> {
+async fn check_fossa_get_with_auth(ctx: &CmdContext) -> Result<(), Error> {
     let endpoint = ctx.config.fossa_api().endpoint().as_ref();
     let path = "/api/cli/organization";
     let client = reqwest::Client::builder()
         .redirect(reqwest::redirect::Policy::none())
         .connect_timeout(Duration::from_secs(1))
         .build()
-        .context(Error::CreateFullFossaUrl {
+        .map_err(|_| Error::CreateFullFossaUrl {
             remote: endpoint.clone(),
             path: path.to_string(),
         })?;
-    let url = endpoint.join(path).context(Error::CreateFullFossaUrl {
+    let url = endpoint.join(path).map_err(|_| Error::CreateFullFossaUrl {
         remote: endpoint.clone(),
         path: path.to_string(),
     })?;
@@ -238,10 +233,10 @@ async fn check_fossa_get_with_auth(ctx: &CmdContext) -> Result<(), Report<Error>
         .await;
 
     match org_endpoint_response {
-        Err(org_endpoint_err) => err_from_request(org_endpoint_err).wrap_err().into_report(),
+        Err(org_endpoint_err) => err_from_request(org_endpoint_err).wrap_err(),
         Ok(org_endpoint_ok) => {
             if let Err(status_err) = org_endpoint_ok.error_for_status() {
-                return err_from_request(status_err).wrap_err().into_report();
+                return err_from_request(status_err).wrap_err();
             }
             Ok(())
         }
