@@ -315,9 +315,19 @@ fn describe_fossa_request(
                 .wrap_err()
             } else {
                 Error::CheckFossaGet {
-                    msg: format!(
-                        "{}: an error occurred while attempting to connect to FOSSA. {}",
-                        prefix, err
+                    msg: formatdoc!(
+                        "{}
+                        an error occurred while attempting to connect to FOSSA.
+
+                        The URL we attempted to connect to was {}.
+
+                        Please make sure you can make a request to that URL. For example, try this curl command:
+
+                        {}
+
+                        Full error message: {}
+                        ",
+                        prefix, url, example_command, err
                     ),
                 }
                 .wrap_err()
