@@ -258,11 +258,7 @@ fn describe_fossa_request(
                         Error::CheckFossaGet {
                            msg: fossa_error_explanation(
                              prefix,
-                             &formatdoc!(r#"We received an "Unauthorized" status response from FOSSA.
-
-                                This can mean that the fossa_integration_key configured in your config.yml file is not correct.
-
-                                You can obtain a FOSSA API key at {}/account/settings/integrations/api_tokens."#, url),
+                             &format!(r#"We received an "Unauthorized" status response from FOSSA. This can mean that the fossa_integration_key configured in your config.yml file is not correct. You can obtain a FOSSA API key at {}/account/settings/integrations/api_tokens."#, url),
                              url,
                              example_command,
                              status_err,
@@ -292,9 +288,7 @@ fn describe_fossa_request(
                 Error::CheckFossaGet {
                     msg: fossa_error_explanation(
                         prefix,
-                        &formatdoc!("We received a timeout error while attempting to connect to FOSSA.
-
-                        This can happen if we are unable to connect to FOSSA due to various reasons."),
+                        "We received a timeout error while attempting to connect to FOSSA. This can happen if we are unable to connect to FOSSA due to various reasons.",
                         url,
                         example_command,
                         err,
@@ -329,9 +323,7 @@ fn fossa_error_explanation(
 
         {}
 
-        The URL we attempted to connect to was {}.
-
-        Please make sure you can make a request to that URL. For example, try this curl command:
+        The URL we attempted to connect to was {}. Please make sure you can make a request to that URL. For example, try this curl command:
 
         {}
 
@@ -340,7 +332,7 @@ fn fossa_error_explanation(
         prefix.red(),
         specific_error_message,
         url,
-        example_command,
+        example_command.green(),
         err
     )
 }
