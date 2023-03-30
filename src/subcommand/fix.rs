@@ -3,6 +3,7 @@
 use colored::Colorize;
 use core::result::Result;
 use error_stack::Report;
+use indoc::formatdoc;
 use std::time::Duration;
 
 use crate::{
@@ -196,7 +197,12 @@ async fn check_fossa_get_with_no_auth(ctx: &CmdContext) -> Result<(), Error> {
         .send()
         .await;
 
-    err_from_request(health_check_response)
+    describe_fossa_request(
+        health_check_response,
+        "GET to fossa endpoint with no authentication required",
+        url.as_ref(),
+        &format!("curl {}", url),
+    )
 }
 
 async fn check_fossa_get_with_auth(ctx: &CmdContext) -> Result<(), Error> {
@@ -220,18 +226,67 @@ async fn check_fossa_get_with_auth(ctx: &CmdContext) -> Result<(), Error> {
         .bearer_auth(ctx.config.fossa_api().key().expose_secret())
         .send()
         .await;
-    err_from_request(org_endpoint_response)
+    describe_fossa_request(
+        org_endpoint_response,
+        "GET to fossa endpoint with authentication required",
+        url.as_ref(),
+        &format!(
+            r#"curl -H "Authorization: Bearer <your fossa api key>" {}"#,
+            url
+        ),
+    )
 }
 
-fn err_from_request(response: Result<reqwest::Response, reqwest::Error>) -> Result<(), Error> {
+fn describe_fossa_request(
+    response: Result<reqwest::Response, reqwest::Error>,
+    prefix: &str,
+    url: &str,
+    example_command: &str,
+) -> Result<(), Error> {
     match response {
         Ok(result_ok) => {
             if let Err(status_err) = result_ok.error_for_status() {
                 if let Some(status) = status_err.status() {
-                    return Error::CheckFossaGet {
-                        msg: format!("status error, status = {}, err = {}", status, status_err),
-                    }
-                    .wrap_err();
+                    return match status {
+                        reqwest::StatusCode::UNAUTHORIZED => {
+                        Error::CheckFossaGet {
+                            msg: formatdoc!(r#"{}
+                                We received an "Unauthorized" status from FOSSA.
+
+                                This can mean that the fossa_integration_key configured in your config.yml file is not correct.
+
+                                The URL we attempted to connect to was {}.
+
+                                Please make sure you can make a request to that URL. For example, try this curl command:
+
+                                {}
+
+                                You can obtain a FOSSA API key at {}/account/settings/integrations/api_tokens.
+
+                                Full error message: {}
+                                "#,
+                                prefix, url, example_command, url, status_err
+                            )
+                        }
+                        .wrap_err()
+                    },
+                    status => Error::CheckFossaGet {
+                            msg: formatdoc!(r#"{}
+                                We received a {} status in the response from FOSSA.
+
+                                The URL we attempted to connect to was {}.
+
+                                Please make sure you can make a request to that URL. For example, try this curl command:
+
+                                {}
+
+                                Full error message: {}
+                                "#,
+                                prefix, status, url, example_command, status_err
+                            ),
+                        }
+                        .wrap_err(),
+                    };
                 }
                 Ok(())
             } else {
@@ -241,12 +296,29 @@ fn err_from_request(response: Result<reqwest::Response, reqwest::Error>) -> Resu
         Err(err) => {
             if err.is_timeout() {
                 Error::CheckFossaGet {
-                    msg: "timeout".to_string(),
+                    msg: formatdoc!(
+                        "{}
+                        We received a timeout error while attempting to connect to FOSSA.
+                        This can happen if we are unable to connect to FOSSA due to various reasons.
+
+                        The URL we attempted to connect to was {}.
+
+                        Please make sure you can make a request to that URL. For example, try this curl command:
+
+                        {}
+
+                        Full error message: {}
+                        ",
+                        prefix, url, example_command, err
+                    ),
                 }
                 .wrap_err()
             } else {
                 Error::CheckFossaGet {
-                    msg: "something".to_string(),
+                    msg: format!(
+                        "{}: an error occurred while attempting to connect to FOSSA. {}",
+                        prefix, err
+                    ),
                 }
                 .wrap_err()
             }
