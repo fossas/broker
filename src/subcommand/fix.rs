@@ -196,15 +196,7 @@ async fn check_fossa_get_with_no_auth(ctx: &CmdContext) -> Result<(), Error> {
         .send()
         .await;
 
-    match health_check_response {
-        Err(health_check_err) => err_from_request(health_check_err).wrap_err(),
-        Ok(health_check_ok) => {
-            if let Err(status_err) = health_check_ok.error_for_status() {
-                return err_from_request(status_err).wrap_err();
-            }
-            Ok(())
-        }
-    }
+    err_from_request(health_check_response)
 }
 
 async fn check_fossa_get_with_auth(ctx: &CmdContext) -> Result<(), Error> {
@@ -231,30 +223,36 @@ async fn check_fossa_get_with_auth(ctx: &CmdContext) -> Result<(), Error> {
         )
         .send()
         .await;
-
-    match org_endpoint_response {
-        Err(org_endpoint_err) => err_from_request(org_endpoint_err).wrap_err(),
-        Ok(org_endpoint_ok) => {
-            if let Err(status_err) = org_endpoint_ok.error_for_status() {
-                return err_from_request(status_err).wrap_err();
-            }
-            Ok(())
-        }
-    }
+    err_from_request(org_endpoint_response)
 }
 
-fn err_from_request(err: reqwest::Error) -> Error {
-    if err.is_timeout() {
-        Error::CheckFossaGet {
-            msg: "timeout".to_string(),
+fn err_from_request(response: Result<reqwest::Response, reqwest::Error>) -> Result<(), Error> {
+    match response {
+        Ok(result_ok) => {
+            if let Err(status_err) = result_ok.error_for_status() {
+                if let Some(status) = status_err.status() {
+                    return Error::CheckFossaGet {
+                        msg: format!("status error, status = {}, err = {}", status, status_err),
+                    }
+                    .wrap_err();
+                }
+                Ok(())
+            } else {
+                Ok(())
+            }
         }
-    } else if let Some(status) = err.status() {
-        Error::CheckFossaGet {
-            msg: format!("status error, status = {}, err = {}", status, err),
-        }
-    } else {
-        Error::CheckFossaGet {
-            msg: "something".to_string(),
+        Err(err) => {
+            if err.is_timeout() {
+                Error::CheckFossaGet {
+                    msg: "timeout".to_string(),
+                }
+                .wrap_err()
+            } else {
+                Error::CheckFossaGet {
+                    msg: "something".to_string(),
+                }
+                .wrap_err()
+            }
         }
     }
 }
