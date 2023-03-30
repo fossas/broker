@@ -2,12 +2,13 @@
 
 use colored::Colorize;
 use core::result::Result;
-use error_stack::Report;
+use error_stack::{IntoReport, Report};
+use std::time::Duration;
 
 use crate::{
     api::remote::{git::repository, Integration, Protocol, Remote},
     config::Config,
-    ext::{result::WrapErr, tracing::span_record},
+    ext::{error_stack::IntoContext, result::WrapErr, tracing::span_record},
     AppContext,
 };
 
@@ -24,12 +25,20 @@ pub enum Error {
     },
 
     /// Make a GET request to a fossa endpoint that does not require authentication
-    #[error("check fossa connection with no authentication required")]
-    CheckFossaGetWithNoAuth(String),
+    #[error("check fossa connection: {}", msg)]
+    CheckFossaGet {
+        /// The error message when checking GET from FOSSA with no auth
+        msg: String,
+    },
 
-    /// Make a GET Request to a fossa endpoint that requires authentication
-    #[error("check fossa connection with authentication")]
-    CheckFossaGetWithAuth(String),
+    /// Creating a full URL from the provided endpoint
+    #[error("create FOSSA URL from endpoint {}/{}", remote, path)]
+    CreateFullFossaUrl {
+        /// The configured fossa URL
+        remote: url::Url,
+        /// The path on Fossa
+        path: String,
+    },
 }
 
 /// Similar to [`AppContext`], but scoped for this subcommand.
@@ -78,14 +87,14 @@ fn print_errors(msg: String, errors: Vec<Error>) {
                 Error::CheckIntegration { remote, error } => {
                     println!("❌ {}\n{}", remote.to_string().red(), error);
                 }
-                Error::CheckFossaGetWithNoAuth(msg) => {
-                    println!("❌ Error checking connection to FOSSA for endpoint with no auth required: {}", msg);
+                Error::CheckFossaGet { msg } => {
+                    println!("❌ Error checking connection to FOSSA: {}", msg);
                 }
-                Error::CheckFossaGetWithAuth(msg) => {
+                Error::CreateFullFossaUrl { remote, path } => {
                     println!(
-                        "❌ Error checking connection to FOSSA for endpoint with auth required: {}",
-                        msg
-                    );
+                        "❌ Creating a full URL from your remote of {} and path = {}",
+                        remote, path
+                    )
                 }
             }
         }
@@ -97,7 +106,7 @@ fn print_errors(msg: String, errors: Vec<Error>) {
 /// info from the transport.
 #[tracing::instrument(skip(ctx))]
 async fn check_integrations(ctx: &CmdContext) -> Vec<Error> {
-    let title = "Diagnosing connections to configured repositories\n"
+    let title = "\nDiagnosing connections to configured repositories\n"
         .bold()
         .blue()
         .to_string();
@@ -133,6 +142,11 @@ async fn check_integration(integration: &Integration) -> Result<(), Error> {
 
 #[tracing::instrument(skip(ctx))]
 async fn check_fossa_connection(ctx: &CmdContext) -> Vec<Error> {
+    let title = "\nDiagnosing connection to FOSSA\n"
+        .bold()
+        .blue()
+        .to_string();
+    println!("{}", title);
     let mut errors = Vec::new();
 
     let get_with_no_auth = check_fossa_get_with_no_auth(ctx).await;
@@ -142,7 +156,10 @@ async fn check_fossa_connection(ctx: &CmdContext) -> Vec<Error> {
         }
         Err(err) => {
             println!("❌ check fossa API connection with no auth required");
-            errors.push(err)
+            println!("report: {}", err);
+            errors.push(Error::CheckFossaGet {
+                msg: err.to_string(),
+            })
         }
     }
     let get_with_auth = check_fossa_get_with_auth(ctx).await;
@@ -152,17 +169,97 @@ async fn check_fossa_connection(ctx: &CmdContext) -> Vec<Error> {
         }
         Err(err) => {
             println!("❌ check fossa API connection with auth required");
-            errors.push(err)
+            errors.push(Error::CheckFossaGet {
+                msg: err.to_string(),
+            });
         }
     }
 
     errors
 }
 
-async fn check_fossa_get_with_no_auth(ctx: &CmdContext) -> Result<(), Error> {
-    Error::CheckFossaGetWithNoAuth("Some error".to_string()).wrap_err()
+async fn check_fossa_get_with_no_auth(ctx: &CmdContext) -> Result<(), Report<Error>> {
+    let endpoint = ctx.config.fossa_api().endpoint().as_ref();
+    let path = "/api/cli/organization";
+    let client = reqwest::Client::builder()
+        .redirect(reqwest::redirect::Policy::none())
+        .connect_timeout(Duration::from_secs(1))
+        .build()
+        .context(Error::CreateFullFossaUrl {
+            remote: endpoint.clone(),
+            path: path.to_string(),
+        })?;
+    let url = endpoint
+        .join("/health")
+        .context(Error::CreateFullFossaUrl {
+            remote: endpoint.clone(),
+            path: path.to_string(),
+        })?;
+    let health_check_response = client
+        .get(url.as_str())
+        .header(reqwest::header::ACCEPT, "application/json")
+        .send()
+        .await;
+
+    match health_check_response {
+        Err(health_check_err) => err_from_request(health_check_err).wrap_err().into_report(),
+        Ok(health_check_ok) => {
+            if let Err(status_err) = health_check_ok.error_for_status() {
+                return err_from_request(status_err).wrap_err().into_report();
+            }
+            Ok(())
+        }
+    }
 }
 
-async fn check_fossa_get_with_auth(ctx: &CmdContext) -> Result<(), Error> {
-    Error::CheckFossaGetWithAuth("Some error".to_string()).wrap_err()
+async fn check_fossa_get_with_auth(ctx: &CmdContext) -> Result<(), Report<Error>> {
+    let endpoint = ctx.config.fossa_api().endpoint().as_ref();
+    let path = "/api/cli/organization";
+    let client = reqwest::Client::builder()
+        .redirect(reqwest::redirect::Policy::none())
+        .connect_timeout(Duration::from_secs(1))
+        .build()
+        .context(Error::CreateFullFossaUrl {
+            remote: endpoint.clone(),
+            path: path.to_string(),
+        })?;
+    let url = endpoint.join(path).context(Error::CreateFullFossaUrl {
+        remote: endpoint.clone(),
+        path: path.to_string(),
+    })?;
+    let org_endpoint_response = client
+        .get(url.as_str())
+        .header(reqwest::header::ACCEPT, "application/json")
+        .header(
+            reqwest::header::AUTHORIZATION,
+            format!("Bearer {}", ctx.config.fossa_api().key().expose_secret()),
+        )
+        .send()
+        .await;
+
+    match org_endpoint_response {
+        Err(org_endpoint_err) => err_from_request(org_endpoint_err).wrap_err().into_report(),
+        Ok(org_endpoint_ok) => {
+            if let Err(status_err) = org_endpoint_ok.error_for_status() {
+                return err_from_request(status_err).wrap_err().into_report();
+            }
+            Ok(())
+        }
+    }
+}
+
+fn err_from_request(err: reqwest::Error) -> Error {
+    if err.is_timeout() {
+        Error::CheckFossaGet {
+            msg: "timeout".to_string(),
+        }
+    } else if let Some(status) = err.status() {
+        Error::CheckFossaGet {
+            msg: format!("status error, status = {}, err = {}", status, err),
+        }
+    } else {
+        Error::CheckFossaGet {
+            msg: "something".to_string(),
+        }
+    }
 }
