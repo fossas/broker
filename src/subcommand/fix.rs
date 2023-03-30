@@ -217,10 +217,7 @@ async fn check_fossa_get_with_auth(ctx: &CmdContext) -> Result<(), Error> {
     let org_endpoint_response = client
         .get(url.as_str())
         .header(reqwest::header::ACCEPT, "application/json")
-        .header(
-            reqwest::header::AUTHORIZATION,
-            format!("Bearer {}", ctx.config.fossa_api().key().expose_secret()),
-        )
+        .bearer_auth(ctx.config.fossa_api().key().expose_secret())
         .send()
         .await;
     err_from_request(org_endpoint_response)
