@@ -7,7 +7,14 @@ use indoc::formatdoc;
 use std::time::Duration;
 
 use crate::{
-    api::remote::{git::repository, Integration, Protocol, Remote},
+    api::{
+        http,
+        remote::{
+            git::{repository, transport},
+            Integration, Protocol, Remote,
+        },
+        ssh,
+    },
     config::Config,
     ext::{result::WrapErr, tracing::span_record},
     AppContext,
@@ -23,12 +30,14 @@ pub enum Error {
         remote: Remote,
         /// the error returned by the integration check
         error: String,
+        /// A message explaining how to fix this error
+        msg: String,
     },
 
     /// Make a GET request to a fossa endpoint that does not require authentication
     #[error("check fossa connection: {}", msg)]
     CheckFossaGet {
-        /// The error message when checking GET from FOSSA with no auth
+        /// An error message explaining how to fix this GET from FOSSA
         msg: String,
     },
 
@@ -85,8 +94,8 @@ fn print_errors(msg: String, errors: Vec<Error>) {
         println!("\n{}\n", msg,);
         for err in errors {
             match err {
-                Error::CheckIntegration { remote, error } => {
-                    println!("❌ {}\n{}", remote.to_string().red(), error);
+                Error::CheckIntegration { remote, msg, .. } => {
+                    println!("❌ {}\n{}", remote.to_string().red(), msg);
                 }
                 Error::CheckFossaGet { msg } => {
                     println!("❌ {} {}", "Error checking connection to FOSSA:".red(), msg);
@@ -132,13 +141,60 @@ async fn check_integrations(ctx: &CmdContext) -> Vec<Error> {
 async fn check_integration(integration: &Integration) -> Result<(), Error> {
     let Protocol::Git(transport) = integration.protocol();
     repository::ls_remote(transport).or_else(|err| {
+        let remote = integration.remote().clone();
+        let msg = formatdoc!(
+            "
+        We encountered an error while trying to connect to your git remote at {}.\n\n{}\nFull error message from git:\n{}",
+            remote,
+            protocol_connection_explanation(transport),
+            err.to_string(),
+        );
         Error::CheckIntegration {
-            remote: integration.remote().clone(),
+            remote,
             error: err.to_string(),
+            msg,
         }
         .wrap_err()
     })?;
     Ok(())
+}
+
+fn protocol_connection_explanation(transport: &transport::Transport) -> String {
+    let shared_instructions = "We were unable to connect to this repository. Please make sure that the authentication info and the remote are set correctly in your config.yml file.";
+    let specific_instructions = match transport {
+        transport::Transport::Ssh {
+            auth: ssh::Auth::KeyFile(key_path),
+            endpoint,
+        } => {
+            let key_path = key_path.to_string_lossy();
+            let command = format!(
+                r#"GIT_SSH_COMMAND="ssh -i {} -o IdentitiesOnly=yes -o StrictHostKeyChecking=no -F /dev/null" git ls-remote {}"#,
+                key_path, endpoint
+            ).green();
+            formatdoc!(
+            "You are using SSH keyfile authentication for this remote. This connects to your repository by setting the `GIT_SSH_COMMAND` environment variable with the path to the ssh key that you provided in your config file. Please make sure you can run the following command to verify the connection:
+
+            {}
+
+            ", command
+        )
+        }
+        transport::Transport::Ssh {
+            auth: ssh::Auth::KeyValue(_),
+            ..
+        } => "".to_string(),
+        transport::Transport::Http {
+            auth: Some(http::Auth::Basic { .. }),
+            ..
+        } => "".to_string(),
+        transport::Transport::Http {
+            auth: Some(http::Auth::Header { .. }),
+            ..
+        } => "".to_string(),
+        transport::Transport::Http { auth: None, .. } => "".to_string(),
+    };
+
+    format!("{}\n\n{}", shared_instructions, specific_instructions)
 }
 
 #[tracing::instrument(skip(ctx))]
