@@ -328,23 +328,21 @@ fn default_args(transport: &Transport) -> Result<Vec<Value>, Report<Error>> {
         //   -c http.extraHeader="AUTHORIZATION: Basic ${B64_GITHUB_TOKEN}" \
         //   clone https://github.com/spatten/fanopticon
         git::transport::Auth::Http(Some(http::Auth::Basic { username, password })) => {
-            let header = format!("{}:{}", username, password.expose_secret());
-            let base64_header = general_purpose::STANDARD.encode(header);
+            let secret_header = format!("{}:{}", username, password.expose_secret());
+            let secret_header = general_purpose::STANDARD.encode(secret_header);
 
-            let full_header = format!("http.extraHeader=AUTHORIZATION: Basic {}", base64_header);
             vec![
                 Value::new_plain("-c"),
-                Value::new_secret_format(
-                    full_header,
+                Value::format_secret(
                     "http.extraHeader=AUTHORIZATION: Basic {secret}",
+                    secret_header,
                 ),
             ]
         }
         git::transport::Auth::Http(Some(http::Auth::Header(header))) => {
-            let full_header = format!("http.extraHeader={}", header.expose_secret());
             vec![
                 Value::new_plain("-c"),
-                Value::new_secret_format(full_header, "http.extraHeader={secret}"),
+                Value::format_secret("http.extraHeader={secret}", header),
             ]
         }
         _ => vec![],
