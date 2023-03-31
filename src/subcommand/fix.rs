@@ -181,8 +181,22 @@ fn protocol_connection_explanation(transport: &transport::Transport) -> String {
         }
         transport::Transport::Ssh {
             auth: ssh::Auth::KeyValue(_),
-            ..
-        } => "".to_string(),
+            endpoint,
+        } => {
+            let command = format!(
+                r#"GIT_SSH_COMMAND="ssh -i <path with ssh key> -o IdentitiesOnly=yes -o StrictHostKeyChecking=no -F /dev/null" git ls-remote {}"#,
+                endpoint
+            ).green();
+            formatdoc!(
+            "You are using SSH key authentication for this remote. This method of authentication writes the SSH key that you provided in your config file to a temporary file, and then connects to your repository by setting the `GIT_SSH_COMMAND` environment variable with the path to the temporary file. To debug this, please write the ssh key to a file and then make sure you can run the following command to verify the connection.
+
+            The path with the ssh key in it must have permissions of 0x660 on Linux and MacOS.
+
+            {}
+
+            ", command
+        )
+        }
         transport::Transport::Http {
             auth: Some(http::Auth::Basic { .. }),
             ..
