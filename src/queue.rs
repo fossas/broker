@@ -46,6 +46,9 @@ pub enum Queue {
 
     /// The queue for scanning revisions.
     Scan,
+
+    /// The queue for uploading scan results.
+    Upload,
 }
 
 /// Open both sides of the named queue.

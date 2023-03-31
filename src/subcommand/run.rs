@@ -103,12 +103,16 @@ pub async fn main<D: Database>(ctx: &AppContext, config: Config, db: D) -> Resul
     let (scan_tx, scan_rx) = queue::open(&ctx.app, Queue::Scan)
         .await
         .change_context(Error::SetupPipeline)?;
+    let (upload_tx, upload_rx) = queue::open(&ctx.app, Queue::Upload)
+        .await
+        .change_context(Error::SetupPipeline)?;
 
     // This function runs a bunch of async background tasks.
     // Create them all, then just `try_join!` on all of them at the end.
     let healthcheck_worker = do_healthcheck(&ctx.db);
     let integration_worker = do_poll_integrations(&ctx, scan_tx);
-    let scan_git_reference_worker = do_scan_git_references(&ctx, scan_rx);
+    let scan_git_reference_worker = do_scan_git_references(&ctx, scan_rx, upload_tx);
+    let upload_worker = do_uploads(&ctx, upload_rx);
 
     // `try_join!` keeps all of the workers running until one of them fails,
     // at which point the failure is returned and remaining tasks are dropped.
@@ -117,7 +121,8 @@ pub async fn main<D: Database>(ctx: &AppContext, config: Config, db: D) -> Resul
     try_join!(
         healthcheck_worker,
         integration_worker,
-        scan_git_reference_worker
+        scan_git_reference_worker,
+        upload_worker,
     )
     .discard_ok()
 }
@@ -153,6 +158,26 @@ impl ScanGitVCSReference {
             scan_id: Uuid::new_v4().to_string(),
             integration: integration.to_owned(),
             reference: reference.to_owned(),
+        }
+    }
+}
+
+/// Job for uploading a scan
+#[derive(Debug, Deserialize, Serialize)]
+struct UploadSourceUnits {
+    scan_id: String,
+    integration: Integration,
+    reference: Reference,
+    source_units: String,
+}
+
+impl UploadSourceUnits {
+    fn new(scan_job: ScanGitVCSReference, source_units: String) -> Self {
+        Self {
+            scan_id: scan_job.scan_id,
+            integration: scan_job.integration,
+            reference: scan_job.reference,
+            source_units,
         }
     }
 }
@@ -290,6 +315,7 @@ async fn do_poll_integration<D: Database>(
 async fn do_scan_git_references<D: Database>(
     ctx: &CmdContext<D>,
     mut receiver: Receiver<ScanGitVCSReference>,
+    mut uploader: Sender<UploadSourceUnits>,
 ) -> Result<(), Error> {
     let cli = fossa_cli::find_or_download(
         &ctx.app,
@@ -304,9 +330,14 @@ async fn do_scan_git_references<D: Database>(
         let guard = receiver.recv().await.change_context(Error::TaskReceive)?;
         let job = guard.item().change_context(Error::TaskReceive)?;
 
-        do_scan_git_reference(ctx, &job, &cli)
+        let source_units = do_scan_git_reference(ctx, &job, &cli)
             .await
             .change_context(Error::TaskHandle)?;
+
+        uploader
+            .send(&UploadSourceUnits::new(job, source_units))
+            .await
+            .change_context(Error::TaskEnqueue)?;
 
         guard.commit().change_context(Error::TaskComplete)?;
     }
@@ -317,7 +348,7 @@ async fn do_scan_git_reference<D: Database>(
     _ctx: &CmdContext<D>,
     job: &ScanGitVCSReference,
     cli: &fossa_cli::Location,
-) -> Result<(), Error> {
+) -> Result<String, Error> {
     span_record!(scan_id, &job.scan_id);
 
     // Clone the reference into a temporary directory.
@@ -338,7 +369,13 @@ async fn do_scan_git_reference<D: Database>(
         .change_context(Error::RunFossaCli)?;
 
     info!("Scanned {} at {}", job.integration, job.reference);
-    info!("Found source units: {}", source_units);
+    Ok(source_units)
+}
 
-    Ok(())
+#[tracing::instrument(skip_all)]
+async fn do_uploads<D: Database>(
+    ctx: &CmdContext<D>,
+    mut receiver: Receiver<UploadSourceUnits>,
+) -> Result<(), Error> {
+    todo!()
 }
