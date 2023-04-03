@@ -161,6 +161,7 @@ async fn check_integration(integration: &Integration) -> Result<(), Error> {
 
 fn protocol_connection_explanation(transport: &transport::Transport) -> String {
     let shared_instructions = "We were unable to connect to this repository. Please make sure that the authentication info and the remote are set correctly in your config.yml file.";
+    let base64_command = r#"echo -n "<username>:<password>" | base64"#;
     let specific_instructions = match transport {
         transport::Transport::Ssh {
             auth: ssh::Auth::KeyFile(key_path),
@@ -198,12 +199,11 @@ fn protocol_connection_explanation(transport: &transport::Transport) -> String {
             endpoint,
         } => {
             let command = format!(
-                "git -c http.extraHeader=Authorization: Basic $ENCODED_USERNAME_AND_PASSWORD {}",
+                r#"git -c "http.extraHeader=Authorization: Basic <base64 encoded username and password>" {}"#,
                 endpoint
             )
             .green();
-            let base64_command =
-                r#"ENCODED_USERNAME_AND_PASSWORD=echo "<username>:<password>" | base64"#.green();
+
             formatdoc!(
                 r#"You are using HTTP basic authentication for this remote. This method of authentication encodes the username and password as a base64 string and then passes that to git using the "http.extraHeader" parameter. To debug this, please make sure that the following commands work.
 
@@ -211,7 +211,7 @@ fn protocol_connection_explanation(transport: &transport::Transport) -> String {
 
                 {}
 
-                And then run this command:
+                Once you have the base64 encoded username and password, use them in a command like this:
 
                 {}"#,
                 base64_command,
@@ -223,15 +223,27 @@ fn protocol_connection_explanation(transport: &transport::Transport) -> String {
             endpoint,
         } => {
             let command = format!(
-                "git -c http.extraHeader=<your header> ls-remote {}",
+                r#"git -c "http.extraHeader=<your header>" ls-remote {}"#,
                 endpoint
             )
             .green();
             formatdoc!(
                 r#"You are using HTTP header authentication for this remote. This method of authentication passes the header that you have provided in your config file to git using the "http.extraHeader" parameter. To debug this, please make sure the following command works, making sure to substitute the header from your config file into the right spot:
 
-                {}"#,
-                command
+                {}
+
+                You generate the header by making a string that looks like this:
+
+                Authorization: Basic <base64 encoded username:password>
+
+                If your username was "pat" and your password was "password123", then you would base64 encode "pat:password123". For example, you can use a command like this:
+
+                {}
+
+                The username you use depends on the git hosting platform you are authenticating to. For details on this, please see the `config.example.yml` file in your broker config directory. You can re-generate this file at any time by running `broker init`.
+                "#,
+                command,
+                base64_command
             )
         }
         transport::Transport::Http {
