@@ -8,6 +8,8 @@
 //! If error text changes too often, or changes in a way that makes the error less understandable,
 //! we need to make very sure we want to actually make the change.
 
+#![deny(clippy::invalid_regex)]
+
 mod helper;
 
 mod api_code;

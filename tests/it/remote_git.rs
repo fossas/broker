@@ -3,6 +3,7 @@ use crate::helper::assert_error_stack_snapshot;
 use crate::helper::load_config;
 use broker::api::remote::{Reference, RemoteProvider};
 
+use broker::ext::secrecy::REDACTION_LITERAL;
 use broker::{self, api::remote::git};
 
 #[tokio::test]
@@ -88,5 +89,93 @@ async fn clone_private_repo_with_no_auth() {
         .clone_reference(&reference)
         .await
         .expect_err("Could not read from remote repository");
+    assert_error_stack_snapshot!(&context, err);
+}
+
+#[tokio::test]
+async fn redacts_auth_http_basic() {
+    // Clone a repo that doesn't exist with some auth information.
+    // Ensure that it is redacted.
+    let (_, conf) = load_config!(
+        "testdata/config/nonexistent-repo-bad-http-basic.yml",
+        "testdata/database/empty.sqlite"
+    )
+    .await;
+
+    let mut integrations = conf.integrations().as_ref().iter();
+    let integration = integrations.next().unwrap();
+    let reference = Reference::Git(git::Reference::new_tag(
+        "main".to_string(),
+        "onetwothree".to_string(),
+    ));
+
+    let context = String::from("cloning private repo with bad auth");
+    let err = integration
+        .clone_reference(&reference)
+        .await
+        .expect_err("Could not read from remote repository");
+
+    // Ensure it doesn't contain our auth values.
+    let printed = format!("{err:#}");
+    assert!(
+        !printed.contains("some_password"),
+        "error '{printed}' must not contain auth"
+    );
+    assert!(
+        !printed.contains("some_user"),
+        "error '{printed}' must not contain auth"
+    );
+
+    // Ensure it tried to print them but they were redacted.
+    assert!(
+        printed.contains(REDACTION_LITERAL),
+        "error '{printed}' must have redacted auth"
+    );
+
+    // Finally, snapshot for stability.
+    assert_error_stack_snapshot!(&context, err);
+}
+
+#[tokio::test]
+async fn redacts_auth_http_header() {
+    // Clone a repo that doesn't exist with some auth information.
+    // Ensure that it is redacted.
+    let (_, conf) = load_config!(
+        "testdata/config/nonexistent-repo-bad-http-header.yml",
+        "testdata/database/empty.sqlite"
+    )
+    .await;
+
+    let mut integrations = conf.integrations().as_ref().iter();
+    let integration = integrations.next().unwrap();
+    let reference = Reference::Git(git::Reference::new_tag(
+        "main".to_string(),
+        "onetwothree".to_string(),
+    ));
+
+    let context = String::from("cloning private repo with bad auth");
+    let err = integration
+        .clone_reference(&reference)
+        .await
+        .expect_err("Could not read from remote repository");
+
+    // Ensure it doesn't contain our auth values.
+    let printed = format!("{err:#}");
+    assert!(
+        !printed.contains("some_password"),
+        "error '{printed}' must not contain auth"
+    );
+    assert!(
+        !printed.contains("some_user"),
+        "error '{printed}' must not contain auth"
+    );
+
+    // Ensure it tried to print them but they were redacted.
+    assert!(
+        printed.contains(REDACTION_LITERAL),
+        "error '{printed}' must have redacted auth"
+    );
+
+    // Finally, snapshot for stability.
     assert_error_stack_snapshot!(&context, err);
 }

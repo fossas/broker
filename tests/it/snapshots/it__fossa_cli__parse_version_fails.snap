@@ -1,0 +1,15 @@
+---
+source: tests/it/fossa_cli.rs
+expression: err
+info: /var/folders/q7/3nvvpy0d6js28m8lypw3tcx80000gn/T/.tmpniYeX7
+---
+run FOSSA CLI: {data root}/fossa
+args: ["--version"]
+env: []
+status: 0
+stdout: 'broker {current broker version}'
+stderr: ''
+├╴at {source location}
+│
+╰─▶ FOSSA CLI version format unexpected
+    ╰╴at {source location}

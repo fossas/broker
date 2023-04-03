@@ -11,13 +11,11 @@ use serde_json::Value;
 use std::fmt::Debug;
 use std::io::{Cursor, Read};
 use std::path::{Path, PathBuf};
-use std::process::Stdio;
 use tempfile::tempdir;
 use tokio::io::{AsyncBufReadExt, AsyncReadExt, BufReader};
-use tokio::process::Command;
 use tracing::{debug, warn};
 
-use crate::ext::command::DescribeCommand;
+use crate::ext::command::{Command, CommandDescriber, OutputProvider};
 use crate::ext::error_stack::{DescribeContext, ErrorHelper, IntoContext};
 use crate::ext::io::{self, spawn_blocking};
 use crate::ext::result::DiscardResult;
@@ -39,7 +37,7 @@ pub enum Error {
     CreateTempDir(PathBuf),
 
     /// This module shells out to FOSSA CLI, and that failed.
-    #[error("run command: {}", str::trim(.0))]
+    #[error("run FOSSA CLI: {}", .0.trim())]
     Execution(String),
 
     /// Broker parses the redirect location from the 'latest' pseudo-tag to determine
@@ -47,15 +45,16 @@ pub enum Error {
     #[error("parse 'latest' pseudo-tag redirect: '{0}'")]
     ParseRedirect(String),
 
-    /// If we find a local fossa, then we run `fossa --version`.
-    /// This error is returned if that fails
-    #[error("run local fossa --version")]
-    RunLocalFossaVersion,
-
     /// If we find a local fossa, then we run `fossa --version` and parse the output to
     /// find the current version
-    #[error("parse local fossa --version")]
-    ParseLocalFossaVersion(String),
+    #[error("parse FOSSA CLI version")]
+    ParseVersion,
+
+    /// The output of `fossa --version` isn't in the expected format.
+    /// We expect the format 'fossa-cli version 3.7.1 (revision 3014137291f9 compiled with ghc-9.0)',
+    /// and look for the '3.7.1' in that string.
+    #[error("FOSSA CLI version format unexpected")]
+    VersionOutputFormat,
 
     /// If the determined tag doesn't start with 'v', something went wrong in the parse.
     #[error("expected tag to start with 'v', but got '{0}'")]
@@ -89,12 +88,12 @@ pub enum Error {
 }
 
 impl Error {
-    fn running_cli(cmd: &Command) -> Self {
-        Self::Execution(cmd.describe().to_string())
-    }
-
     fn create_temp_dir() -> Self {
         Self::CreateTempDir(std::env::temp_dir())
+    }
+
+    fn running_cli<D: CommandDescriber>(describer: D) -> Self {
+        Self::Execution(describer.describe().to_string())
     }
 }
 
@@ -128,6 +127,18 @@ pub struct Location {
 }
 
 impl Location {
+    /// Create a new instance with the CLI asserted at the provided path,
+    /// storing debug artifacts in the provided debug root.
+    ///
+    /// It is recommended that most users use `find_or_download` instead.
+    #[tracing::instrument]
+    pub fn new(path: PathBuf, artifact_root: &debug::Root) -> Self {
+        Self {
+            cli: path,
+            artifacts: artifact_root.to_owned(),
+        }
+    }
+
     /// Report the version of FOSSA CLI.
     #[tracing::instrument]
     pub async fn version(&self) -> Result<String, Error> {
@@ -149,35 +160,42 @@ impl Location {
         // this way trace events are recorded at the time the CLI actually logs them
         // instead of all at once at the end.
         // The hope is that this will improve debugging, as we'll be able to see timings and partial output.
-        let mut cmd = self.cmd();
-        cmd.stdout(Stdio::piped())
-            .stderr(Stdio::piped())
+        let cmd = Command::new(&self.cli)
             .current_dir(tmp.path())
-            .arg("analyze")
-            .arg("--debug")
-            .arg("--output")
-            .arg(project);
-        let mut child = cmd.spawn().context_lazy(|| Error::running_cli(&cmd))?;
+            .arg_plain("analyze")
+            .arg_plain("--debug")
+            .arg_plain("--output")
+            .arg_plain(project.to_string_lossy());
+        let mut stream = cmd.stream().context_lazy(|| Error::running_cli(&cmd))?;
+        let redacter = stream.redacter();
 
         // We need to parse stdout, so just pipe that into a buffer.
-        let Some(mut stdout) = child.stdout.take() else { panic!("stdout must be piped") };
+        let mut stdout = stream.take_stdout();
         let stdout_reader = async {
             let mut buf = String::new();
             stdout
                 .read_to_string(&mut buf)
                 .await
-                .context(Error::ReadOutput)?;
-            Ok(buf)
+                .context_lazy(|| Error::running_cli(&cmd))
+                .change_context(Error::ReadOutput)?;
+            redacter.redact_str(&buf).wrap_ok()
         };
 
         // Read stderr of the child process and log it as trace events.
         // Additionally buffer it so we can report it in the case of an error.
-        let Some(stderr) = child.stderr.take() else { panic!("stderr must be piped") };
+        let stderr = stream.take_stderr();
         let stderr_reader = async {
             let mut buf = String::new();
-            let stream = BufReader::new(stderr);
-            let mut lines = stream.lines();
-            while let Some(line) = lines.next_line().await.context(Error::ReadOutput)? {
+            let reader = BufReader::new(stderr);
+            let mut lines = reader.lines();
+
+            while let Some(line) = lines
+                .next_line()
+                .await
+                .context_lazy(|| Error::running_cli(&cmd))
+                .change_context(Error::ReadOutput)?
+            {
+                let line = redacter.redact_str(&line);
                 buf.push_str(&line);
                 buf.push('\n');
                 tracing::trace!(message = %line, cmd = "fossa-cli", cmd_context = "stderr");
@@ -186,12 +204,17 @@ impl Location {
         };
 
         // Wait for all three futures to complete: both readers and the child process itself.
-        let waiter = async { child.wait().await.context_lazy(|| Error::running_cli(&cmd)) };
+        let waiter = async {
+            stream
+                .wait()
+                .await
+                .context_lazy(|| Error::running_cli(&cmd))
+        };
         let (stdout, stderr, status) = try_join3(stdout_reader, stderr_reader, waiter).await?;
 
         // If the child process exited with a non-zero status, then return the error.
         if !status.success() {
-            let description = cmd.describe().with_stderr(stderr).with_stdout(stdout);
+            let description = stream.describe().with_stderr(stderr).with_stdout(stdout);
             let description = match status.code() {
                 Some(code) => description.with_status(code),
                 None => description,
@@ -213,22 +236,9 @@ impl Location {
 
         // Parse the output. We only care about source units.
         serde_json::from_str::<AnalysisResult>(&stdout)
-            .context_lazy(|| Error::ParseOutput(stdout.clone()))
+            .context_lazy(|| Error::running_cli(&cmd))
+            .change_context_lazy(|| Error::ParseOutput(stdout.clone()))
             .map(|result| result.source_units.to_string())
-    }
-
-    fn new(path: PathBuf, artifacts: debug::Root) -> Self {
-        Self {
-            cli: path,
-            artifacts,
-        }
-    }
-
-    fn cmd(&self) -> Command {
-        // If we drop the future driving the command, there's no reason to keep the command running.
-        let mut cmd = Command::new(&self.cli);
-        cmd.kill_on_drop(true);
-        cmd
     }
 }
 
@@ -272,7 +282,7 @@ pub async fn find_or_download(
                 current_path.display(),
                 resolved_version
             );
-            Location::new(current_path, artifact_root.clone()).wrap_ok()
+            Location::new(current_path, artifact_root).wrap_ok()
         }
         Ok(local_version) => {
             debug!(
@@ -307,7 +317,7 @@ pub async fn download(
 ) -> Result<Location, Error> {
     let resolved_version = resolve_version(&desired_version).await?;
     let path = download_tag(ctx, &resolved_version).await?;
-    Location::new(path, artifact_root.clone()).wrap_ok()
+    Location::new(path, artifact_root).wrap_ok()
 }
 
 /// Resolve a [`DesiredVersion`] to a concrete version.
@@ -319,32 +329,26 @@ async fn resolve_version(desired_version: &DesiredVersion) -> Result<String, Err
 
 #[tracing::instrument(fields(fossa_version_output))]
 async fn local_version(current_path: &PathBuf) -> Result<String, Error> {
-    let output = Command::new(current_path)
-        .kill_on_drop(true)
-        .arg("--version")
+    let cmd = Command::new(current_path).arg_plain("--version");
+    let output = cmd
         .output()
         .await
-        .context(Error::RunLocalFossaVersion)?;
-    if !output.status.success() {
-        return Error::RunLocalFossaVersion.wrap_err().into_report();
+        .context_lazy(|| Error::running_cli(&cmd))?;
+    if !output.status().success() {
+        bail!(Error::running_cli(&output));
     }
 
     // the output will look something like "fossa-cli version 3.7.2 (revision 49a37c0147dc compiled with ghc-9.0)"
-    let output = String::from_utf8(output.stdout).context(Error::RunLocalFossaVersion)?;
-    span_record!(fossa_version_output, debug output);
+    let raw_version = output.stdout_string_lossy();
+    span_record!(fossa_version_output, debug raw_version);
 
-    let version = output
+    raw_version
         .strip_prefix("fossa-cli version ")
-        .ok_or_else(|| Error::ParseLocalFossaVersion(output.clone()))?;
-    let version = version
-        .split(' ')
-        .next()
-        .ok_or_else(|| Error::ParseLocalFossaVersion(output.clone()))?;
-
-    // The string we found should be a valid version
-    Version::parse(version)
-        .context_lazy(|| Error::ParseLocalFossaVersion(output.clone()))
+        .and_then(|version| version.split(' ').next())
+        .ok_or_else(|| report!(Error::VersionOutputFormat))
+        .and_then(|version| Version::parse(version).context(Error::ParseVersion))
         .map(|version| version.to_string())
+        .change_context_lazy(|| Error::running_cli(&output))
 }
 
 /// Given a path to a possible fossa executable, return whether or not it successfully runs
@@ -352,12 +356,10 @@ async fn local_version(current_path: &PathBuf) -> Result<String, Error> {
 #[tracing::instrument]
 async fn check_command_existence(command_path: &PathBuf) -> bool {
     Command::new(command_path)
-        // If we drop the future driving the command, there's no reason to keep the command running.
-        .kill_on_drop(true)
-        .arg("--version")
+        .arg_plain("--version")
         .output()
         .await
-        .map(|out| out.status.success())
+        .map(|out| out.status().success())
         .unwrap_or(false)
 }
 
