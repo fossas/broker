@@ -172,10 +172,10 @@ fn protocol_connection_explanation(transport: &transport::Transport) -> String {
                 key_path, endpoint
             ).green();
             formatdoc!(
-            "You are using SSH keyfile authentication for this remote. This connects to your repository by setting the `GIT_SSH_COMMAND` environment variable with the path to the ssh key that you provided in your config file. Please make sure you can run the following command to verify the connection:
+                "You are using SSH keyfile authentication for this remote. This connects to your repository by setting the `GIT_SSH_COMMAND` environment variable with the path to the ssh key that you provided in your config file. Please make sure you can run the following command to verify the connection:
 
-            {}", command
-        )
+                {}", command
+            )
         }
         transport::Transport::Ssh {
             auth: ssh::Auth::KeyValue(_),
@@ -186,12 +186,12 @@ fn protocol_connection_explanation(transport: &transport::Transport) -> String {
                 endpoint
             ).green();
             formatdoc!(
-            "You are using SSH key authentication for this remote. This method of authentication writes the SSH key that you provided in your config file to a temporary file, and then connects to your repository by setting the `GIT_SSH_COMMAND` environment variable with the path to the temporary file. To debug this, please write the ssh key to a file and then make sure you can run the following command to verify the connection.
+                "You are using SSH key authentication for this remote. This method of authentication writes the SSH key that you provided in your config file to a temporary file, and then connects to your repository by setting the `GIT_SSH_COMMAND` environment variable with the path to the temporary file. To debug this, please write the ssh key to a file and then make sure you can run the following command to verify the connection.
 
-            The path with the ssh key in it must have permissions of 0x660 on Linux and MacOS.
+                The path with the ssh key in it must have permissions of 0x660 on Linux and MacOS.
 
-            {}", command
-        )
+                {}", command
+            )
         }
         transport::Transport::Http {
             auth: Some(http::Auth::Basic { .. }),
@@ -234,7 +234,18 @@ fn protocol_connection_explanation(transport: &transport::Transport) -> String {
                 command
             )
         }
-        transport::Transport::Http { auth: None, .. } => "".to_string(),
+        transport::Transport::Http {
+            auth: None,
+            endpoint,
+        } => {
+            let command = format!("git ls-remote {}", endpoint).green();
+            formatdoc!(
+                r#"You are using http transport with no authentication for this integration. To debug this, please make sure that the following command works:
+
+                {}"#,
+                command
+            )
+        }
     };
 
     format!("{}\n\n{}", shared_instructions, specific_instructions)
