@@ -54,6 +54,7 @@ pub enum Error {
 }
 
 impl Error {
+    #[tracing::instrument]
     fn fix_explanation(&self) -> String {
         match self {
             Error::CheckIntegration { remote, msg, .. } => {
@@ -71,6 +72,7 @@ impl Error {
         }
     }
 
+    #[tracing::instrument]
     fn integration_error(
         remote: &Remote,
         transport: &Transport,
@@ -90,6 +92,7 @@ impl Error {
         }
     }
 
+    #[tracing::instrument]
     fn integration_connection_explanation(transport: &transport::Transport) -> String {
         let shared_instructions = "We were unable to connect to this repository. Please make sure that the authentication info and the remote are set correctly in your config.yml file.";
         let base64_command = r#"echo -n "<username>:<password>" | base64"#;
@@ -194,6 +197,7 @@ impl Error {
         format!("{}\n\n{}", shared_instructions, specific_instructions)
     }
 
+    #[tracing::instrument]
     fn fossa_integration_error(
         status: Option<reqwest::StatusCode>,
         err: reqwest::Error,
@@ -249,6 +253,7 @@ impl Error {
         }
     }
 
+    #[tracing::instrument]
     fn fossa_get_explanation(
         description: &str,
         specific_error_message: &str,
@@ -377,6 +382,7 @@ async fn check_fossa_connection(config: &Config) -> Vec<Error> {
 
 const FOSSA_CONNECT_TIMEOUT_IN_SECONDS: u64 = 30;
 
+#[tracing::instrument(skip(config))]
 async fn check_fossa_get_with_no_auth(config: &Config) -> Result<(), Error> {
     let endpoint = config.fossa_api().endpoint().as_ref();
     let path = "/api/cli/organization";
@@ -411,6 +417,7 @@ async fn check_fossa_get_with_no_auth(config: &Config) -> Result<(), Error> {
     )
 }
 
+#[tracing::instrument(skip(config))]
 async fn check_fossa_get_with_auth(config: &Config) -> Result<(), Error> {
     let endpoint = config.fossa_api().endpoint().as_ref();
     let path = "/api/cli/organization";
@@ -446,6 +453,7 @@ async fn check_fossa_get_with_auth(config: &Config) -> Result<(), Error> {
     )
 }
 
+#[tracing::instrument]
 fn describe_fossa_request(
     response: Result<reqwest::Response, reqwest::Error>,
     description: &str,
