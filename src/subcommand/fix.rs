@@ -95,7 +95,7 @@ fn print_errors(msg: String, errors: Vec<Error>) {
         for err in errors {
             match err {
                 Error::CheckIntegration { remote, msg, .. } => {
-                    println!("❌ {}\n{}", remote.to_string().red(), msg);
+                    println!("❌ {}\n\n{}", remote.to_string().red(), msg);
                 }
                 Error::CheckFossaGet { msg } => {
                     println!("❌ {} {}", "Error checking connection to FOSSA:".red(), msg);
@@ -144,7 +144,7 @@ async fn check_integration(integration: &Integration) -> Result<(), Error> {
         let remote = integration.remote().clone();
         let msg = formatdoc!(
             "
-        We encountered an error while trying to connect to your git remote at {}.\n\n{}\nFull error message from git:\n{}",
+        We encountered an error while trying to connect to your git remote at {}.\n\n{}\n\nFull error message from git:\n\n{}\n\n",
             remote,
             protocol_connection_explanation(transport),
             err.to_string(),
@@ -174,9 +174,7 @@ fn protocol_connection_explanation(transport: &transport::Transport) -> String {
             formatdoc!(
             "You are using SSH keyfile authentication for this remote. This connects to your repository by setting the `GIT_SSH_COMMAND` environment variable with the path to the ssh key that you provided in your config file. Please make sure you can run the following command to verify the connection:
 
-            {}
-
-            ", command
+            {}", command
         )
         }
         transport::Transport::Ssh {
@@ -192,19 +190,50 @@ fn protocol_connection_explanation(transport: &transport::Transport) -> String {
 
             The path with the ssh key in it must have permissions of 0x660 on Linux and MacOS.
 
-            {}
-
-            ", command
+            {}", command
         )
         }
         transport::Transport::Http {
             auth: Some(http::Auth::Basic { .. }),
-            ..
-        } => "".to_string(),
+            endpoint,
+        } => {
+            let command = format!(
+                "git -c http.extraHeader=Authorization: Basic $ENCODED_USERNAME_AND_PASSWORD {}",
+                endpoint
+            )
+            .green();
+            let base64_command =
+                r#"ENCODED_USERNAME_AND_PASSWORD=echo "<username>:<password>" | base64"#.green();
+            formatdoc!(
+                r#"You are using HTTP basic authentication for this remote. This method of authentication encodes the username and password as a base64 string and then passes that to git using the "http.extraHeader" parameter. To debug this, please make sure that the following commands work.
+
+                You generate the base64 encoded username and password by joining them with a ":" and then base64 encoding them. If your username was "pat" and your password was "password123", then you would base64 encode "pat:password123". For example, you can use a command like this:
+
+                {}
+
+                And then run this command:
+
+                {}"#,
+                base64_command,
+                command
+            )
+        }
         transport::Transport::Http {
             auth: Some(http::Auth::Header { .. }),
-            ..
-        } => "".to_string(),
+            endpoint,
+        } => {
+            let command = format!(
+                "git -c http.extraHeader=<your header> ls-remote {}",
+                endpoint
+            )
+            .green();
+            formatdoc!(
+                r#"You are using HTTP header authentication for this remote. This method of authentication passes the header that you have provided in your config file to git using the "http.extraHeader" parameter. To debug this, please make sure the following command works, making sure to substitute the header from your config file into the right spot:
+
+                {}"#,
+                command
+            )
+        }
         transport::Transport::Http { auth: None, .. } => "".to_string(),
     };
 
