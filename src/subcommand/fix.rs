@@ -287,26 +287,20 @@ pub async fn main(config: &Config) -> Result<(), Report<Error>> {
     let integration_errors = check_integrations(config).await;
     let fossa_connection_errors = check_fossa_connection(config).await;
     print_errors(
-        "Errors found while checking integrations"
-            .bold()
-            .red()
-            .to_string(),
+        "\nErrors found while checking integrations",
         integration_errors,
     );
     print_errors(
-        "Errors found while checking connection to FOSSA"
-            .bold()
-            .red()
-            .to_string(),
+        "\nErrors found while checking connection to FOSSA",
         fossa_connection_errors,
     );
     Ok(())
 }
 
 #[tracing::instrument]
-fn print_errors(msg: String, errors: Vec<Error>) {
+fn print_errors(msg: &str, errors: Vec<Error>) {
     if !errors.is_empty() {
-        println!("\n{}\n", msg,);
+        println!("{}\n", msg.bold().red());
         for err in errors {
             println!("{}", err.fix_explanation());
         }
