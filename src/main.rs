@@ -161,7 +161,7 @@ async fn main_fix(args: config::RawRunArgs) -> Result<(), Error> {
         .run_tracing_sink()
         .change_context(Error::InternalSetup)?;
 
-    broker::subcommand::fix::main(conf)
+    broker::subcommand::fix::main(&conf)
         .await
         .change_context(Error::Runtime)
 }
