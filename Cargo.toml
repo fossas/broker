@@ -19,7 +19,7 @@ derive-new = "0.5.9"
 derive_more = "0.99.17"
 dirs = "5.0.0"
 error-stack = { version = "0.3.1", features = ["spantrace", "hooks"] }
-futures = "0.3.27"
+futures = "0.3.28"
 getset = "0.1.2"
 humantime = "2.1.0"
 indoc = "2.0.1"
