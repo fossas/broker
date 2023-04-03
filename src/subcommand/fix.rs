@@ -20,7 +20,6 @@ use crate::{
     },
     config::Config,
     ext::{result::WrapErr, tracing::span_record},
-    AppContext,
 };
 
 /// Errors encountered when running the fix command.
@@ -289,7 +288,7 @@ struct CmdContext {
 
 /// The primary entrypoint for the fix command.
 #[tracing::instrument(skip_all, fields(subcommand = "fix", cmd_context))]
-pub async fn main(_ctx: &AppContext, config: Config) -> Result<(), Report<Error>> {
+pub async fn main(config: Config) -> Result<(), Report<Error>> {
     let ctx = CmdContext {
         // app: ctx.clone(),
         config,
