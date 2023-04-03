@@ -391,12 +391,14 @@ async fn check_fossa_connection(ctx: &CmdContext) -> Vec<Error> {
     errors
 }
 
+const FOSSA_CONNECT_TIMEOUT_IN_SECONDS: u64 = 30;
+
 async fn check_fossa_get_with_no_auth(ctx: &CmdContext) -> Result<(), Error> {
     let endpoint = ctx.config.fossa_api().endpoint().as_ref();
     let path = "/api/cli/organization";
     let client = reqwest::Client::builder()
         .redirect(reqwest::redirect::Policy::none())
-        .connect_timeout(Duration::from_secs(1))
+        .connect_timeout(Duration::from_secs(FOSSA_CONNECT_TIMEOUT_IN_SECONDS))
         .build()
         .map_err(|_| Error::CreateFullFossaUrl {
             remote: endpoint.clone(),
@@ -430,7 +432,7 @@ async fn check_fossa_get_with_auth(ctx: &CmdContext) -> Result<(), Error> {
     let path = "/api/cli/organization";
     let client = reqwest::Client::builder()
         .redirect(reqwest::redirect::Policy::none())
-        .connect_timeout(Duration::from_secs(1))
+        .connect_timeout(Duration::from_secs(FOSSA_CONNECT_TIMEOUT_IN_SECONDS))
         .build()
         .map_err(|_| Error::CreateFullFossaUrl {
             remote: endpoint.clone(),
