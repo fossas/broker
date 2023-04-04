@@ -30,4 +30,7 @@ migrate-down:
 clippy:
 	@cargo clippy --all-targets --all-features -- -D warnings
 
-.PHONY: test run build dev review-snapshots generate-dist migration-status migrate-up migrate-down clippy
+doc:
+	@cargo doc --open --no-deps
+
+.PHONY: test run build dev review-snapshots generate-dist migration-status migrate-up migrate-down doc clippy

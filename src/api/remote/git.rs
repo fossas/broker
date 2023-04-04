@@ -30,10 +30,10 @@ impl Display for Reference {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Reference::Branch { name, head } => {
-                write!(f, "branch '{name}' with head commit '{head}'")
+                write!(f, "branch:{name}@{head}")
             }
             Reference::Tag { name, commit } => {
-                write!(f, "tag '{name}' referencing commit '{commit}'")
+                write!(f, "tag:{name}@{commit}")
             }
         }
     }
