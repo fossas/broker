@@ -47,12 +47,12 @@ pub enum Transport {
 impl Display for Transport {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Transport::Ssh { endpoint, auth } => {
-                write!(f, "cloning via SSH from {endpoint} with {auth}")
+            Transport::Ssh { endpoint, .. } => {
+                write!(f, "ssh:{endpoint}")
             }
             Transport::Http { endpoint, auth } => match auth {
-                Some(auth) => write!(f, "cloning via HTTP from {endpoint} with {auth}"),
-                None => write!(f, "cloning via HTTP from {endpoint} with no authentication"),
+                Some(_) => write!(f, "http:{endpoint} with auth"),
+                None => write!(f, "cloning via HTTP from {endpoint} with no auth"),
             },
         }
     }
