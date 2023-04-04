@@ -27,7 +27,10 @@ migrate-up:
 migrate-down:
 	@cargo sqlx migrate revert --source db/migrations
 
+clippy:
+	@cargo clippy --all-targets --all-features -- -D warnings
+
 doc:
 	@cargo doc --open --no-deps
 
-.PHONY: test run build dev review-snapshots generate-dist migration-status migrate-up migrate-down doc
+.PHONY: test run build dev review-snapshots generate-dist migration-status migrate-up migrate-down doc clippy
