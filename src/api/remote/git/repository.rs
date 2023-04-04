@@ -433,7 +433,7 @@ fn git_ssh_command(path: &Path) -> Result<String, Report<Error>> {
 /// We only want the branches (which start with `refs/head/` and the tags (which start with `refs/tags`))
 /// Tags that end in ^{} should have the ^{} stripped from them. This will usually end up with a duplicate, so we
 /// de-dupe before returning
-#[tracing::instrument]
+#[tracing::instrument(skip_all)]
 fn parse_ls_remote(output: String) -> Vec<Reference> {
     output
         .split('\n')
