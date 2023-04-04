@@ -103,7 +103,7 @@ impl Error {
     #[tracing::instrument]
     fn integration_connection_explanation(transport: &transport::Transport) -> String {
         let shared_instructions = "We were unable to connect to this repository. Please make sure that the authentication info and the remote are set correctly in your config.yml file.";
-        let base64_command = r#"echo -n "<username>:<password>" | base64"#;
+        let base64_command = r#"echo -n "<username>:<password>" | base64"#.green();
         let specific_instructions = match transport {
             transport::Transport::Ssh {
                 auth: ssh::Auth::KeyFile(key_path),
