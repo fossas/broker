@@ -227,6 +227,7 @@ pub struct OrgConfig {
 
 impl OrgConfig {
     /// Lookup the organization for the provided config.
+    #[tracing::instrument]
     pub async fn lookup(config: &Config) -> Result<Self, Error> {
         let OrganizationInfo { organization_id } = config
             .endpoint()
@@ -299,6 +300,7 @@ pub struct CliMetadata {
 ///
 /// In the future we'd like to have this method be made available via trait so we can test.
 /// I ran out of time this time around though.
+#[tracing::instrument(skip(source_units))]
 pub async fn upload_scan(
     opts: &Config,
     project: &ProjectMetadata,
@@ -342,6 +344,7 @@ pub async fn upload_scan(
 impl Endpoint {
     /// Make a GET request against the FOSSA server with the provided route,
     /// which is joined to the base.
+    #[tracing::instrument]
     async fn get<T: DeserializeOwned>(&self, route: &str, token: &Key) -> Result<T, Error> {
         let full_url = self.join(route)?;
         let req = new_client()?
@@ -371,6 +374,7 @@ fn new_client() -> Result<Client, Error> {
         .context(Error::ConstructClient)
 }
 
+#[tracing::instrument(skip_all)]
 async fn run_request<T: DeserializeOwned>(req: RequestBuilder) -> Result<T, Error> {
     let res = req.send().await.context(Error::Request)?;
     let status = res.status();
