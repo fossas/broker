@@ -129,6 +129,11 @@ impl Integration {
             },
         }
     }
+
+    /// The endpoint for the integration.
+    pub fn endpoint(&self) -> &Remote {
+        self.protocol().endpoint()
+    }
 }
 
 /// Code is stored in many kinds of locations, from git repos to
@@ -147,6 +152,15 @@ impl Display for Protocol {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Protocol::Git(transport) => write!(f, "git:{transport}"),
+        }
+    }
+}
+
+impl Protocol {
+    /// The endpoint for the protocol.
+    pub fn endpoint(&self) -> &Remote {
+        match self {
+            Protocol::Git(transport) => transport.endpoint(),
         }
     }
 }

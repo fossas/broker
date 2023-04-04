@@ -24,7 +24,7 @@ use crate::{
     fossa_cli::{SourceUnits, Version},
 };
 
-use super::remote::{git::transport::Transport, Integration, Protocol, Reference};
+use super::remote::{Integration, Reference};
 
 /// Errors encountered using this module.
 #[derive(Debug, Error)]
@@ -255,13 +255,7 @@ pub struct ProjectMetadata {
 impl ProjectMetadata {
     /// Create metadata from the project information.
     pub fn new(integration: &Integration, reference: &Reference) -> Self {
-        let name = match integration.protocol() {
-            Protocol::Git(transport) => match transport {
-                Transport::Ssh { endpoint, .. } => endpoint.to_string(),
-                Transport::Http { endpoint, .. } => endpoint.to_string(),
-            },
-        };
-
+        let name = integration.endpoint().to_string();
         match reference {
             Reference::Git(reference) => match reference {
                 git::Reference::Branch { name: branch, head } => Self {
