@@ -7,31 +7,7 @@ use std::path::Path;
 
 use tempfile::TempDir;
 
-macro_rules! temp_config {
-    () => {{
-        let tmp = tempfile::tempdir().expect("must create tempdir");
-        let dir = tmp.path().join("debug");
-        let content = indoc::formatdoc! {r#"
-        fossa_endpoint: https://app.fossa.com
-        fossa_integration_key: abcd1234
-        version: 1
-        debugging:
-          location: {dir:?}
-          retention:
-            days: 1
-        integrations:
-        "#};
-
-        let path = tmp.path().join("config.yml");
-        std::fs::write(&path, content).expect("must write config file");
-
-        println!(
-            "wrote config to {path:?}: {}",
-            std::fs::read_to_string(&path).expect("must read config")
-        );
-        (tmp, path)
-    }};
-}
+use crate::helper::temp_config;
 
 macro_rules! run {
     (broker => $($arg:tt)*) => {{

@@ -8,4 +8,16 @@
 //! If error text changes too often, or changes in a way that makes the error less understandable,
 //! we need to make very sure we want to actually make the change.
 
-automod::dir!("tests/it");
+#![deny(clippy::invalid_regex)]
+
+mod helper;
+
+mod api_code;
+mod args;
+mod binary;
+mod config;
+mod db;
+mod debug;
+mod fossa_cli;
+mod queue;
+mod remote_git;

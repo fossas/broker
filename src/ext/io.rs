@@ -25,11 +25,14 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use error_stack::{IntoReport, Report, ResultExt};
+use error_stack::{report, IntoReport, Report, ResultExt};
 use tokio::task;
 
 use crate::{
-    ext::error_stack::{DescribeContext, ErrorHelper, IntoContext},
+    ext::{
+        error_stack::{DescribeContext, ErrorHelper, IntoContext},
+        result::WrapErr,
+    },
     AppContext,
 };
 
@@ -42,9 +45,36 @@ pub enum Error {
     #[error("IO layer error")]
     IO,
 
+    /// The destination directory for a file move operation could not be created.
+    #[error("create parent directory for destination {}", .0.display())]
+    CreateParentDir(PathBuf),
+
     /// Failed to join the background worker that performed the backing IO operation.
     #[error("join background worker")]
     JoinWorker,
+}
+
+/// Lists the contents of a directory.
+/// Returns the file names without their path components.
+#[tracing::instrument]
+pub async fn list_contents(dir: &Path) -> Result<Vec<String>, Report<Error>> {
+    let mut contents = tokio::fs::read_dir(dir).await.context(Error::IO)?;
+    let mut entries = Vec::new();
+    while let Some(entry) = contents.next_entry().await.context(Error::IO)? {
+        entries.push(entry.file_name().to_string_lossy().to_string());
+    }
+    Ok(entries)
+}
+
+/// Moves a file from one location to another.
+/// If the destination parent directory doesn't exist, it is created automatically.
+#[tracing::instrument]
+pub async fn rename(src: &Path, dst: &Path) -> Result<(), Report<Error>> {
+    let Some(parent) = dst.parent() else { return report!(Error::CreateParentDir(dst.to_path_buf())).wrap_err() };
+    tokio::fs::create_dir_all(parent)
+        .await
+        .context_lazy(|| Error::CreateParentDir(dst.to_path_buf()))?;
+    tokio::fs::rename(src, dst).await.context(Error::IO)
 }
 
 /// Searches configured locations for the file with the provided name.

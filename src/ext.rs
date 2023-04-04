@@ -6,6 +6,7 @@
 //! - We aren't sure how to make them more generic in order to fit the upstream.
 
 pub mod bytesize;
+pub mod command;
 pub mod error_stack;
 pub mod generic;
 pub mod io;
