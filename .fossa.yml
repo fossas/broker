@@ -1,0 +1,7 @@
+version: 3
+
+targets:
+  exclude:
+    # Node isn't used for this actual project, but we have a node test fixture
+    # to make tests run faster.
+    - type: npm

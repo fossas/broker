@@ -7,7 +7,7 @@ run external command
 ├╴at {source location}
 │
 ╰─▶ run command: git
-    args: ["-c", "credential.helper=", "clone", "--filter=blob:none", "--branch", "main", "http://github.com/github/doesnotexist.git", {file path}]
+    args: ["-c", "credential.helper=", "-c", "http.extraHeader=AUTHORIZATION: Basic <REDACTED>", "clone", "--filter=blob:none", "--branch", "main", "https://github.com/fossas/does-not-exist.git", {file path}]
     env: ["GIT_TERMINAL_PROMPT=0", "GCM_INTERACTIVE=never", "GIT_ASKPASS=<REMOVED>"]
     status: 128
     stdout: ''

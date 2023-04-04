@@ -10,7 +10,7 @@ test:
 	@cargo test --doc
 
 review-snapshots:
-	@cargo insta test --review
+	@cargo insta test --test-runner nextest --review
 
 generate-dist:
 	@cargo dist generate-ci github --installer github-powershell --installer github-shell

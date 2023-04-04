@@ -10,7 +10,6 @@ use broker::api::remote::RemoteProvider;
 use broker::db;
 use broker::doc::crate_version;
 use broker::ext::error_stack::IntoContext;
-use broker::fossa_cli;
 use broker::{config, ext::error_stack::ErrorHelper};
 use broker::{
     doc,
@@ -192,11 +191,6 @@ async fn main_run(args: config::RawRunArgs) -> Result<(), Error> {
     let db = db::connect_sqlite(args.database_path().path())
         .await
         .change_context(Error::InternalSetup)?;
-
-    let fossa_path = fossa_cli::find_or_download(args.context(), fossa_cli::DesiredVersion::Latest)
-        .await
-        .change_context(Error::InternalSetup)?;
-    debug!("fossa path: {:?}", fossa_path);
 
     broker::subcommand::run::main(args.context(), conf, db)
         .await

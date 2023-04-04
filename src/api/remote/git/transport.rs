@@ -9,13 +9,10 @@ use error_stack::{Report, ResultExt};
 use serde::{Deserialize, Serialize};
 use tempfile::TempDir;
 
-use crate::{
-    api::{
-        http,
-        remote::{RemoteProvider, RemoteProviderError},
-        ssh,
-    },
-    ext::io,
+use crate::api::{
+    http,
+    remote::{RemoteProvider, RemoteProviderError},
+    ssh,
 };
 
 use super::{super::Remote, repository};
@@ -103,7 +100,7 @@ impl RemoteProvider for Transport {
         // The cost is irrelevant next to the IO time.
         let transport = self.to_owned();
         let reference = reference.to_owned();
-        io::spawn_blocking(move || repository::clone_reference(&transport, &reference))
+        repository::clone_reference(&transport, &reference)
             .await
             .change_context(RemoteProviderError::RunCommand)
     }
@@ -114,7 +111,7 @@ impl RemoteProvider for Transport {
         // Rather than get into tracking lifetimes, just clone it.
         // The cost is irrelevant next to the IO time.
         let transport = self.to_owned();
-        io::spawn_blocking(move || repository::list_references(&transport))
+        repository::list_references(&transport)
             .await
             .change_context(RemoteProviderError::RunCommand)
     }
