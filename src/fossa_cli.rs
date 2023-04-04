@@ -165,7 +165,7 @@ impl Location {
         // This is intended to make Broker more predictable: users aren't surprised by
         // the presence or absence of build tools on their local system.
         let cmd = Command::new(&self.cli)
-            .env_clear()
+            .env_remove("PATH")
             .current_dir(tmp.path())
             .arg_plain("analyze")
             .arg_plain("--debug")
