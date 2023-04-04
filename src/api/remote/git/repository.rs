@@ -88,8 +88,9 @@ pub async fn clone_reference(
     blobless_clone(transport, Some(reference)).await
 }
 
-#[tracing::instrument(skip(transport))]
-async fn get_all_references(transport: &Transport) -> Result<Vec<Reference>, Report<Error>> {
+/// ls_remote calls `git ls-remote <endpoint>` on the transport's endpoint
+#[tracing::instrumnet(skip(transport))]
+pub async fn ls_remote(transport: &Transport) -> Result<String, Report<Error>> {
     let output = run_git(
         transport,
         &[
@@ -100,7 +101,14 @@ async fn get_all_references(transport: &Transport) -> Result<Vec<Reference>, Rep
         None,
     )
     .await?;
-    let references = parse_ls_remote(output.stdout_string_lossy());
+    let output = String::from_utf8(output.stdout()).context(Error::ParseGitOutput)?;
+    Ok(output)
+}
+
+#[tracing::instrument(skip(transport))]
+async fn get_all_references(transport: &Transport) -> Result<Vec<Reference>, Report<Error>> {
+    let output = ls_remote(transport).await?;
+    let references = parse_ls_remote(output);
 
     // Tags sometimes get duplicated in the output from `git ls-remote`, like this:
     // b72eb52c09df108c81e755bc3a083ce56d7e4197        refs/tags/v0.0.1

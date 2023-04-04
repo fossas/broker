@@ -347,6 +347,7 @@ async fn check_integrations(config: &Config) -> Vec<Error> {
 async fn check_integration(integration: &Integration) -> Result<(), Error> {
     let Protocol::Git(transport) = integration.protocol();
     repository::ls_remote(transport)
+        .await
         .or_else(|err| Error::integration_error(integration.remote(), transport, err).wrap_err())?;
     Ok(())
 }
