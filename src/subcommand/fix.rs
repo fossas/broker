@@ -80,7 +80,15 @@ impl Error {
     ) -> Self {
         let msg = formatdoc!(
             "
-        We encountered an error while trying to connect to your git remote at {}.\n\n{}\n\nFull error message from git:\n\n{}\n\n",
+            We encountered an error while trying to connect to your git remote at {}.
+
+            {}
+
+            Full error message from git:
+
+            {}
+
+            ",
             remote,
             Self::integration_connection_explanation(transport),
             err.to_string(),
@@ -103,51 +111,50 @@ impl Error {
             } => {
                 let key_path = key_path.to_string_lossy();
                 let command = format!(
-                r#"GIT_SSH_COMMAND="ssh -i {} -o IdentitiesOnly=yes -o StrictHostKeyChecking=no -F /dev/null" git ls-remote {}"#,
-                key_path, endpoint
-            ).green();
+                    r#"GIT_SSH_COMMAND="ssh -i {} -o IdentitiesOnly=yes -o StrictHostKeyChecking=no -F /dev/null" git ls-remote {}"#,
+                    key_path, endpoint
+                ).green();
                 formatdoc!(
-                "You are using SSH keyfile authentication for this remote. This connects to your repository by setting the `GIT_SSH_COMMAND` environment variable with the path to the ssh key that you provided in your config file. Please make sure you can run the following command to verify the connection:
+                    "You are using SSH keyfile authentication for this remote. This connects to your repository by setting the `GIT_SSH_COMMAND` environment variable with the path to the ssh key that you provided in your config file. Please make sure you can run the following command to verify the connection:
 
-                {}", command
-            )
+                    {}", command
+                )
             }
             transport::Transport::Ssh {
                 auth: ssh::Auth::KeyValue(_),
                 endpoint,
             } => {
                 let command = format!(
-                r#"GIT_SSH_COMMAND="ssh -i <path with ssh key> -o IdentitiesOnly=yes -o StrictHostKeyChecking=no -F /dev/null" git ls-remote {}"#,
-                endpoint
-            ).green();
+                    r#"GIT_SSH_COMMAND="ssh -i <path with ssh key> -o IdentitiesOnly=yes -o StrictHostKeyChecking=no -F /dev/null" git ls-remote {}"#,
+                    endpoint
+                ).green();
                 formatdoc!(
-                "You are using SSH key authentication for this remote. This method of authentication writes the SSH key that you provided in your config file to a temporary file, and then connects to your repository by setting the `GIT_SSH_COMMAND` environment variable with the path to the temporary file. To debug this, please write the ssh key to a file and then make sure you can run the following command to verify the connection.
+                    "You are using SSH key authentication for this remote. This method of authentication writes the SSH key that you provided in your config file to a temporary file, and then connects to your repository by setting the `GIT_SSH_COMMAND` environment variable with the path to the temporary file. To debug this, please write the ssh key to a file and then make sure you can run the following command to verify the connection.
 
-                The path with the ssh key in it must have permissions of 0x660 on Linux and MacOS.
+                    The path with the ssh key in it must have permissions of 0x660 on Linux and MacOS.
 
-                {}", command
-            )
+                    {}", command
+                )
             }
             transport::Transport::Http {
                 auth: Some(http::Auth::Basic { .. }),
                 endpoint,
             } => {
                 let command = format!(
-                r#"git -c "http.extraHeader=Authorization: Basic <base64 encoded username and password>" {}"#,
-                endpoint
-            )
-            .green();
+                    r#"git -c "http.extraHeader=Authorization: Basic <base64 encoded username and password>" {}"#,
+                    endpoint
+                ).green();
 
                 formatdoc!(
                     r#"You are using HTTP basic authentication for this remote. This method of authentication encodes the username and password as a base64 string and then passes that to git using the "http.extraHeader" parameter. To debug this, please make sure that the following commands work.
 
-                You generate the base64 encoded username and password by joining them with a ":" and then base64 encoding them. If your username was "pat" and your password was "password123", then you would base64 encode "pat:password123". For example, you can use a command like this:
+                    You generate the base64 encoded username and password by joining them with a ":" and then base64 encoding them. If your username was "pat" and your password was "password123", then you would base64 encode "pat:password123". For example, you can use a command like this:
 
-                {}
+                    {}
 
-                Once you have the base64 encoded username and password, use them in a command like this:
+                    Once you have the base64 encoded username and password, use them in a command like this:
 
-                {}"#,
+                    {}"#,
                     base64_command,
                     command
                 )
@@ -164,18 +171,18 @@ impl Error {
                 formatdoc!(
                     r#"You are using HTTP header authentication for this remote. This method of authentication passes the header that you have provided in your config file to git using the "http.extraHeader" parameter. To debug this, please make sure the following command works, making sure to substitute the header from your config file into the right spot:
 
-                {}
+                    {}
 
-                You generate the header by making a string that looks like this:
+                    You generate the header by making a string that looks like this:
 
-                Authorization: Basic <base64 encoded username:password>
+                    Authorization: Basic <base64 encoded username:password>
 
-                If your username was "pat" and your password was "password123", then you would base64 encode "pat:password123". For example, you can use a command like this:
+                    If your username was "pat" and your password was "password123", then you would base64 encode "pat:password123". For example, you can use a command like this:
 
-                {}
+                    {}
 
-                The username you use depends on the git hosting platform you are authenticating to. For details on this, please see the `config.example.yml` file in your broker config directory. You can re-generate this file at any time by running `broker init`.
-                "#,
+                    The username you use depends on the git hosting platform you are authenticating to. For details on this, please see the `config.example.yml` file in your broker config directory. You can re-generate this file at any time by running `broker init`.
+                    "#,
                     command,
                     base64_command
                 )
@@ -188,7 +195,7 @@ impl Error {
                 formatdoc!(
                     r#"You are using http transport with no authentication for this integration. To debug this, please make sure that the following command works:
 
-                {}"#,
+                    {}"#,
                     command
                 )
             }
@@ -262,22 +269,22 @@ impl Error {
         err: reqwest::Error,
     ) -> String {
         formatdoc!(
-        "{}
+            "{}
 
-        {}
+            {}
 
-        The URL we attempted to connect to was {}. Please make sure you can make a request to that URL. For example, try this curl command:
+            The URL we attempted to connect to was {}. Please make sure you can make a request to that URL. For example, try this curl command:
 
-        {}
+            {}
 
-        Full error message: {}
-        ",
-        description.red(),
-        specific_error_message,
-        url,
-        example_command.green(),
-        err
-    )
+            Full error message: {}
+            ",
+            description.red(),
+            specific_error_message,
+            url,
+            example_command.green(),
+            err
+        )
     }
 }
 
