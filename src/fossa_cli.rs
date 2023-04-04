@@ -6,7 +6,7 @@ use error_stack::{bail, report, IntoReport};
 use error_stack::{Result, ResultExt};
 use futures::future::try_join3;
 use indoc::formatdoc;
-use semver::Version;
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::fmt::Debug;
 use std::io::{Cursor, Read};
@@ -115,6 +115,81 @@ struct AnalysisResult {
     source_units: Value,
 }
 
+impl From<AnalysisResult> for SourceUnits {
+    fn from(value: AnalysisResult) -> Self {
+        Self(value.source_units)
+    }
+}
+
+/// FOSSA CLI outputs "source units".
+///
+/// Each source unit is a dependency graph in a specific format.
+/// Broker doesn't actually inspect these units, it just passes them through.
+#[derive(Debug, derive_more::Display)]
+pub struct SourceUnits(Value);
+
+impl SourceUnits {
+    /// Check whether the source units were empty.
+    pub fn is_empty(&self) -> bool {
+        self.0.as_array().map(|arr| arr.is_empty()).unwrap_or(true)
+    }
+}
+
+impl<'de> Deserialize<'de> for SourceUnits {
+    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        Value::deserialize(deserializer).map(Self)
+    }
+}
+
+impl Serialize for SourceUnits {
+    fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        self.0.serialize(serializer)
+    }
+}
+
+/// The FOSSA CLI version.
+#[derive(Debug, Clone, derive_more::Display, PartialEq, Eq)]
+pub struct Version(semver::Version);
+
+impl Version {
+    /// Parse the version from the output of `fossa --version`.
+    fn parse(raw_version: String) -> Result<Self, Error> {
+        raw_version
+            .strip_prefix("fossa-cli version ")
+            .and_then(|version| version.split(' ').next())
+            .ok_or_else(|| report!(Error::VersionOutputFormat))
+            .and_then(|version| semver::Version::parse(version).context(Error::ParseVersion))
+            .map(Self)
+    }
+}
+
+impl<'de> Deserialize<'de> for Version {
+    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let raw = String::deserialize(deserializer)?;
+        semver::Version::parse(&raw)
+            .map_err(serde::de::Error::custom)
+            .map(Self)
+    }
+}
+
+impl Serialize for Version {
+    fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        self.to_string().serialize(serializer)
+    }
+}
+
 /// A reference to the FOSSA CLI binary and other
 /// information used at runtime, for example where to store debug bundles.
 ///
@@ -141,7 +216,7 @@ impl Location {
 
     /// Report the version of FOSSA CLI.
     #[tracing::instrument]
-    pub async fn version(&self) -> Result<String, Error> {
+    pub async fn version(&self) -> Result<Version, Error> {
         local_version(&self.cli).await
     }
 
@@ -150,7 +225,7 @@ impl Location {
     /// FOSSA CLI log output is streamed into the traces for this function as `trace` logs.
     /// It also automatically places the debug bundle in the appropriate location for the scan.
     #[tracing::instrument]
-    pub async fn analyze(&self, scan_id: &str, project: &Path) -> Result<String, Error> {
+    pub async fn analyze(&self, scan_id: &str, project: &Path) -> Result<SourceUnits, Error> {
         let tmp = tempdir().context_lazy(Error::create_temp_dir)?;
 
         // Set the CLI to run in the temporary directory so that it creates the debug bundle there,
@@ -238,7 +313,7 @@ impl Location {
         serde_json::from_str::<AnalysisResult>(&stdout)
             .context_lazy(|| Error::running_cli(&cmd))
             .change_context_lazy(|| Error::ParseOutput(stdout.clone()))
-            .map(|result| result.source_units.to_string())
+            .map(SourceUnits::from)
     }
 }
 
@@ -276,7 +351,7 @@ pub async fn find_or_download(
     // If so, use its path. If not, download the desired version and use it.
     let resolved_version = resolve_version(&desired_version).await?;
     match local_version(&current_path).await {
-        Ok(local_version) if local_version == resolved_version => {
+        Ok(local_version) if local_version.to_string() == resolved_version => {
             debug!(
                 "local version of fossa-cli at {} matches desired version of {}",
                 current_path.display(),
@@ -328,7 +403,7 @@ async fn resolve_version(desired_version: &DesiredVersion) -> Result<String, Err
 }
 
 #[tracing::instrument(fields(fossa_version_output))]
-async fn local_version(current_path: &PathBuf) -> Result<String, Error> {
+async fn local_version(current_path: &PathBuf) -> Result<Version, Error> {
     let cmd = Command::new(current_path).arg_plain("--version");
     let output = cmd
         .output()
@@ -342,13 +417,7 @@ async fn local_version(current_path: &PathBuf) -> Result<String, Error> {
     let raw_version = output.stdout_string_lossy();
     span_record!(fossa_version_output, debug raw_version);
 
-    raw_version
-        .strip_prefix("fossa-cli version ")
-        .and_then(|version| version.split(' ').next())
-        .ok_or_else(|| report!(Error::VersionOutputFormat))
-        .and_then(|version| Version::parse(version).context(Error::ParseVersion))
-        .map(|version| version.to_string())
-        .change_context_lazy(|| Error::running_cli(&output))
+    Version::parse(raw_version).change_context_lazy(|| Error::running_cli(&output))
 }
 
 /// Given a path to a possible fossa executable, return whether or not it successfully runs
