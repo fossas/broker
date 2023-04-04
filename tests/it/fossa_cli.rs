@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 
 use broker::{
-    config::RawBaseArgs,
+    config::RawRunArgs,
     fossa_cli::{self, DesiredVersion, Location},
 };
 use tracing_test::traced_test;

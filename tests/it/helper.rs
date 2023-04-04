@@ -53,16 +53,13 @@ macro_rules! temp_config {
     }};
     (load) => {{
         let (tmp, config_file_path) = temp_config!();
-        let base_args = RawBaseArgs::new(
+        let raw_args = RawRunArgs::new(
             Some(config_file_path.to_string_lossy().to_string()),
             None, // Infer the DB path to be a sibling of the config file.
             Some(tmp.path().to_path_buf()),
         );
 
-        let args = broker::config::validate_args(base_args)
-            .await
-            .expect("must have validated");
-
+        let args = raw_args.validate().await.expect("must have validated");
         let config = broker::config::load(&args).await.expect("must load config");
         (tmp, config, args.context().clone())
     }};
@@ -250,9 +247,7 @@ macro_rules! load_config {
     ($config_path:expr, $db_path:expr) => {
         async {
             let base = crate::args::raw_base_args($config_path, $db_path);
-            let args = broker::config::validate_args(base)
-                .await
-                .expect("must have validated");
+            let args = base.validate().await.expect("must have validated");
             let config = broker::config::load(&args)
                 .await
                 .expect("must have loaded config");
@@ -266,9 +261,7 @@ macro_rules! load_config_err {
     ($config_path:expr, $db_path:expr) => {
         async {
             let base = crate::args::raw_base_args($config_path, $db_path);
-            let args = broker::config::validate_args(base)
-                .await
-                .expect("must have validated args");
+            let args = base.validate().await.expect("must have validated args");
             let err = broker::config::load(&args)
                 .await
                 .expect_err("must have failed to validate config");
