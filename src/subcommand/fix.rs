@@ -305,7 +305,7 @@ pub async fn main(config: &Config) -> Result<(), Report<Error>> {
 }
 
 // If there are errors, returns a string containing all of the error messages for a section.
-// A section is either "checking integrations" or "checking fossa connection"
+// Sections are things like "checking integrations" or "checking fossa connection"
 // If there are no errors, it returns None.
 #[tracing::instrument]
 fn print_errors(msg: &str, errors: Vec<Error>) {

@@ -89,7 +89,7 @@ pub async fn clone_reference(
 }
 
 /// ls_remote calls `git ls-remote <endpoint>` on the transport's endpoint
-#[tracing::instrumnet(skip(transport))]
+#[tracing::instrument(skip(transport))]
 pub async fn ls_remote(transport: &Transport) -> Result<String, Report<Error>> {
     let output = run_git(
         transport,
