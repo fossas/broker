@@ -53,16 +53,13 @@ macro_rules! temp_config {
     }};
     (load) => {{
         let (tmp, config_file_path) = temp_config!();
-        let base_args = RawBaseArgs::new(
+        let raw_args = RawRunArgs::new(
             Some(config_file_path.to_string_lossy().to_string()),
             None, // Infer the DB path to be a sibling of the config file.
             Some(tmp.path().to_path_buf()),
         );
 
-        let args = broker::config::validate_args(base_args)
-            .await
-            .expect("must have validated");
-
+        let args = raw_args.validate().await.expect("must have validated");
         let config = broker::config::load(&args).await.expect("must load config");
         (tmp, config, args.context().clone())
     }};
