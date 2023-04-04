@@ -118,7 +118,7 @@ where
     /// This function returns any underlying errors encountered while writing or
     /// flushing the queue, or while encoding the type.
     pub async fn send(&mut self, item: &T) -> Result<(), Report<Error>> {
-        let encoded = bincode::serialize(item).context(Error::Serialize)?;
+        let encoded = serde_json::to_vec(item).context(Error::Serialize)?;
         self.send_internal(&encoded).await
     }
 
@@ -268,7 +268,7 @@ where
 
     /// Returns a decoded form of the element received.
     pub fn item(&self) -> Result<T, Report<Error>> {
-        bincode::deserialize(self.data()).context(Error::Deserialize)
+        serde_json::from_slice(self.data()).context(Error::Deserialize)
     }
 
     /// Returns a reference to the encoded element received.

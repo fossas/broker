@@ -1,7 +1,5 @@
 //! Interact with remote services over HTTP!
 
-use std::fmt::Display;
-
 use derive_more::From;
 use derive_new::new;
 use serde::{Deserialize, Serialize};
@@ -22,15 +20,4 @@ pub enum Auth {
         /// The password for authentication.
         password: ComparableSecretString,
     },
-}
-
-impl Display for Auth {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Auth::Header(header) => write!(f, "authorization header {header}"),
-            Auth::Basic { username, password } => {
-                write!(f, "username '{username}' and password '{password}'")
-            }
-        }
-    }
 }

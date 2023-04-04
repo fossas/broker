@@ -22,7 +22,12 @@ async fn downloads_latest_cli() {
     let (downloaded, latest) =
         tokio::try_join!(location.version(), fossa_cli::latest_release_version())
             .expect("must fetch version information");
-    assert_eq!(downloaded, latest, "version downloaded must be latest");
+
+    assert_eq!(
+        downloaded.to_string(),
+        latest,
+        "version downloaded must be latest"
+    );
 }
 
 #[tokio::test]

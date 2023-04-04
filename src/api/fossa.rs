@@ -7,17 +7,24 @@ use derive_more::{AsRef, Display, From};
 use derive_new::new;
 use error_stack::{report, Report, Result, ResultExt};
 use getset::Getters;
-use reqwest::{Client, ClientBuilder, RequestBuilder};
-use serde::{de::DeserializeOwned, Deserialize};
+use indoc::formatdoc;
+use reqwest::{header::CONTENT_TYPE, Client, ClientBuilder, RequestBuilder};
+use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use srclib::{Fetcher, Locator};
 use thiserror::Error;
 use url::Url;
 
-use crate::ext::{
-    error_stack::{DescribeContext, ErrorHelper, IntoContext},
-    result::{WrapErr, WrapOk},
-    secrecy::ComparableSecretString,
+use crate::{
+    api::remote::git,
+    ext::{
+        error_stack::{DescribeContext, ErrorHelper, IntoContext},
+        result::{WrapErr, WrapOk},
+        secrecy::ComparableSecretString,
+    },
+    fossa_cli::{SourceUnits, Version},
 };
+
+use super::remote::{git::transport::Transport, Integration, Protocol, Reference};
 
 /// Errors encountered using this module.
 #[derive(Debug, Error)]
@@ -52,15 +59,29 @@ pub enum Error {
 
     /// The request was successfully sent, and the response body was downloaded,
     /// but the response body did not successfully parse into the destination type.
-    #[error("parse HTTP response body")]
-    ParseResponseBody,
+    #[error("parse HTTP response body: '{0}'")]
+    ParseResponseBody(String),
 
     /// The request body failed to serialize before we could even run the request.
     #[error("encode HTTP request body")]
     EncodeRequestBody,
 
-    /// If the FOSSA API responds with an error, report this.
-    #[error("the FOSSA API reported an error: {error}")]
+    /// Uploading a scan failed.
+    #[error("upload scan\n{metadata}")]
+    UploadScan {
+        /// Information about the scan that was uploaded.
+        metadata: String,
+    },
+
+    /// If the FOSSA API rejects the uploaded scan, report this.
+    #[error("the FOSSA API rejected the uploaded scan with the following message: {error}")]
+    ValidateUploadedScan {
+        /// The error the FOSSA API reported.
+        error: String,
+    },
+
+    /// If the FOSSA API rejects the request, report it.
+    #[error(r#"the FOSSA API rejected the request\n{error}"#)]
     FossaApi {
         /// The error the FOSSA API reported.
         error: String,
@@ -73,6 +94,42 @@ impl Error {
             base: base.to_string(),
             route: route.to_string(),
         }
+    }
+
+    fn parse_response_body(body: &[u8]) -> Self {
+        Self::ParseResponseBody(String::from_utf8_lossy(body).to_string())
+    }
+
+    fn upload_scan(locator: &Locator, source_units: &SourceUnits) -> Self {
+        let metadata = formatdoc! {r#"
+        project locator: {locator}
+        source units: {source_units}
+        "#};
+        Self::UploadScan { metadata }
+    }
+
+    fn fossa_api(err: ApiError) -> Self {
+        let ApiError { name, message, .. } = err;
+        let ApiError { code, uuid, .. } = err;
+        let http_status_code = err.http_status_code;
+
+        let name = if let Some(name) = name {
+            format!("{name}:")
+        } else {
+            String::from("")
+        };
+
+        let error = formatdoc! {r#"
+        {name} {message}
+
+        code: {code}
+        http status code: {http_status_code}
+        
+        If you report this issue to FOSSA Support,
+        please include the Error ID in the request: '{uuid}'
+        "#};
+
+        Self::FossaApi { error }
     }
 }
 
@@ -187,55 +244,99 @@ impl OrgConfig {
 }
 
 /// The metadata for a project to upload.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ProjectMetadata {
     name: String,
-    branch: String,
+    branch: Option<String>,
     revision: String,
 }
 
+impl ProjectMetadata {
+    /// Create metadata from the project information.
+    pub fn new(integration: &Integration, reference: &Reference) -> Self {
+        let name = match integration.protocol() {
+            Protocol::Git(transport) => match transport {
+                Transport::Ssh { endpoint, .. } => endpoint.to_string(),
+                Transport::Http { endpoint, .. } => endpoint.to_string(),
+            },
+        };
+
+        match reference {
+            Reference::Git(reference) => match reference {
+                git::Reference::Branch { name: branch, head } => Self {
+                    name,
+                    branch: Some(branch.to_string()),
+                    revision: head.to_string(),
+                },
+                git::Reference::Tag { name: tag, .. } => Self {
+                    name,
+                    branch: None,
+                    revision: tag.to_string(),
+                },
+            },
+        }
+    }
+}
+
+impl Display for ProjectMetadata {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let name = &self.name;
+        let revision = &self.revision;
+        match &self.branch {
+            Some(branch) => write!(f, "{name}@{revision} ({branch})"),
+            None => write!(f, "{name}@{revision}"),
+        }
+    }
+}
+
 /// Metadata from FOSSA CLI.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, new)]
 pub struct CliMetadata {
-    version: String,
+    version: Version,
 }
 
 /// Upload the scan results for a project.
 ///
-/// Currently Broker doesn't inspect source units, so this is just a string;
-/// be careful that this is the proper shape.
+/// In the future we'd like to have this method be made available via trait so we can test.
+/// I ran out of time this time around though.
 pub async fn upload_scan(
     opts: &Config,
     project: &ProjectMetadata,
     cli: &CliMetadata,
-    source_units: String,
+    source_units: SourceUnits,
 ) -> Result<Locator, Error> {
-    // Get the org info each time, in case the org for the token has changed since Broker started.
-    let opts = OrgConfig::lookup(opts).await?;
     let url = opts.endpoint().join("api/builds/custom")?;
 
     let locator = Locator::builder()
         .fetcher(Fetcher::Custom)
         .project(&project.name)
         .revision(&project.revision)
-        .org_id(opts.organization_id)
-        .build()
-        .to_string();
+        .build();
+    let package_locator = locator.clone().into_package();
+
+    // We don't currently include metadata such as team/policies/etc.
+    // We can add it to integration config as users request it though.
+    let mut query = vec![
+        ("title", package_locator.to_string()),
+        ("locator", locator.to_string()),
+        ("cliVersion", cli.version.to_string()),
+        ("managedBuild", String::from("true")),
+    ];
+    if let Some(branch) = &project.branch {
+        query.push(("branch", branch.to_string()));
+    }
 
     let req = new_client()?
         .post(url)
         .bearer_auth(opts.key().expose_secret())
-        .query(&[
-            // We don't currently include metadata such as team/policies/title/etc.
-            // We can add it to integration config as users request it though.
-            ("locator", locator.as_str()),
-            ("branch", project.branch.as_str()),
-            ("cliVersion", cli.version.as_str()),
-            ("managedBuild", "true"),
-        ])
-        .body(source_units);
+        .query(&query)
+        .header(CONTENT_TYPE, "application/json")
+        .body(source_units.to_string());
 
-    run_request::<UploadResponse>(req).await?.into()
+    run_request::<UploadResponse>(req)
+        .await
+        .change_context_lazy(|| Error::upload_scan(&locator, &source_units))?
+        .into()
 }
 
 impl Endpoint {
@@ -272,29 +373,49 @@ fn new_client() -> Result<Client, Error> {
 
 async fn run_request<T: DeserializeOwned>(req: RequestBuilder) -> Result<T, Error> {
     let res = req.send().await.context(Error::Request)?;
-    let response_body = res.bytes().await.context(Error::ReadResponse)?;
-    serde_json::from_slice(&response_body).context(Error::ParseResponseBody)
+    let status = res.status();
+
+    let body = res.bytes().await.context(Error::ReadResponse)?;
+    if !status.is_success() {
+        let err = serde_json::from_slice::<ApiError>(&body)
+            .context_lazy(|| Error::parse_response_body(&body))?;
+        report!(Error::fossa_api(err)).wrap_err()
+    } else {
+        serde_json::from_slice(&body).context_lazy(|| Error::parse_response_body(&body))
+    }
 }
 
+/// The FOSSA API's organization info response. There's more here, but we don't care about it.
 #[derive(Debug, Deserialize)]
-#[serde(rename_all = "snake_case")]
+#[serde(rename_all = "camelCase")]
 struct OrganizationInfo {
     organization_id: usize,
 }
 
+/// After an otherwise successful upload, the build can fail due to validation; capture that here.
 #[derive(Debug, Deserialize)]
-#[serde(rename_all = "snake_case")]
+#[serde(rename_all = "camelCase")]
 struct UploadResponse {
-    upload_locator: Locator,
-    upload_error: Option<String>,
+    locator: Locator,
+    error: Option<String>,
+}
+
+/// FOSSA API reports errors in this formatted form.
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct ApiError {
+    name: Option<String>,
+    uuid: String,
+    code: i32,
+    http_status_code: i32,
+    message: String,
 }
 
 impl From<UploadResponse> for Result<Locator, Error> {
-    fn from(value: UploadResponse) -> Self {
-        if let Some(error) = value.upload_error {
-            Err(report!(Error::FossaApi { error }))
-        } else {
-            Ok(value.upload_locator)
+    fn from(UploadResponse { error, locator }: UploadResponse) -> Self {
+        match error {
+            Some(error) => report!(Error::ValidateUploadedScan { error }).wrap_err(),
+            None => Ok(locator),
         }
     }
 }

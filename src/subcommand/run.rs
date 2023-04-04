@@ -17,9 +17,10 @@ use tracing::warn;
 use tracing::{debug, info};
 use uuid::Uuid;
 
+use crate::api::fossa::{self, CliMetadata, ProjectMetadata};
 use crate::api::remote::Reference;
 use crate::ext::tracing::span_record;
-use crate::fossa_cli::{self, DesiredVersion};
+use crate::fossa_cli::{self, DesiredVersion, SourceUnits};
 use crate::queue::{self, Queue, Receiver, Sender};
 use crate::AppContext;
 use crate::{
@@ -168,18 +169,8 @@ struct UploadSourceUnits {
     scan_id: String,
     integration: Integration,
     reference: Reference,
-    source_units: String,
-}
-
-impl UploadSourceUnits {
-    fn new(scan_job: ScanGitVCSReference, source_units: String) -> Self {
-        Self {
-            scan_id: scan_job.scan_id,
-            integration: scan_job.integration,
-            reference: scan_job.reference,
-            source_units,
-        }
-    }
+    cli: CliMetadata,
+    source_units: SourceUnits,
 }
 
 /// Loops forever, polling configured integrations on their `poll_interval`.
@@ -224,6 +215,8 @@ async fn do_poll_integration<D: Database>(
     };
 
     loop {
+        info!("Polling '{integration}'");
+
         // Given that this operation is not latency sensitive, and temporary network issues can interfere,
         // retry several times before permanently failing since a permanent failure means Broker shuts down
         // entirely.
@@ -280,14 +273,14 @@ async fn do_poll_integration<D: Database>(
         // We sink the references here instead of during the stream so that
         // if an error is encountered reading the stream, we don't send partial lists.
         if references.is_empty() {
-            info!("No changes to {integration} since last poll interval");
+            info!("No changes to '{integration}'");
         }
         for reference in references {
             let job = ScanGitVCSReference::new(integration, &reference);
             let mut sender = sender.lock().await;
             sender.send(&job).await.change_context(Error::TaskEnqueue)?;
 
-            info!("Enqueued task to scan {integration} at {reference}");
+            info!("Enqueued task to scan '{integration}' at '{reference}'");
         }
 
         // Now wait for the next poll time.
@@ -306,7 +299,7 @@ async fn do_poll_integration<D: Database>(
         // If we decide to make polling more consistent, [`tokio::time::interval`]
         // is most likely the correct way to implement it.
 
-        info!("Next poll interval for {integration} in {poll_interval:?}");
+        info!("Next poll interval for '{integration}' in {poll_interval:?}");
         tokio::time::sleep(poll_interval).await;
     }
 }
@@ -330,12 +323,12 @@ async fn do_scan_git_references<D: Database>(
         let guard = receiver.recv().await.change_context(Error::TaskReceive)?;
         let job = guard.item().change_context(Error::TaskReceive)?;
 
-        let source_units = do_scan_git_reference(ctx, &job, &cli)
+        let upload = do_scan_git_reference(ctx, &job, &cli)
             .await
             .change_context(Error::TaskHandle)?;
 
         uploader
-            .send(&UploadSourceUnits::new(job, source_units))
+            .send(&upload)
             .await
             .change_context(Error::TaskEnqueue)?;
 
@@ -348,7 +341,8 @@ async fn do_scan_git_reference<D: Database>(
     _ctx: &CmdContext<D>,
     job: &ScanGitVCSReference,
     cli: &fossa_cli::Location,
-) -> Result<String, Error> {
+) -> Result<UploadSourceUnits, Error> {
+    info!("Scanning '{}' at '{}'", job.integration, job.reference);
     span_record!(scan_id, &job.scan_id);
 
     // Clone the reference into a temporary directory.
@@ -360,7 +354,7 @@ async fn do_scan_git_reference<D: Database>(
 
     // Record the CLI version for debugging purposes.
     let cli_version = cli.version().await.change_context(Error::RunFossaCli)?;
-    span_record!(cli_version, &cli_version);
+    span_record!(cli_version, display cli_version);
 
     // Run the scan.
     let source_units = cli
@@ -368,8 +362,14 @@ async fn do_scan_git_reference<D: Database>(
         .await
         .change_context(Error::RunFossaCli)?;
 
-    info!("Scanned {} at {}", job.integration, job.reference);
-    Ok(source_units)
+    info!("Scanned '{}' at '{}'", job.integration, job.reference);
+    Ok(UploadSourceUnits {
+        cli: CliMetadata::new(cli_version),
+        integration: job.integration.clone(),
+        reference: job.reference.clone(),
+        scan_id: job.scan_id.clone(),
+        source_units,
+    })
 }
 
 #[tracing::instrument(skip_all)]
@@ -377,5 +377,20 @@ async fn do_uploads<D: Database>(
     ctx: &CmdContext<D>,
     mut receiver: Receiver<UploadSourceUnits>,
 ) -> Result<(), Error> {
-    todo!()
+    loop {
+        let guard = receiver.recv().await.change_context(Error::TaskReceive)?;
+        let job = guard.item().change_context(Error::TaskReceive)?;
+
+        let meta = ProjectMetadata::new(&job.integration, &job.reference);
+        info!("Uploading project: '{meta}'");
+
+        let locator = fossa::upload_scan(ctx.config.fossa_api(), &meta, &job.cli, job.source_units)
+            .await
+            .change_context(Error::TaskHandle)?;
+
+        debug!(scan_id = %job.scan_id, locator = %locator, "Uploaded scan");
+        info!("Uploaded project '{meta}' as locator: '{locator}'");
+
+        guard.commit().change_context(Error::TaskComplete)?;
+    }
 }
