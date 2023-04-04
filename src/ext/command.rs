@@ -56,6 +56,9 @@ pub struct Command {
     /// `None` means they're cleared from the environment.
     envs: Vec<(String, Option<Value>)>,
 
+    /// Whether to clear the env of the child.
+    env_clear: bool,
+
     /// The working directory for the command.
     /// If not specified, defaults to the working directory of the current process.
     working_dir: Option<PathBuf>,
@@ -73,6 +76,7 @@ impl Command {
             envs: Vec::new(),
             name: command.as_ref().to_owned(),
             working_dir: None,
+            env_clear: false,
         }
     }
 
@@ -151,6 +155,13 @@ impl Command {
         self
     }
 
+    /// Normally environment variables are inherited from the host process (Broker itself).
+    /// This method clears all the inherited envs so the child starts with a blank slate.
+    pub fn env_clear(mut self) -> Self {
+        self.env_clear = true;
+        self
+    }
+
     /// Customizes the working directory for the command.
     pub fn current_dir<P: Into<PathBuf>>(mut self, dir: P) -> Self {
         self.working_dir = Some(dir.into());
@@ -198,6 +209,10 @@ impl Command {
     /// log any of its output directly.
     fn as_cmd(&self) -> tokio::process::Command {
         let mut cmd = tokio::process::Command::new(&self.name);
+
+        if self.env_clear {
+            cmd.env_clear();
+        }
 
         if let Some(working_dir) = &self.working_dir {
             cmd.current_dir(working_dir);

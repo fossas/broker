@@ -160,7 +160,12 @@ impl Location {
         // this way trace events are recorded at the time the CLI actually logs them
         // instead of all at once at the end.
         // The hope is that this will improve debugging, as we'll be able to see timings and partial output.
+        //
+        // We clear the env so that dynamic analysis strategies don't run.
+        // This is intended to make Broker more predictable: users aren't surprised by
+        // the presence or absence of build tools on their local system.
         let cmd = Command::new(&self.cli)
+            .env_clear()
             .current_dir(tmp.path())
             .arg_plain("analyze")
             .arg_plain("--debug")
