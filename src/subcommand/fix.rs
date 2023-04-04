@@ -230,14 +230,14 @@ impl Error {
             None => {
                 if err.is_timeout() {
                     Error::CheckFossaGet {
-                    msg: Self::fossa_get_explanation(
-                        description,
-                        "We received a timeout error while attempting to connect to FOSSA. This can happen if we are unable to connect to FOSSA due to various reasons.",
-                        url,
-                        example_command,
-                        err,
-                    ),
-                }
+                        msg: Self::fossa_get_explanation(
+                            description,
+                            "We received a timeout error while attempting to connect to FOSSA. This can happen if we are unable to connect to FOSSA due to various reasons.",
+                            url,
+                            example_command,
+                            err,
+                        ),
+                    }
                 } else {
                     Error::CheckFossaGet {
                         msg: Self::fossa_get_explanation(
@@ -297,6 +297,9 @@ pub async fn main(config: &Config) -> Result<(), Report<Error>> {
     Ok(())
 }
 
+// If there are errors, returns a string containing all of the error messages for a section.
+// A section is either "checking integrations" or "checking fossa connection"
+// If there are no errors, it returns None.
 #[tracing::instrument]
 fn print_errors(msg: &str, errors: Vec<Error>) {
     if !errors.is_empty() {
