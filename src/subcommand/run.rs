@@ -382,14 +382,14 @@ async fn upload_scans<D: Database>(
         let job = guard.item().change_context(Error::TaskReceive)?;
 
         let meta = ProjectMetadata::new(&job.integration, &job.reference);
-        info!("Uploading project: '{meta}'");
+        info!("Uploading scan for project: '{meta}'");
 
         let locator = fossa::upload_scan(ctx.config.fossa_api(), &meta, &job.cli, job.source_units)
             .await
             .change_context(Error::TaskHandle)?;
 
         debug!(scan_id = %job.scan_id, locator = %locator, "Uploaded scan");
-        info!("Uploaded project '{meta}' as locator: '{locator}'");
+        info!("Uploaded scan for project '{meta}' as locator: '{locator}'");
 
         guard.commit().change_context(Error::TaskComplete)?;
     }
