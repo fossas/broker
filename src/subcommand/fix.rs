@@ -26,7 +26,7 @@ use crate::{
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
     /// Check an integration
-    #[error("check integration for {}\n{}", remote, error)]
+    #[error("check integration for {remote}\n{error}")]
     CheckIntegration {
         /// the remote that the integration check failed for
         remote: Remote,
@@ -37,14 +37,14 @@ pub enum Error {
     },
 
     /// Make a GET request to a fossa endpoint that does not require authentication
-    #[error("check fossa connection: {}", msg)]
+    #[error("check fossa connection: {msg}")]
     CheckFossaGet {
         /// An error message explaining how to fix this GET from FOSSA
         msg: String,
     },
 
     /// Creating a full URL from the provided endpoint
-    #[error("create FOSSA URL from endpoint {}/{}", remote, path)]
+    #[error("create FOSSA URL from endpoint {remote}/{path}")]
     CreateFullFossaUrl {
         /// The configured fossa URL
         remote: url::Url,
