@@ -141,7 +141,7 @@ impl Error {
                 endpoint,
             } => {
                 let command = format!(
-                    r#"git -c "http.extraHeader=Authorization: Basic <base64 encoded username and password>" {}"#,
+                    r#"git -c "http.extraHeader=Authorization: Basic <base64 encoded username and password>" ls-remote {}"#,
                     endpoint
                 ).green();
 
