@@ -1,6 +1,6 @@
 [package]
 name = "broker"
-version = "0.1.0-pre"
+version = "0.1.0"
 edition = "2021"
 description = "The bridge between FOSSA and internal DevOps services"
 readme = "README.md"
@@ -8,7 +8,6 @@ homepage = "https://github.com/fossas/broker"
 repository = "https://github.com/fossas/broker"
 license = "Apache-2.0"
 exclude = [ "docs", ".github" ]
-publish = false # rather than publishing this to crates.io, we'll provide releases here on GitHub.
 
 # Broker always tracks latest Rust, but this is the minimum required.
 rust-version = "1.68"
@@ -72,13 +71,24 @@ test-strategy = "0.3.0"
 error-stack = { version = "0.3.1", features = ["hooks"] }
 thiserror = "1.0.40"
 
-[profile.dist]
-inherits = "release"
-debug = true
-split-debuginfo = "packed"
-
 [profile.dev.package.insta]
 opt-level = 3
 
 [profile.dev.package.similar]
 opt-level = 3
+
+# The profile that 'cargo dist' will build with
+[profile.dist]
+inherits = "release"
+lto = "thin"
+
+# Config for 'cargo dist'
+[workspace.metadata.dist]
+# The preferred cargo-dist version to use in CI (Cargo.toml SemVer syntax)
+cargo-dist-version = "0.0.5"
+# The preferred Rust toolchain to use in CI (rustup toolchain syntax)
+rust-toolchain-version = "1.68"
+# CI backends to support (see 'cargo dist generate-ci')
+ci = ["github"]
+# Target platforms to build apps for (Rust target-triple syntax)
+targets = ["x86_64-unknown-linux-gnu", "x86_64-apple-darwin", "x86_64-pc-windows-msvc", "aarch64-apple-darwin"]

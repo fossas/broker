@@ -11,6 +11,11 @@ without sharing access to the source code of the project.
 Most modern systems can run Broker with no issues.
 For a more detailed look at system requirements, see the [system requirements reference](./reference/system-requirements.md).
 
+## Installing Broker
+
+- To install Broker on your local system, see [install Broker locally](./reference/install-local.md)
+- To run Broker in Kubernetes, see [install Broker in Kubernetes](./reference/install-kubernetes.md)
+
 ## Config
 
 The Broker config file tells Broker about the repositories it should scan, how it can access them, and at what cadence.

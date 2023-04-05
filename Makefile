@@ -13,7 +13,7 @@ review-snapshots:
 	@cargo insta test --test-runner nextest --review
 
 generate-dist:
-	@cargo dist generate-ci github --installer github-powershell --installer github-shell
+	@cargo dist generate-ci github
 
 run:
 	@cargo run -- run
