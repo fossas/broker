@@ -178,8 +178,7 @@ fn pastable_git_command(
 
 /// Construct a pastable string containing a `git ls-remote` command, including the default args and the environment required for the transport's auth
 pub fn pastable_ls_remote_command(transport: &Transport) -> Result<String, Report<Error>> {
-    let command = construct_git_command(transport, &ls_remote_args(transport), None)?;
-    command.describe().pastable().wrap_ok()
+    pastable_git_command(transport, &ls_remote_args(transport), None)
 }
 
 // Days until a commit is considered stale and will not be scanned
