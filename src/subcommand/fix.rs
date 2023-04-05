@@ -216,10 +216,7 @@ impl Error {
             Some(reqwest::StatusCode::UNAUTHORIZED) => Error::CheckFossaGet {
                 msg: Self::fossa_get_explanation(
                     description,
-                    &format!(
-                        r#"We received an "Unauthorized" status response from FOSSA. This can mean that the fossa_integration_key configured in your config.yml file is not correct. You can obtain a FOSSA API key at {}/account/settings/integrations/api_tokens."#,
-                        url
-                    ),
+                    r#"We received an "Unauthorized" status response from FOSSA. This can mean that the fossa_integration_key configured in your config.yml file is not correct. You can obtain a FOSSA API key by going to Settings => Integrations => API in the FOSSA application."#,
                     url,
                     example_command,
                     err,
