@@ -8,7 +8,7 @@ run external command
 │
 ╰─▶ run command: git
     args: ["-c", "credential.helper=", "ls-remote", "--quiet", "http://github.com/github/doesnotexist.git"]
-    env: ["GIT_TERMINAL_PROMPT=0", "GCM_INTERACTIVE=never", "GIT_ASKPASS=<REMOVED>"]
+    env: ["GIT_TERMINAL_PROMPT='0'", "GCM_INTERACTIVE='never'", "GIT_ASKPASS=<REMOVED>"]
     status: 128
     stdout: ''
     stderr: 'fatal: could not read Username for 'https://github.com': terminal prompts disabled'
