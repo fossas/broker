@@ -283,7 +283,6 @@ pub async fn main(config: &Config) -> Result<(), Report<Error>> {
 // If there are errors, returns a string containing all of the error messages for a section.
 // Sections are things like "checking integrations" or "checking fossa connection"
 // If there are no errors, it returns None.
-#[tracing::instrument]
 fn print_errors(msg: &str, errors: Vec<Error>) {
     if !errors.is_empty() {
         println!("{}\n", msg.bold().red());
@@ -306,12 +305,13 @@ async fn check_integrations(config: &Config) -> Vec<Error> {
     let integrations = config.integrations();
     let mut errors = Vec::new();
     for integration in integrations.iter() {
+        let remote = integration.remote();
         match check_integration(integration).await {
             Ok(()) => {
-                println!("✅ {}", integration.remote())
+                println!("✅ {remote}")
             }
             Err(err) => {
-                println!("❌ {}", integration.remote());
+                println!("❌ {remote}");
                 errors.push(err);
             }
         }
@@ -339,7 +339,7 @@ async fn check_fossa_connection(config: &Config) -> Vec<Error> {
 
     let get_with_no_auth = check_fossa_get_with_no_auth(config).await;
     match get_with_no_auth {
-        Ok(()) => {
+        Ok(_) => {
             println!("✅ check fossa API connection with no auth required");
         }
         Err(err) => {
@@ -349,7 +349,7 @@ async fn check_fossa_connection(config: &Config) -> Vec<Error> {
     }
     let get_with_auth = check_fossa_get_with_auth(config).await;
     match get_with_auth {
-        Ok(()) => {
+        Ok(_) => {
             println!("✅ check fossa API connection with auth required");
         }
         Err(err) => {
