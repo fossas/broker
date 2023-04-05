@@ -18,6 +18,7 @@ use crate::ext::secrecy::REDACTION_LITERAL;
 
 use super::{result::WrapOk, secrecy::ComparableSecretString};
 
+const REMOVED_LITERAL: &str = "<REMOVED>";
 /// Any error encountered running the program.
 #[derive(Debug, Error)]
 pub enum Error {
@@ -646,7 +647,7 @@ impl Description {
             .envs
             .clone()
             .into_iter()
-            .filter(|e| !e.contains("<REMOVED>"))
+            .map(|e| e.replace(REMOVED_LITERAL, "''"))
             .collect::<Vec<_>>()
             .join(" ");
         let args = self.args.join(" ");
@@ -676,7 +677,7 @@ impl CommandDescriber for Command {
             .iter()
             .map(|(key, value)| match value {
                 Some(value) => format!("{key}='{value}'"),
-                None => format!("{key}=<REMOVED>"),
+                None => format!("{key}={REMOVED_LITERAL}"),
             })
             .collect_vec();
 
@@ -696,7 +697,7 @@ impl CommandDescriber for std::process::Command {
             .map(|(key, value)| (key.to_string_lossy(), value.map(OsStr::to_string_lossy)))
             .map(|(key, value)| match value {
                 Some(value) => format!("{key}={value}"),
-                None => format!("{key}=<REMOVED>"),
+                None => format!("{key}={REMOVED_LITERAL}"),
             })
             .collect_vec();
 
