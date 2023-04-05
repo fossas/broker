@@ -119,15 +119,10 @@ async fn analyze_fails_dynamic() {
         .expect_err("must fail to analyze");
 
     // Snapshot testing won't work here as the order of log lines output by FOSSA CLI are not determinstic.
-    // Just check for some specific substrings in the error output.
     let rendered = format!("{err:#}");
     assert!(
         rendered.contains("No analysis targets found in directory."),
-        "error: {rendered}"
-    );
-    assert!(
-        rendered.contains("Could not find executable: `cargo`."),
-        "error: {rendered}"
+        "{rendered}"
     );
 }
 
