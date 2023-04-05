@@ -16,7 +16,7 @@ use broker::{
     ext::error_stack::{DescribeContext, ErrorDocReference, FatalErrorReport},
 };
 use clap::{Parser, Subcommand};
-use error_stack::{bail, fmt::ColorMode, Report, Result, ResultExt};
+use error_stack::{fmt::ColorMode, Report, Result, ResultExt};
 use tap::TapFallible;
 use tracing::debug;
 
@@ -24,9 +24,6 @@ use tracing::debug;
 enum Error {
     #[error("determine effective configuration")]
     DetermineEffectiveConfig,
-
-    #[error("this subcommand is not implemented")]
-    SubcommandUnimplemented,
 
     #[error("a fatal error occurred during internal configuration")]
     InternalSetup,
@@ -120,8 +117,26 @@ async fn main_init(args: config::RawInitArgs) -> Result<(), Error> {
 
 /// Automatically detect problems with Broker and fix them.
 /// If they can't be fixed, generate a debug bundle.
-async fn main_fix(_args: config::RawRunArgs) -> Result<(), Error> {
-    bail!(Error::SubcommandUnimplemented)
+async fn main_fix(args: config::RawRunArgs) -> Result<(), Error> {
+    let args = args.validate()
+        .await
+        .change_context(Error::DetermineEffectiveConfig)
+        .help("try running Broker with the '--help' argument to see available options and usage suggestions")?;
+
+    let conf = config::load(&args)
+        .await
+        .change_context(Error::DetermineEffectiveConfig)
+        .documentation_lazy(doc::link::config_file_reference)?;
+    debug!("Loaded {conf:?}");
+
+    let _tracing_guard = conf
+        .debug()
+        .run_tracing_sink()
+        .change_context(Error::InternalSetup)?;
+
+    broker::subcommand::fix::main(&conf)
+        .await
+        .change_context(Error::Runtime)
 }
 
 /// Run Broker with the current config.

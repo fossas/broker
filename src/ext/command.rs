@@ -18,6 +18,7 @@ use crate::ext::secrecy::REDACTION_LITERAL;
 
 use super::{result::WrapOk, secrecy::ComparableSecretString};
 
+const REMOVED_LITERAL: &str = "<REMOVED>";
 /// Any error encountered running the program.
 #[derive(Debug, Error)]
 pub enum Error {
@@ -291,7 +292,7 @@ impl OutputProvider for Output {
 /// Use `wait` to wait for the process to close.
 ///
 /// # Secrets
-///  
+///
 /// The caller is responsible for ensuring that the output is redacted,
 /// if this output is to be printed.
 /// Use the [`redact_str`] or [`redact_bytes`] methods on this struct
@@ -639,6 +640,20 @@ impl Description {
             .join(", ");
         format!("[{}]", joined)
     }
+
+    /// Provides a representation of the command that can be pasted into the terminal
+    pub fn pastable(&self) -> String {
+        let envs = self
+            .envs
+            .clone()
+            .into_iter()
+            .map(|e| e.replace(REMOVED_LITERAL, "''"))
+            .collect::<Vec<_>>()
+            .join(" ");
+        let args = self.args.join(" ");
+        let name = &self.name;
+        format!("{envs} {name} {args}")
+    }
 }
 
 /// Supports rendering a command in the Broker standardized form.
@@ -661,8 +676,8 @@ impl CommandDescriber for Command {
             .envs
             .iter()
             .map(|(key, value)| match value {
-                Some(value) => format!("{key}={value}"),
-                None => format!("{key}=<REMOVED>"),
+                Some(value) => format!("{key}='{value}'"),
+                None => format!("{key}={REMOVED_LITERAL}"),
             })
             .collect_vec();
 
@@ -682,7 +697,7 @@ impl CommandDescriber for std::process::Command {
             .map(|(key, value)| (key.to_string_lossy(), value.map(OsStr::to_string_lossy)))
             .map(|(key, value)| match value {
                 Some(value) => format!("{key}={value}"),
-                None => format!("{key}=<REMOVED>"),
+                None => format!("{key}={REMOVED_LITERAL}"),
             })
             .collect_vec();
 
