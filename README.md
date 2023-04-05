@@ -8,13 +8,13 @@ without sharing access to the source code of the project!
 
 ## Quickstart
 
-1. Install Broker: `TODO: add install script`
+1. Install Broker ([documentation](https://github.com/fossas/broker/blob/main/docs/README.md))
 2. Initialize Broker: `broker init`
-3. Configure the `.broker.yml` with your projects
+3. Configure the `config.yml` with your projects
 4. Run Broker: `broker run`
 5. Wait a little bit for import magic to happen and then view your projects in FOSSA!
 
-For more information, see the [User Manual](./docs/README.md).
+For more information, see the [User Manual](https://github.com/fossas/broker/blob/main/docs/README.md).
 
 ## Supported Projects
 
@@ -22,7 +22,7 @@ Broker supports arbitrary project URLs:
 
 | Kind  | Supported | Details                               |
 |-------|-----------|---------------------------------------|
-| `git` | ⌛️        | Any project reachable via `git clone` |
+| `git` | ✅        | Any project reachable via `git clone` |
 
 _Legend:_
 - _✅: Supported_
@@ -32,9 +32,10 @@ _Legend:_
 ## System Requirements
 
 Most modern systems can run Broker with no issues.
-For a more detailed look at system requirements, see the [system requirements here](./docs/reference/system-requirements.md).
+For a more detailed look at system requirements,
+see the [system requirements here](https://github.com/fossas/broker/blob/main/docs/reference/system-requirements.md).
 
 ## Contributing
 
-If you're interested in contributing, check out our [developer guide](./docs/dev/README.md).
+If you're interested in contributing, check out our [developer guide](https://github.com/fossas/broker/blob/main/docs/dev/README.md).
 PRs are welcome and appreciated!
