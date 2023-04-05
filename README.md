@@ -9,9 +9,9 @@ without sharing access to the source code of the project!
 ## Quickstart
 
 1. Install Broker ([documentation](https://github.com/fossas/broker/blob/main/docs/README.md))
-2. Initialize Broker: `broker init`
-3. Configure the `config.yml` with your projects
-4. Run Broker: `broker run`
+2. Initialize Broker with `broker init`, which prints the location for `config.yml`
+3. Configure the `config.yml` with your project(s)
+4. Run Broker with `broker run`
 5. Wait a little bit for import magic to happen and then view your projects in FOSSA!
 
 For more information, see the [User Manual](https://github.com/fossas/broker/blob/main/docs/README.md).
