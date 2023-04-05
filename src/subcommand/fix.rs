@@ -57,16 +57,15 @@ impl Error {
     fn fix_explanation(&self) -> String {
         match self {
             Error::CheckIntegration { remote, msg, .. } => {
-                format!("❌ {}\n\n{}", remote.to_string().red(), msg)
+                let remote = remote.to_string().red();
+                format!("❌ {remote}\n\n{msg}")
             }
             Error::CheckFossaGet { msg } => {
-                format!("❌ {} {}", "Error checking connection to FOSSA:".red(), msg)
+                let error_string = "Error checking connection to FOSSA:".red();
+                format!("❌ {error_string} {msg}")
             }
             Error::CreateFullFossaUrl { remote, path } => {
-                format!(
-                    "❌ Creating a full URL from your remote of {} and path = {}",
-                    remote, path
-                )
+                format!("❌ Creating a full URL from your remote of '{remote}' and path = '{path}'")
             }
         }
     }
@@ -79,7 +78,7 @@ impl Error {
         let explanation = Self::integration_connection_explanation(transport);
         let msg = formatdoc!(
             "
-            Broker encountered an error while trying to connect to your git remote at {remote}.
+            Broker encountered an error while trying to connect to your git remote at '{remote}'.
 
             {explanation}
 
@@ -106,8 +105,7 @@ impl Error {
             } => {
                 let key_path = key_path.to_string_lossy();
                 let command = format!(
-                    r#"GIT_SSH_COMMAND="ssh -i {} -o IdentitiesOnly=yes -o StrictHostKeyChecking=no -F /dev/null" git ls-remote {}"#,
-                    key_path, endpoint
+                    r#"GIT_SSH_COMMAND="ssh -i {key_path} -o IdentitiesOnly=yes -o StrictHostKeyChecking=no -F /dev/null" git ls-remote {endpoint}"#
                 ).green();
                 formatdoc!(
                     "You are using SSH keyfile authentication for this remote. This connects to your repository by setting the `GIT_SSH_COMMAND` environment variable with the path to the ssh key that you provided in your config file. Please make sure you can run the following command to verify the connection:
@@ -120,15 +118,14 @@ impl Error {
                 endpoint,
             } => {
                 let command = format!(
-                    r#"GIT_SSH_COMMAND="ssh -i <path with ssh key> -o IdentitiesOnly=yes -o StrictHostKeyChecking=no -F /dev/null" git ls-remote {}"#,
-                    endpoint
+                    r#"GIT_SSH_COMMAND="ssh -i <path with ssh key> -o IdentitiesOnly=yes -o StrictHostKeyChecking=no -F /dev/null" git ls-remote {endpoint}"#
                 ).green();
                 formatdoc!(
-                    "You are using SSH key authentication for this remote. This method of authentication writes the SSH key that you provided in your config file to a temporary file, and then connects to your repository by setting the `GIT_SSH_COMMAND` environment variable with the path to the temporary file. To debug this, please write the ssh key to a file and then make sure you can run the following command to verify the connection.
+                    "You are using SSH key authentication for this remote. This method of authentication writes the SSH key that you provided in your config file to a temporary file, and then connects to your repository by setting the 'GIT_SSH_COMMAND' environment variable with the path to the temporary file. To debug this, please write the ssh key to a file and then make sure you can run the following command to verify the connection.
 
                     The path with the ssh key in it must have permissions of 0x660 on Linux and MacOS.
 
-                    {}", command
+                    {command}"
                 )
             }
             transport::Transport::Http {
@@ -155,11 +152,9 @@ impl Error {
                 auth: Some(http::Auth::Header { .. }),
                 endpoint,
             } => {
-                let command = format!(
-                    r#"git -c "http.extraHeader=<your header>" ls-remote {}"#,
-                    endpoint
-                )
-                .green();
+                let command =
+                    format!(r#"git -c "http.extraHeader=<your header>" ls-remote {endpoint}"#)
+                        .green();
                 formatdoc!(
                     r#"You are using HTTP header authentication for this remote. This method of authentication passes the header that you have provided in your config file to git using the "http.extraHeader" parameter. To debug this, please make sure the following command works, making sure to substitute the header from your config file into the right spot:
 
@@ -173,7 +168,7 @@ impl Error {
 
                     {base64_command}
 
-                    The username you use depends on the git hosting platform you are authenticating to. For details on this, please see the `config.example.yml` file in your broker config directory. You can re-generate this file at any time by running `broker init`.
+                    The username you use depends on the git hosting platform you are authenticating to. For details on this, please see the 'config.example.yml' file in your broker config directory. You can re-generate this file at any time by running 'broker init'.
                     "#
                 )
             }
@@ -181,7 +176,7 @@ impl Error {
                 auth: None,
                 endpoint,
             } => {
-                let command = format!("git ls-remote {}", endpoint).green();
+                let command = format!("git ls-remote {endpoint}").green();
                 formatdoc!(
                     r#"You are using http transport with no authentication for this integration. To debug this, please make sure that the following command works:
 
@@ -190,7 +185,7 @@ impl Error {
             }
         };
 
-        format!("{}\n\n{}", shared_instructions, specific_instructions)
+        format!("{shared_instructions}\n\n{specific_instructions}")
     }
 
     fn fossa_integration_error(
@@ -213,7 +208,7 @@ impl Error {
             Some(status) => Error::CheckFossaGet {
                 msg: Self::fossa_get_explanation(
                     description,
-                    &formatdoc!("Broker received a {status} status response from FOSSA."),
+                    &format!("Broker received a {status} status response from FOSSA."),
                     url,
                     example_command,
                     err,
@@ -259,7 +254,7 @@ impl Error {
 
             {specific_error_message}
 
-            The URL Broker attempted to connect to was {url}. Please make sure you can make a request to that URL. For example, try this curl command:
+            The URL Broker attempted to connect to was '{url}'. Please make sure you can make a request to that URL. For example, try this curl command:
 
             {example_command}
 
@@ -307,7 +302,7 @@ async fn check_integrations(config: &Config) -> Vec<Error> {
         .bold()
         .blue()
         .to_string();
-    println!("{}", title);
+    println!("{title}");
     let integrations = config.integrations();
     let mut errors = Vec::new();
     for integration in integrations.iter() {
@@ -339,7 +334,7 @@ async fn check_fossa_connection(config: &Config) -> Vec<Error> {
         .bold()
         .blue()
         .to_string();
-    println!("{}", title);
+    println!("{title}");
     let mut errors = Vec::new();
 
     let get_with_no_auth = check_fossa_get_with_no_auth(config).await;
@@ -394,12 +389,9 @@ async fn check_fossa_get_with_no_auth(config: &Config) -> Result<(), Error> {
 
     describe_fossa_request(
         health_check_response,
-        &format!(
-            "GET to fossa endpoint {} with no authentication required",
-            url.as_ref()
-        ),
+        &format!("GET to fossa endpoint '{url}' with no authentication required"),
         url.as_ref(),
-        &format!("curl {}", url),
+        &format!("curl {url}"),
     )
 }
 
@@ -427,15 +419,9 @@ async fn check_fossa_get_with_auth(config: &Config) -> Result<(), Error> {
         .await;
     describe_fossa_request(
         org_endpoint_response,
-        &format!(
-            "GET to fossa endpoint {} with authentication required",
-            url.as_ref()
-        ),
+        &format!("GET to fossa endpoint '{url}' with authentication required"),
         url.as_ref(),
-        &format!(
-            r#"curl -H "Authorization: Bearer <your fossa api key>" {}"#,
-            url
-        ),
+        &format!(r#"curl -H "Authorization: Bearer <your fossa api key>" {url}"#),
     )
 }
 
