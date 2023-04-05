@@ -48,18 +48,8 @@ enum Commands {
     /// Initialize Broker configuration.
     Init(config::RawInitArgs),
 
-    /// Guided setup.
-    Setup,
-
-    /// Guided configuration changes.
-    Config(config::RawRunArgs),
-
     /// Automatically detect problems with Broker and fix them.
     Fix(config::RawRunArgs),
-
-    /// Back up or restore Broker's current config and database.
-    Backup(config::RawRunArgs),
-
     /// Run Broker with the current config.
     Run(config::RawRunArgs),
 
@@ -83,10 +73,7 @@ async fn main() -> Result<(), Error> {
     let subcommand = || async {
         match command {
             Commands::Init(args) => main_init(args).await,
-            Commands::Setup => main_setup().await,
-            Commands::Config(args) => main_config(args).await,
             Commands::Fix(args) => main_fix(args).await,
-            Commands::Backup(args) => main_backup(args).await,
             Commands::Run(args) => main_run(args).await,
             Commands::Clone(args) => main_clone(args).await,
         }
@@ -131,24 +118,9 @@ async fn main_init(args: config::RawInitArgs) -> Result<(), Error> {
     broker::subcommand::init::main(ctx.data_root()).change_context(Error::Runtime)
 }
 
-/// Guided interactive setup.
-async fn main_setup() -> Result<(), Error> {
-    bail!(Error::SubcommandUnimplemented)
-}
-
-/// Guided interactive configuration changes.
-async fn main_config(_args: config::RawRunArgs) -> Result<(), Error> {
-    bail!(Error::SubcommandUnimplemented)
-}
-
 /// Automatically detect problems with Broker and fix them.
 /// If they can't be fixed, generate a debug bundle.
 async fn main_fix(_args: config::RawRunArgs) -> Result<(), Error> {
-    bail!(Error::SubcommandUnimplemented)
-}
-
-/// Back up or restore Broker's current config and database.
-async fn main_backup(_args: config::RawRunArgs) -> Result<(), Error> {
     bail!(Error::SubcommandUnimplemented)
 }
 
