@@ -291,7 +291,7 @@ impl OutputProvider for Output {
 /// Use `wait` to wait for the process to close.
 ///
 /// # Secrets
-///  
+///
 /// The caller is responsible for ensuring that the output is redacted,
 /// if this output is to be printed.
 /// Use the [`redact_str`] or [`redact_bytes`] methods on this struct
@@ -639,6 +639,20 @@ impl Description {
             .join(", ");
         format!("[{}]", joined)
     }
+
+    /// Provides a representation of the command that can be pasted into the terminal
+    pub fn pastable(&self) -> String {
+        let envs = self
+            .envs
+            .clone()
+            .into_iter()
+            .filter(|e| !e.contains("<REMOVED>"))
+            .collect::<Vec<_>>()
+            .join(" ");
+        let args = self.args.join(" ");
+        let name = &self.name;
+        format!("{envs} {name} {args}")
+    }
 }
 
 /// Supports rendering a command in the Broker standardized form.
@@ -661,7 +675,7 @@ impl CommandDescriber for Command {
             .envs
             .iter()
             .map(|(key, value)| match value {
-                Some(value) => format!("{key}={value}"),
+                Some(value) => format!("{key}='{value}'"),
                 None => format!("{key}=<REMOVED>"),
             })
             .collect_vec();

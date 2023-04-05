@@ -88,19 +88,21 @@ pub async fn clone_reference(
     blobless_clone(transport, Some(reference)).await
 }
 
+/// The args for the call to ls-remote
+///
+/// This is public because it is used in the fix subcommand
+pub fn ls_remote_args(transport: &Transport) -> Vec<Value> {
+    vec![
+        Value::new_plain("ls-remote"),
+        Value::new_plain("--quiet"),
+        Value::new_plain(transport.endpoint().to_string().as_str()),
+    ]
+}
+
 /// ls_remote calls `git ls-remote <endpoint>` on the transport's endpoint
 #[tracing::instrument(skip(transport))]
 pub async fn ls_remote(transport: &Transport) -> Result<String, Report<Error>> {
-    let output = run_git(
-        transport,
-        &[
-            Value::new_plain("ls-remote"),
-            Value::new_plain("--quiet"),
-            Value::new_plain(transport.endpoint().to_string().as_str()),
-        ],
-        None,
-    )
-    .await?;
+    let output = run_git(transport, &ls_remote_args(transport), None).await?;
     let output = String::from_utf8(output.stdout()).context(Error::ParseGitOutput)?;
     Ok(output)
 }
@@ -119,12 +121,13 @@ async fn get_all_references(transport: &Transport) -> Result<Vec<Reference>, Rep
     references.into_iter().unique().collect_vec().wrap_ok()
 }
 
+/// Construct a git command, including the default args and the environment required for the transport's auth
 #[tracing::instrument(skip(transport))]
-async fn run_git(
+pub fn construct_git_command(
     transport: &Transport,
     args: &[Value],
     cwd: Option<&Path>,
-) -> Result<Output, Report<Error>> {
+) -> Result<Command, Report<Error>> {
     let args = default_args(transport)?
         .into_iter()
         .chain(args.iter().cloned().map_into())
@@ -142,7 +145,16 @@ async fn run_git(
     if let Some(directory) = cwd {
         command = command.current_dir(directory);
     }
+    Ok(command)
+}
 
+#[tracing::instrument(skip(transport))]
+async fn run_git(
+    transport: &Transport,
+    args: &[Value],
+    cwd: Option<&Path>,
+) -> Result<Output, Report<Error>> {
+    let command = construct_git_command(transport, args, cwd)?;
     let output = command
         .output()
         .await

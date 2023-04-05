@@ -1,5 +1,6 @@
 //! Implementation for the fix command
 
+use crate::ext::secrecy::REDACTION_LITERAL;
 use colored::Colorize;
 use core::result::Result;
 use error_stack::Report;
@@ -19,7 +20,7 @@ use crate::{
         ssh,
     },
     config::Config,
-    ext::result::WrapErr,
+    ext::{command::CommandDescriber, result::WrapErr},
 };
 
 /// Errors encountered when running the fix command.
@@ -51,6 +52,10 @@ pub enum Error {
         /// The path on Fossa
         path: String,
     },
+
+    /// Generating an example command for a transport
+    #[error("generate example command")]
+    GenerateExampleCommand,
 }
 
 impl Error {
@@ -67,6 +72,9 @@ impl Error {
             Error::CreateFullFossaUrl { remote, path } => {
                 format!("❌ Creating a full URL from your remote of '{remote}' and path = '{path}'")
             }
+            Error::GenerateExampleCommand => {
+                "❌ Generating an example command for a remote".to_string()
+            }
         }
     }
 
@@ -75,7 +83,11 @@ impl Error {
         transport: &Transport,
         err: Report<repository::Error>,
     ) -> Self {
-        let explanation = Self::integration_connection_explanation(transport);
+        let explanation = match Self::integration_connection_explanation(transport) {
+            Err(err) => return err,
+            Ok(exp) => exp,
+        };
+
         let msg = formatdoc!(
             "
             Broker encountered an error while trying to connect to your git remote at '{remote}'.
@@ -95,18 +107,28 @@ impl Error {
         }
     }
 
-    fn integration_connection_explanation(transport: &transport::Transport) -> String {
+    fn integration_connection_explanation(
+        transport: &transport::Transport,
+    ) -> Result<String, Error> {
         let shared_instructions = "Broker was unable to connect to this repository. Please make sure that the authentication info and the remote are set correctly in your config.yml file.";
         let base64_command = r#"echo -n "<username>:<password>" | base64"#.green();
+
+        // Generate an example command. The basic command is `git ls-remote`, but there are other arguments and env variables added
+        // depending on the auth used.
+        // The resulting command should be an exact copy of the command used by broker, and should work when pasted into the terminal.
+        let command = repository::construct_git_command(
+            transport,
+            &repository::ls_remote_args(transport),
+            None,
+        )
+        .or(Err(Error::GenerateExampleCommand))?;
+        let command = command.describe().pastable().green();
+
         let specific_instructions = match transport {
             transport::Transport::Ssh {
-                auth: ssh::Auth::KeyFile(key_path),
-                endpoint,
+                auth: ssh::Auth::KeyFile(_),
+                ..
             } => {
-                let key_path = key_path.to_string_lossy();
-                let command = format!(
-                    r#"GIT_SSH_COMMAND="ssh -i {key_path} -o IdentitiesOnly=yes -o StrictHostKeyChecking=no -F /dev/null" git ls-remote {endpoint}"#
-                ).green();
                 formatdoc!(
                     "You are using SSH keyfile authentication for this remote. This connects to your repository by setting the `GIT_SSH_COMMAND` environment variable with the path to the ssh key that you provided in your config file. Please make sure you can run the following command to verify the connection:
 
@@ -115,13 +137,12 @@ impl Error {
             }
             transport::Transport::Ssh {
                 auth: ssh::Auth::KeyValue(_),
-                endpoint,
+                ..
             } => {
-                let command = format!(
-                    r#"GIT_SSH_COMMAND="ssh -i <path with ssh key> -o IdentitiesOnly=yes -o StrictHostKeyChecking=no -F /dev/null" git ls-remote {endpoint}"#
-                ).green();
                 formatdoc!(
                     "You are using SSH key authentication for this remote. This method of authentication writes the SSH key that you provided in your config file to a temporary file, and then connects to your repository by setting the 'GIT_SSH_COMMAND' environment variable with the path to the temporary file. To debug this, please write the ssh key to a file and then make sure you can run the following command to verify the connection.
+
+                    Note that the path to the SSH key in this example command is a path to a temporary file that will no longer exist. You will need to edit this command to change the path to point at the file you just created.
 
                     The path with the ssh key in it must have permissions of 0x660 on Linux and MacOS.
 
@@ -130,12 +151,8 @@ impl Error {
             }
             transport::Transport::Http {
                 auth: Some(http::Auth::Basic { .. }),
-                endpoint,
+                ..
             } => {
-                let command = format!(
-                    r#"git -c "http.extraHeader=Authorization: Basic <base64 encoded username and password>" ls-remote {endpoint}"#
-                ).green();
-
                 formatdoc!(
                     r#"You are using HTTP basic authentication for this remote. This method of authentication encodes the username and password as a base64 string and then passes that to git using the "http.extraHeader" parameter. To debug this, please make sure that the following commands work.
 
@@ -143,18 +160,15 @@ impl Error {
 
                     {base64_command}
 
-                    Once you have the base64 encoded username and password, use them in a command like this:
+                    Once you have the base64 encoded username and password, use them in a command like this, replacing {REDACTION_LITERAL} with your base64 encoded string:
 
                     {command}"#
                 )
             }
             transport::Transport::Http {
                 auth: Some(http::Auth::Header { .. }),
-                endpoint,
+                ..
             } => {
-                let command =
-                    format!(r#"git -c "http.extraHeader=<your header>" ls-remote {endpoint}"#)
-                        .green();
                 formatdoc!(
                     r#"You are using HTTP header authentication for this remote. This method of authentication passes the header that you have provided in your config file to git using the "http.extraHeader" parameter. To debug this, please make sure the following command works, making sure to substitute the header from your config file into the right spot:
 
@@ -172,11 +186,7 @@ impl Error {
                     "#
                 )
             }
-            transport::Transport::Http {
-                auth: None,
-                endpoint,
-            } => {
-                let command = format!("git ls-remote {endpoint}").green();
+            transport::Transport::Http { auth: None, .. } => {
                 formatdoc!(
                     r#"You are using http transport with no authentication for this integration. To debug this, please make sure that the following command works:
 
@@ -185,7 +195,7 @@ impl Error {
             }
         };
 
-        format!("{shared_instructions}\n\n{specific_instructions}")
+        Ok(format!("{shared_instructions}\n\n{specific_instructions}"))
     }
 
     fn fossa_integration_error(
