@@ -89,9 +89,7 @@ pub async fn clone_reference(
 }
 
 /// The args for the call to ls-remote
-///
-/// This is public because it is used in the fix subcommand
-pub fn ls_remote_args(transport: &Transport) -> Vec<Value> {
+fn ls_remote_args(transport: &Transport) -> Vec<Value> {
     vec![
         Value::new_plain("ls-remote"),
         Value::new_plain("--quiet"),
@@ -123,7 +121,7 @@ async fn get_all_references(transport: &Transport) -> Result<Vec<Reference>, Rep
 
 /// Construct a git command, including the default args and the environment required for the transport's auth
 #[tracing::instrument(skip(transport))]
-pub fn construct_git_command(
+fn construct_git_command(
     transport: &Transport,
     args: &[Value],
     cwd: Option<&Path>,
@@ -165,6 +163,23 @@ async fn run_git(
     }
 
     Ok(output)
+}
+
+/// Construct a pastable string containing a git command, including the default args and the environment required for the transport's auth
+#[tracing::instrument(skip(transport))]
+fn pastable_git_command(
+    transport: &Transport,
+    args: &[Value],
+    cwd: Option<&Path>,
+) -> Result<String, Report<Error>> {
+    let command = construct_git_command(transport, args, cwd)?;
+    command.describe().pastable().wrap_ok()
+}
+
+/// Construct a pastable string containing a `git ls-remote` command, including the default args and the environment required for the transport's auth
+pub fn pastable_ls_remote_command(transport: &Transport) -> Result<String, Report<Error>> {
+    let command = construct_git_command(transport, &ls_remote_args(transport), None)?;
+    command.describe().pastable().wrap_ok()
 }
 
 // Days until a commit is considered stale and will not be scanned

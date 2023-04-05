@@ -20,7 +20,7 @@ use crate::{
         ssh,
     },
     config::Config,
-    ext::{command::CommandDescriber, result::WrapErr},
+    ext::result::WrapErr,
 };
 
 /// Errors encountered when running the fix command.
@@ -116,13 +116,9 @@ impl Error {
         // Generate an example command. The basic command is `git ls-remote`, but there are other arguments and env variables added
         // depending on the auth used.
         // The resulting command should be an exact copy of the command used by broker, and should work when pasted into the terminal.
-        let command = repository::construct_git_command(
-            transport,
-            &repository::ls_remote_args(transport),
-            None,
-        )
-        .or(Err(Error::GenerateExampleCommand))?;
-        let command = command.describe().pastable().green();
+        let command = repository::pastable_ls_remote_command(transport)
+            .or(Err(Error::GenerateExampleCommand))
+            .map(|c| c.green())?;
 
         let specific_instructions = match transport {
             transport::Transport::Ssh {
