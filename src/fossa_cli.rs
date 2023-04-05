@@ -235,7 +235,14 @@ impl Location {
         // this way trace events are recorded at the time the CLI actually logs them
         // instead of all at once at the end.
         // The hope is that this will improve debugging, as we'll be able to see timings and partial output.
+        //
+        // We clear the env so that dynamic analysis strategies don't run.
+        // This is intended to make Broker more predictable: users aren't surprised by
+        // the presence or absence of build tools on their local system.
+        // In the future FOSSA CLI may have an option to enable this more gracefully;
+        // in such case we'll switch to that.
         let cmd = Command::new(&self.cli)
+            .env_remove("PATH")
             .current_dir(tmp.path())
             .arg_plain("analyze")
             .arg_plain("--debug")
@@ -432,14 +439,13 @@ async fn check_command_existence(command_path: &PathBuf) -> bool {
         .unwrap_or(false)
 }
 
-/// command_name is "fossa.exe" on windows and "fossa" on all other platforms
-#[tracing::instrument]
+/// "fossa.exe" on windows and "fossa" on all other platforms
 #[cfg(target_family = "windows")]
 fn command_name() -> &'static str {
     "fossa.exe"
 }
 
-#[tracing::instrument]
+/// "fossa.exe" on windows and "fossa" on all other platforms
 #[cfg(target_family = "unix")]
 fn command_name() -> &'static str {
     "fossa"

@@ -85,7 +85,7 @@ async fn analyze_fails() {
         .await
         .expect("must download CLI");
 
-    // Scan our path taht does not exist.
+    // Scan our path that does not exist.
     println!("Analyzing '{}' with scan id '{scan_id}'", project.display());
     let err = location
         .analyze(&scan_id, &project)
@@ -98,6 +98,36 @@ async fn analyze_fails() {
         data_root => ctx.data_root();
         &ctx.data_root().to_string_lossy().to_string(),
         err
+    );
+}
+
+/// Analysis of a dynamic-only project should fail, since dynamic strategies are disabled.
+/// Rust is dynamic only, so analyze Broker itself.
+#[tokio::test]
+async fn analyze_fails_dynamic() {
+    let (_tmp, config, ctx) = temp_config!(load);
+    let scan_id = Uuid::new_v4().to_string();
+
+    // Provide a path that doesn't exist, so that analysis fails.
+    let project = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+
+    println!("Downloading CLI");
+    let location = fossa_cli::download(&ctx, config.debug().location(), DesiredVersion::Latest)
+        .await
+        .expect("must download CLI");
+
+    // Scan our project.
+    println!("Analyzing '{}' with scan id '{scan_id}'", project.display());
+    let err = location
+        .analyze(&scan_id, &project)
+        .await
+        .expect_err("must fail to analyze");
+
+    // Snapshot testing won't work here as the order of log lines output by FOSSA CLI are not determinstic.
+    let rendered = format!("{err:#}");
+    assert!(
+        rendered.contains("No analysis targets found in directory."),
+        "{rendered}"
     );
 }
 

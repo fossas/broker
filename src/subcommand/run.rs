@@ -92,14 +92,13 @@ struct CmdContext<D> {
 }
 
 /// The primary entrypoint.
-#[tracing::instrument(skip_all, fields(subcommand = "run", cmd_context))]
+#[tracing::instrument(skip_all, fields(subcommand = "run"))]
 pub async fn main<D: Database>(ctx: &AppContext, config: Config, db: D) -> Result<(), Error> {
     let ctx = CmdContext {
         app: ctx.clone(),
         config,
         db,
     };
-    span_record!(cmd_context, debug ctx);
 
     let (scan_tx, scan_rx) = queue::open(&ctx.app, Queue::Scan)
         .await
@@ -110,10 +109,10 @@ pub async fn main<D: Database>(ctx: &AppContext, config: Config, db: D) -> Resul
 
     // This function runs a bunch of async background tasks.
     // Create them all, then just `try_join!` on all of them at the end.
-    let healthcheck_worker = do_healthcheck(&ctx.db);
-    let integration_worker = do_poll_integrations(&ctx, scan_tx);
-    let scan_git_reference_worker = do_scan_git_references(&ctx, scan_rx, upload_tx);
-    let upload_worker = do_uploads(&ctx, upload_rx);
+    let healthcheck_worker = healthcheck(&ctx.db);
+    let integration_worker = poll_integrations(&ctx, scan_tx);
+    let scan_git_reference_worker = scan_git_references(&ctx, scan_rx, upload_tx);
+    let upload_worker = upload_scans(&ctx, upload_rx);
 
     // `try_join!` keeps all of the workers running until one of them fails,
     // at which point the failure is returned and remaining tasks are dropped.
@@ -130,7 +129,7 @@ pub async fn main<D: Database>(ctx: &AppContext, config: Config, db: D) -> Resul
 
 /// Conduct internal diagnostics to ensure Broker is still in a good state.
 #[tracing::instrument(skip_all)]
-async fn do_healthcheck<D: Database>(db: &D) -> Result<(), Error> {
+async fn healthcheck<D: Database>(db: &D) -> Result<(), Error> {
     for _ in 0.. {
         db.healthcheck()
             .await
@@ -175,7 +174,7 @@ struct UploadSourceUnits {
 
 /// Loops forever, polling configured integrations on their `poll_interval`.
 #[tracing::instrument(skip_all)]
-async fn do_poll_integrations<D: Database>(
+async fn poll_integrations<D: Database>(
     ctx: &CmdContext<D>,
     sender: Sender<ScanGitVCSReference>,
 ) -> Result<(), Error> {
@@ -185,16 +184,17 @@ async fn do_poll_integrations<D: Database>(
     // Each integration is configured with a poll interval.
     // Rather than have one big poll loop that has to track polling times for each integration,
     // just create a task per integration; they're cheap.
-    let integration_workers = ctx.config.integrations().iter().map(|integration| async {
-        do_poll_integration(&ctx.db, integration, sender.clone()).await
-    });
+    let integration_workers =
+        ctx.config.integrations().iter().map(|integration| async {
+            poll_integration(&ctx.db, integration, sender.clone()).await
+        });
 
     // Run all the workers in parallel. If one errors, return that error and drop the rest.
     try_join_all(integration_workers).await.discard_ok()
 }
 
 #[tracing::instrument(skip(db, sender))]
-async fn do_poll_integration<D: Database>(
+async fn poll_integration<D: Database>(
     db: &D,
     integration: &Integration,
     sender: Arc<Mutex<Sender<ScanGitVCSReference>>>,
@@ -305,7 +305,7 @@ async fn do_poll_integration<D: Database>(
 }
 
 #[tracing::instrument(skip_all)]
-async fn do_scan_git_references<D: Database>(
+async fn scan_git_references<D: Database>(
     ctx: &CmdContext<D>,
     mut receiver: Receiver<ScanGitVCSReference>,
     mut uploader: Sender<UploadSourceUnits>,
@@ -323,7 +323,7 @@ async fn do_scan_git_references<D: Database>(
         let guard = receiver.recv().await.change_context(Error::TaskReceive)?;
         let job = guard.item().change_context(Error::TaskReceive)?;
 
-        let upload = do_scan_git_reference(ctx, &job, &cli)
+        let upload = scan_git_reference(ctx, &job, &cli)
             .await
             .change_context(Error::TaskHandle)?;
 
@@ -337,7 +337,7 @@ async fn do_scan_git_references<D: Database>(
 }
 
 #[tracing::instrument(skip(_ctx, cli), fields(scan_id, cli_version))]
-async fn do_scan_git_reference<D: Database>(
+async fn scan_git_reference<D: Database>(
     _ctx: &CmdContext<D>,
     job: &ScanGitVCSReference,
     cli: &fossa_cli::Location,
@@ -373,7 +373,7 @@ async fn do_scan_git_reference<D: Database>(
 }
 
 #[tracing::instrument(skip_all)]
-async fn do_uploads<D: Database>(
+async fn upload_scans<D: Database>(
     ctx: &CmdContext<D>,
     mut receiver: Receiver<UploadSourceUnits>,
 ) -> Result<(), Error> {
@@ -382,14 +382,14 @@ async fn do_uploads<D: Database>(
         let job = guard.item().change_context(Error::TaskReceive)?;
 
         let meta = ProjectMetadata::new(&job.integration, &job.reference);
-        info!("Uploading project: '{meta}'");
+        info!("Uploading scan for project: '{meta}'");
 
         let locator = fossa::upload_scan(ctx.config.fossa_api(), &meta, &job.cli, job.source_units)
             .await
             .change_context(Error::TaskHandle)?;
 
         debug!(scan_id = %job.scan_id, locator = %locator, "Uploaded scan");
-        info!("Uploaded project '{meta}' as locator: '{locator}'");
+        info!("Uploaded scan for project '{meta}' as locator: '{locator}'");
 
         guard.commit().change_context(Error::TaskComplete)?;
     }
