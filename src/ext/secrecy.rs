@@ -51,7 +51,7 @@ impl ComparableSecretString {
 
 impl Debug for ComparableSecretString {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str("ComparableSecret({REDACTION_LITERAL})")
+        f.write_str(&format!("ComparableSecret({REDACTION_LITERAL})"))
     }
 }
 
