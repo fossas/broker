@@ -170,7 +170,7 @@ impl Error {
                 ..
             } => {
                 formatdoc!(
-                    r#"You are using HTTP header authentication for this remote. This method of authentication passes the header that you have provided in your config file to git using the "http.extraHeader" parameter. To debug this, please make sure the following command works, making sure to substitute the header from your config file into the right spot:
+                    r#"You are using HTTP header authentication for this remote. This method of authentication passes the header that you have provided in your config file to git using the "http.extraHeader" parameter. To debug this, please make sure the following command works, after replacing {REDACTION_LITERAL} with the header from your config file:
 
                     {command}
 
