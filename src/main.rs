@@ -16,7 +16,7 @@ use broker::{
     ext::error_stack::{DescribeContext, ErrorDocReference, FatalErrorReport},
 };
 use clap::{Parser, Subcommand};
-use error_stack::{bail, fmt::ColorMode, Report, Result, ResultExt};
+use error_stack::{fmt::ColorMode, Report, Result, ResultExt};
 use tap::TapFallible;
 use tracing::debug;
 
@@ -24,9 +24,6 @@ use tracing::debug;
 enum Error {
     #[error("determine effective configuration")]
     DetermineEffectiveConfig,
-
-    #[error("this subcommand is not implemented")]
-    SubcommandUnimplemented,
 
     #[error("a fatal error occurred during internal configuration")]
     InternalSetup,
