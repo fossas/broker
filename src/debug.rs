@@ -13,9 +13,11 @@ use derive_new::new;
 use error_stack::{report, Report};
 use getset::{CopyGetters, Getters};
 use rolling_file::{BasicRollingFileAppender, RollingConditionBasic};
-use tracing::info;
+use tracing::{info, Metadata};
 use tracing_appender::non_blocking::WorkerGuard;
-use tracing_subscriber::{filter, fmt::format::FmtSpan, prelude::*, Registry};
+use tracing_subscriber::{
+    filter, fmt::format::FmtSpan, layer::Context, prelude::*, Layer, Registry,
+};
 
 use crate::ext::{
     error_stack::{DescribeContext, ErrorHelper, IntoContext},
@@ -102,7 +104,14 @@ impl Config {
             // log pretty info traces to terminal
             .with(
                 tracing_subscriber::fmt::layer()
-                    .pretty()
+                    .compact()
+                    .with_file(false)
+                    .with_level(false)
+                    .with_line_number(false)
+                    .with_target(false)
+                    .with_writer(std::io::stderr)
+                    .with_ansi(atty::is(atty::Stream::Stderr))
+                    .with_filter(filter::dynamic_filter_fn(filter_to_events))
                     .with_filter(filter::LevelFilter::INFO),
             )
             // log all traces to file in json format
@@ -124,6 +133,25 @@ impl Config {
         );
         Ok(guard)
     }
+}
+
+/// When logging trace output, we're talking to FOSSA users, not developers.
+/// Users don't care about the vast majority of what traces contain, things like:
+/// - Line numbers
+/// - Call stack context
+/// - Module names
+///
+/// Instead, just limit it to literally only events. No span metadata.
+fn filter_to_events(metadata: &Metadata<'_>, ctx: &Context<'_, Registry>) -> bool {
+    if metadata.is_event() {
+        return true;
+    }
+
+    if let Some(current) = ctx.lookup_current() {
+        return current.metadata().is_event();
+    }
+
+    false
 }
 
 /// Observability artifacts are stored on disk until requested by the FOSSA service.
