@@ -54,7 +54,6 @@ pub enum Error {
 }
 
 impl Error {
-    #[tracing::instrument]
     fn fix_explanation(&self) -> String {
         match self {
             Error::CheckIntegration { remote, msg, .. } => {
@@ -72,26 +71,23 @@ impl Error {
         }
     }
 
-    #[tracing::instrument]
     fn integration_error(
         remote: &Remote,
         transport: &Transport,
         err: Report<repository::Error>,
     ) -> Self {
+        let explanation = Self::integration_connection_explanation(transport);
         let msg = formatdoc!(
             "
-            We encountered an error while trying to connect to your git remote at {}.
+            Broker encountered an error while trying to connect to your git remote at {remote}.
 
-            {}
+            {explanation}
 
             Full error message from git:
 
-            {}
+            {err}
 
-            ",
-            remote,
-            Self::integration_connection_explanation(transport),
-            err.to_string(),
+            "
         );
         Error::CheckIntegration {
             remote: remote.clone(),
@@ -100,9 +96,8 @@ impl Error {
         }
     }
 
-    #[tracing::instrument]
     fn integration_connection_explanation(transport: &transport::Transport) -> String {
-        let shared_instructions = "We were unable to connect to this repository. Please make sure that the authentication info and the remote are set correctly in your config.yml file.";
+        let shared_instructions = "Broker was unable to connect to this repository. Please make sure that the authentication info and the remote are set correctly in your config.yml file.";
         let base64_command = r#"echo -n "<username>:<password>" | base64"#.green();
         let specific_instructions = match transport {
             transport::Transport::Ssh {
@@ -117,7 +112,7 @@ impl Error {
                 formatdoc!(
                     "You are using SSH keyfile authentication for this remote. This connects to your repository by setting the `GIT_SSH_COMMAND` environment variable with the path to the ssh key that you provided in your config file. Please make sure you can run the following command to verify the connection:
 
-                    {}", command
+                    {command}"
                 )
             }
             transport::Transport::Ssh {
@@ -141,8 +136,7 @@ impl Error {
                 endpoint,
             } => {
                 let command = format!(
-                    r#"git -c "http.extraHeader=Authorization: Basic <base64 encoded username and password>" ls-remote {}"#,
-                    endpoint
+                    r#"git -c "http.extraHeader=Authorization: Basic <base64 encoded username and password>" ls-remote {endpoint}"#
                 ).green();
 
                 formatdoc!(
@@ -150,13 +144,11 @@ impl Error {
 
                     You generate the base64 encoded username and password by joining them with a ":" and then base64 encoding them. If your username was "pat" and your password was "password123", then you would base64 encode "pat:password123". For example, you can use a command like this:
 
-                    {}
+                    {base64_command}
 
                     Once you have the base64 encoded username and password, use them in a command like this:
 
-                    {}"#,
-                    base64_command,
-                    command
+                    {command}"#
                 )
             }
             transport::Transport::Http {
@@ -171,7 +163,7 @@ impl Error {
                 formatdoc!(
                     r#"You are using HTTP header authentication for this remote. This method of authentication passes the header that you have provided in your config file to git using the "http.extraHeader" parameter. To debug this, please make sure the following command works, making sure to substitute the header from your config file into the right spot:
 
-                    {}
+                    {command}
 
                     You generate the header by making a string that looks like this:
 
@@ -179,12 +171,10 @@ impl Error {
 
                     If your username was "pat" and your password was "password123", then you would base64 encode "pat:password123". For example, you can use a command like this:
 
-                    {}
+                    {base64_command}
 
                     The username you use depends on the git hosting platform you are authenticating to. For details on this, please see the `config.example.yml` file in your broker config directory. You can re-generate this file at any time by running `broker init`.
-                    "#,
-                    command,
-                    base64_command
+                    "#
                 )
             }
             transport::Transport::Http {
@@ -195,8 +185,7 @@ impl Error {
                 formatdoc!(
                     r#"You are using http transport with no authentication for this integration. To debug this, please make sure that the following command works:
 
-                    {}"#,
-                    command
+                    {command}"#
                 )
             }
         };
@@ -204,7 +193,6 @@ impl Error {
         format!("{}\n\n{}", shared_instructions, specific_instructions)
     }
 
-    #[tracing::instrument]
     fn fossa_integration_error(
         status: Option<reqwest::StatusCode>,
         err: reqwest::Error,
@@ -216,7 +204,7 @@ impl Error {
             Some(reqwest::StatusCode::UNAUTHORIZED) => Error::CheckFossaGet {
                 msg: Self::fossa_get_explanation(
                     description,
-                    r#"We received an "Unauthorized" status response from FOSSA. This can mean that the fossa_integration_key configured in your config.yml file is not correct. You can obtain a FOSSA API key by going to Settings => Integrations => API in the FOSSA application."#,
+                    r#"Broker received an "Unauthorized" status response from FOSSA. This can mean that the fossa_integration_key configured in your config.yml file is not correct. You can obtain a FOSSA API key by going to Settings => Integrations => API in the FOSSA application."#,
                     url,
                     example_command,
                     err,
@@ -225,7 +213,7 @@ impl Error {
             Some(status) => Error::CheckFossaGet {
                 msg: Self::fossa_get_explanation(
                     description,
-                    &formatdoc!("We received a {} status response from FOSSA.", status),
+                    &formatdoc!("Broker received a {status} status response from FOSSA."),
                     url,
                     example_command,
                     err,
@@ -236,7 +224,7 @@ impl Error {
                     Error::CheckFossaGet {
                         msg: Self::fossa_get_explanation(
                             description,
-                            "We received a timeout error while attempting to connect to FOSSA. This can happen if we are unable to connect to FOSSA due to various reasons.",
+                            "Broker received a timeout error while attempting to connect to FOSSA. This can happen if Broker is unable to connect to FOSSA due to various reasons.",
                             url,
                             example_command,
                             err,
@@ -257,7 +245,6 @@ impl Error {
         }
     }
 
-    #[tracing::instrument]
     fn fossa_get_explanation(
         description: &str,
         specific_error_message: &str,
@@ -265,22 +252,19 @@ impl Error {
         example_command: &str,
         err: reqwest::Error,
     ) -> String {
+        let description = description.red();
+        let example_command = example_command.green();
         formatdoc!(
-            "{}
+            "{description}
 
-            {}
+            {specific_error_message}
 
-            The URL we attempted to connect to was {}. Please make sure you can make a request to that URL. For example, try this curl command:
+            The URL Broker attempted to connect to was {url}. Please make sure you can make a request to that URL. For example, try this curl command:
 
-            {}
+            {example_command}
 
-            Full error message: {}
-            ",
-            description.red(),
-            specific_error_message,
-            url,
-            example_command.green(),
-            err
+            Full error message: {err}
+            "
         )
     }
 }
@@ -314,7 +298,7 @@ fn print_errors(msg: &str, errors: Vec<Error>) {
     }
 }
 
-/// Check that we can connect to the integrations
+/// Check that Broker can connect to the integrations
 /// This is currently done by running `git ls-remote <remote>` using the authentication
 /// info from the transport.
 #[tracing::instrument(skip(config))]
