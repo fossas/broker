@@ -432,14 +432,13 @@ async fn check_command_existence(command_path: &PathBuf) -> bool {
         .unwrap_or(false)
 }
 
-/// command_name is "fossa.exe" on windows and "fossa" on all other platforms
-#[tracing::instrument]
+/// "fossa.exe" on windows and "fossa" on all other platforms
 #[cfg(target_family = "windows")]
 fn command_name() -> &'static str {
     "fossa.exe"
 }
 
-#[tracing::instrument]
+/// "fossa.exe" on windows and "fossa" on all other platforms
 #[cfg(target_family = "unix")]
 fn command_name() -> &'static str {
     "fossa"

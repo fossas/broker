@@ -20,6 +20,7 @@ use crate::{
         error_stack::{DescribeContext, ErrorHelper, IntoContext},
         result::{WrapErr, WrapOk},
         secrecy::ComparableSecretString,
+        tracing::span_record,
     },
     fossa_cli::{SourceUnits, Version},
 };
@@ -368,9 +369,13 @@ fn new_client() -> Result<Client, Error> {
         .context(Error::ConstructClient)
 }
 
-#[tracing::instrument(skip_all)]
+#[tracing::instrument(skip_all, fields(url))]
 async fn run_request<T: DeserializeOwned>(req: RequestBuilder) -> Result<T, Error> {
-    let res = req.send().await.context(Error::Request)?;
+    let (client, req) = req.build_split();
+    let req = req.context(Error::Request)?;
+    span_record!(url, display req.url());
+
+    let res = client.execute(req).await.context(Error::Request)?;
     let status = res.status();
 
     let body = res.bytes().await.context(Error::ReadResponse)?;

@@ -183,7 +183,7 @@ const DAYS_UNTIL_STALE: i64 = 30;
 /// To do this we need a cloned repository so that we can run
 /// `git log <some format string that includes that date of the commit> <branch_or_tag_name>`
 /// in the cloned repo for each branch or tag
-#[tracing::instrument(skip(transport))]
+#[tracing::instrument(skip_all)]
 async fn references_that_need_scanning(
     transport: &Transport,
     references: Vec<Reference>,

@@ -92,14 +92,13 @@ struct CmdContext<D> {
 }
 
 /// The primary entrypoint.
-#[tracing::instrument(skip_all, fields(subcommand = "run", cmd_context))]
+#[tracing::instrument(skip_all, fields(subcommand = "run"))]
 pub async fn main<D: Database>(ctx: &AppContext, config: Config, db: D) -> Result<(), Error> {
     let ctx = CmdContext {
         app: ctx.clone(),
         config,
         db,
     };
-    span_record!(cmd_context, debug ctx);
 
     let (scan_tx, scan_rx) = queue::open(&ctx.app, Queue::Scan)
         .await
