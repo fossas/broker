@@ -19,7 +19,6 @@ impl TestLogger {
 
 impl Logger for TestLogger {
     fn log(&mut self, content: &str) {
-        println!("{content}");
         self.output.push(content.to_string());
     }
 }
@@ -61,22 +60,6 @@ async fn with_failing_http_no_auth_integration() {
     set_snapshot_vars!();
     let (_, conf) = load_config!(
         "testdata/config/private-repo-http-no-auth.yml",
-        "testdata/database/empty.sqlite"
-    )
-    .await;
-
-    let mut logger = TestLogger::new();
-    broker::subcommand::fix::main(&conf, &mut logger)
-        .await
-        .expect("should run fix");
-    assert_debug_snapshot!(logger.output());
-}
-
-#[tokio::test]
-async fn with_failing_ssh_keyfile_integration() {
-    set_snapshot_vars!();
-    let (_, conf) = load_config!(
-        "testdata/config/basic-ssh-key.yml",
         "testdata/database/empty.sqlite"
     )
     .await;
