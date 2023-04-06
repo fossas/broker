@@ -272,22 +272,22 @@ impl Error {
 
 /// A logger. This is used to print the output to stdout
 pub trait Logger {
-    /// Log things
-    fn log(&self, content: &str);
+    /// Log things. This is mutable because TestLogger mutates when we log
+    fn log(&mut self, content: &str);
 }
 
 /// A logger that just prints to stdout
 pub struct StdoutLogger;
 
 impl Logger for StdoutLogger {
-    fn log(&self, content: &str) {
+    fn log(&mut self, content: &str) {
         println!("{content}");
     }
 }
 
 /// The primary entrypoint for the fix command.
 #[tracing::instrument(skip_all, fields(subcommand = "fix"))]
-pub async fn main(config: &Config, logger: &dyn Logger) -> Result<(), Report<Error>> {
+pub async fn main(config: &Config, logger: &mut dyn Logger) -> Result<(), Report<Error>> {
     let integration_errors = check_integrations(logger, config).await;
     let fossa_connection_errors = check_fossa_connection(logger, config).await;
     print_errors(
@@ -306,7 +306,7 @@ pub async fn main(config: &Config, logger: &dyn Logger) -> Result<(), Report<Err
 // If there are errors, returns a string containing all of the error messages for a section.
 // Sections are things like "checking integrations" or "checking fossa connection"
 // If there are no errors, it returns None.
-fn print_errors(logger: &dyn Logger, msg: &str, errors: Vec<Error>) {
+fn print_errors(logger: &mut dyn Logger, msg: &str, errors: Vec<Error>) {
     if !errors.is_empty() {
         logger.log(&format!("{}\n", msg.bold().red()));
         for err in errors {
@@ -319,7 +319,7 @@ fn print_errors(logger: &dyn Logger, msg: &str, errors: Vec<Error>) {
 /// This is currently done by running `git ls-remote <remote>` using the authentication
 /// info from the transport.
 #[tracing::instrument(skip(config, logger))]
-async fn check_integrations(logger: &dyn Logger, config: &Config) -> Vec<Error> {
+async fn check_integrations(logger: &mut dyn Logger, config: &Config) -> Vec<Error> {
     let title = "\nDiagnosing connections to configured repositories\n"
         .bold()
         .blue()
@@ -350,7 +350,7 @@ async fn check_integration(integration: &Integration) -> Result<(), Error> {
 }
 
 #[tracing::instrument(skip(config, logger))]
-async fn check_fossa_connection(logger: &dyn Logger, config: &Config) -> Vec<Error> {
+async fn check_fossa_connection(logger: &mut dyn Logger, config: &Config) -> Vec<Error> {
     let title = "\nDiagnosing connection to FOSSA\n"
         .bold()
         .blue()

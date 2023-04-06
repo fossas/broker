@@ -18,6 +18,7 @@ mod binary;
 mod config;
 mod db;
 mod debug;
+mod fix;
 mod fossa_cli;
 mod queue;
 mod remote_git;
