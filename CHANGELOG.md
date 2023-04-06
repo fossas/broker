@@ -1,3 +1,8 @@
+## v0.1.1
+
+Add `broker fix`
+
+`broker fix` tests your connection to FOSSA and your `git` integrations and gives you advice on how to fix any problems it encounters.
 
 ## v0.1.0
 
