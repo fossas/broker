@@ -4,13 +4,13 @@ expression: logger.output()
 ---
 
 Diagnosing connections to configured repositories
-❌ https://github.com/fossas/broker.git
+❌ https://github.com/fossas/doesnotexist.git
 Diagnosing connection to FOSSA
 ✅ check fossa API connection with no auth required❌ check fossa API connection with auth required
 Errors found while checking integrations
-❌ https://github.com/fossas/broker.git
+❌ https://github.com/fossas/doesnotexist.git
 
-Broker encountered an error while trying to connect to your git remote at 'https://github.com/fossas/broker.git'.
+Broker encountered an error while trying to connect to your git remote at 'https://github.com/fossas/doesnotexist.git'.
 
 Broker was unable to connect to this repository. Please make sure that the authentication info and the remote are set correctly in your config.yml file.
 
@@ -22,12 +22,12 @@ echo -n "<username>:<password>" | base64
 
 Once you have the base64 encoded username and password, use them in a command like this, replacing <REDACTED> with your base64 encoded string:
 
-GIT_TERMINAL_PROMPT='0' GCM_INTERACTIVE='never' GIT_ASKPASS='' git -c credential.helper= -c http.extraHeader=AUTHORIZATION: Basic <REDACTED> ls-remote --quiet https://github.com/fossas/broker.git
+GIT_TERMINAL_PROMPT='0' GCM_INTERACTIVE='never' GIT_ASKPASS='' git -c credential.helper= -c http.extraHeader=AUTHORIZATION: Basic <REDACTED> ls-remote --quiet https://github.com/fossas/doesnotexist.git
 
 Full error message from git:
 
 run command: git
-args: ["-c", "credential.helper=", "-c", "http.extraHeader=AUTHORIZATION: Basic <REDACTED>", "ls-remote", "--quiet", "https://github.com/fossas/broker.git"]
+args: ["-c", "credential.helper=", "-c", "http.extraHeader=AUTHORIZATION: Basic <REDACTED>", "ls-remote", "--quiet", "https://github.com/fossas/doesnotexist.git"]
 env: ["GIT_TERMINAL_PROMPT='0'", "GCM_INTERACTIVE='never'", "GIT_ASKPASS=<REMOVED>"]
 status: 128
 stdout: ''

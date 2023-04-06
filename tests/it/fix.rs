@@ -43,7 +43,7 @@ async fn with_successful_http_no_auth_integration() {
 async fn with_failing_http_basic_auth_integration() {
     set_snapshot_vars!();
     let (_, conf) = load_config!(
-        "testdata/config/basic-http-basic.yml",
+        "testdata/config/basic-http-basic-bad-repo-name.yml",
         "testdata/database/empty.sqlite"
     )
     .await;
