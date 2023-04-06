@@ -32,7 +32,7 @@ Initialize an empty configuration file and database.
 Diagnose possible issues in the local runtime environment that may be preventing
 Broker from scanning projects and sending their metadata to FOSSA.
 
-For more information, see the [`fix` subcommand reference](./subcommands/fix.md).
+For more information, see the [`fix` subcommand documentation](./subcommands/fix.md).
 
 ### `run`
 
