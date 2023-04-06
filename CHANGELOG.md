@@ -1,3 +1,10 @@
+## v0.1.1
+
+Add `broker fix`
+
+`broker fix` tests your connection to FOSSA and your `git` integrations and gives you advice on how to fix any problems it encounters.
+
+For more information on `broker fix`, see the [`broker fix` subcommand documentation](https://github.com/fossas/broker/blob/main/docs/subcommands/fix.md).
 
 ## v0.1.0
 
@@ -18,4 +25,4 @@ Broker MVP release
 - Creating the Broker data location.
 - Creating example Broker config files.
 
-See the [Broker User Manual](./docs/README.md) for more help using Broker.
+See the [Broker User Manual](https://github.com/fossas/broker/blob/main/docs/README.md) for more help using Broker.
