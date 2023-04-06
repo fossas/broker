@@ -1,6 +1,6 @@
 use crate::helper::{load_config, set_snapshot_vars};
 use broker::subcommand::fix::Logger;
-use insta::assert_display_snapshot;
+use insta::assert_snapshot;
 
 /// A logger that prints to stdout and also keeps track of what has been logged so that we can test it
 struct TestLogger {
@@ -36,7 +36,7 @@ async fn with_successful_http_no_auth_integration() {
     broker::subcommand::fix::main(&conf, &mut logger)
         .await
         .expect("should run fix");
-    assert_display_snapshot!(logger.output());
+    assert_snapshot!(logger.output());
 }
 
 #[tokio::test]
@@ -52,7 +52,7 @@ async fn with_failing_http_basic_auth_integration() {
     broker::subcommand::fix::main(&conf, &mut logger)
         .await
         .expect("should run fix");
-    assert_display_snapshot!(logger.output());
+    assert_snapshot!(logger.output());
 }
 
 #[tokio::test]
@@ -68,5 +68,5 @@ async fn with_failing_http_no_auth_integration() {
     broker::subcommand::fix::main(&conf, &mut logger)
         .await
         .expect("should run fix");
-    assert_display_snapshot!(logger.output());
+    assert_snapshot!(logger.output());
 }
