@@ -1,5 +1,6 @@
 use crate::helper::load_config;
 use broker::subcommand::fix::Logger;
+use insta::assert_debug_snapshot;
 
 /// A logger that prints to stdout and also keeps track of what has been logged so that we can test it
 struct TestLogger {
@@ -32,11 +33,10 @@ async fn with_http_no_auth_integration() {
         "testdata/database/empty.sqlite"
     )
     .await;
-    // let output: String = "".to_string();
+
     let mut logger = TestLogger::new();
     broker::subcommand::fix::main(&conf, &mut logger)
         .await
         .expect("should run fix");
-    println!("output after:\n{:?}", logger.output());
-    assert!(false);
+    assert_debug_snapshot!(logger.output().as_str());
 }
