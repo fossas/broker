@@ -1,7 +1,7 @@
 
 build:
 	@cargo build --release
-	
+
 dev:
 	@cargo build
 
@@ -11,6 +11,9 @@ test:
 
 review-snapshots:
 	@cargo insta test --test-runner nextest --review
+
+delete-unused-snapshots:
+  @cargo insta test --test-runner nextest --unreferenced=delete
 
 generate-dist:
 	@cargo dist generate-ci github
