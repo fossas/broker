@@ -31,7 +31,7 @@ fn fix_output_filters() -> Vec<(&'static str, &'static str)> {
             "{git authentication or missing repo error}",
         ),
         (
-            "remote: Repository not found.\nrepository '[^']' not found",
+            "remote: Repository not found.\nfatal: repository '[^']' not found",
             "{git authentication or missing repo error}",
         ),
     ]
