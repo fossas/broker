@@ -14,7 +14,7 @@ review-snapshots:
 	@cargo insta test --test-runner nextest --review
 
 delete-unused-snapshots:
-  @cargo insta test --test-runner nextest --unreferenced=delete
+	@cargo insta test --test-runner nextest --unreferenced=delete
 
 generate-dist:
 	@cargo dist generate-ci github
@@ -37,4 +37,4 @@ clippy:
 doc:
 	@cargo doc --open --no-deps
 
-.PHONY: test run build dev review-snapshots generate-dist migration-status migrate-up migrate-down doc clippy
+.PHONY: test run build dev delete-unused-snapshots review-snapshots generate-dist migration-status migrate-up migrate-down doc clippy
