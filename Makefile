@@ -5,9 +5,10 @@ build:
 dev:
 	@cargo build
 
+# make test TEST_FILTER=init:: will run only tests with "init::" in their description
 test:
-	@cargo nextest run
-	@cargo test --doc
+	@cargo nextest run $(TEST_FILTER)
+	@cargo test --doc $(TEST_FILTER)
 
 review-snapshots:
 	@cargo insta test --test-runner nextest --review
