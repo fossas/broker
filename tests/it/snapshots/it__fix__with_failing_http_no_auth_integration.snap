@@ -25,7 +25,7 @@ args: ["-c", "credential.helper=", "ls-remote", "--quiet", "http://github.com/gi
 env: ["GIT_TERMINAL_PROMPT='0'", "GCM_INTERACTIVE='never'", "GIT_ASKPASS=<REMOVED>"]
 status: 128
 stdout: ''
-stderr: 'fatal: could not read Username for 'https://github.com': terminal prompts disabled'
+stderr: '{git authentication or missing repo error}'
 
 
 Errors found while checking connection to FOSSA

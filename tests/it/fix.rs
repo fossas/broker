@@ -23,6 +23,20 @@ impl Logger for TestLogger {
     }
 }
 
+/// git gives slightly different output in CI and locally. These filters hide that difference.
+fn fix_output_filters() -> Vec<(&'static str, &'static str)> {
+    vec![
+        (
+            "fatal: could not read Username for 'https://github.com': terminal prompts disabled",
+            "{git authentication or missing repo error}",
+        ),
+        (
+            "remote: Repository not found.\nrepository '[^']' not found",
+            "{git authentication or missing repo error}",
+        ),
+    ]
+}
+
 #[tokio::test]
 async fn with_successful_http_no_auth_integration() {
     set_snapshot_vars!();
@@ -36,7 +50,12 @@ async fn with_successful_http_no_auth_integration() {
     broker::subcommand::fix::main(&conf, &mut logger)
         .await
         .expect("should run fix");
-    assert_snapshot!(logger.output());
+
+    insta::with_settings!({ filters => fix_output_filters()},
+       {
+        assert_snapshot!(logger.output());
+       }
+    );
 }
 
 #[tokio::test]
@@ -47,12 +66,16 @@ async fn with_failing_http_basic_auth_integration() {
         "testdata/database/empty.sqlite"
     )
     .await;
-
     let mut logger = TestLogger::new();
     broker::subcommand::fix::main(&conf, &mut logger)
         .await
         .expect("should run fix");
-    assert_snapshot!(logger.output());
+
+    insta::with_settings!({ filters => fix_output_filters()},
+       {
+        assert_snapshot!(logger.output());
+       }
+    );
 }
 
 #[tokio::test]
@@ -68,5 +91,10 @@ async fn with_failing_http_no_auth_integration() {
     broker::subcommand::fix::main(&conf, &mut logger)
         .await
         .expect("should run fix");
-    assert_snapshot!(logger.output());
+
+    insta::with_settings!({ filters => fix_output_filters()},
+       {
+        assert_snapshot!(logger.output());
+       }
+    );
 }
