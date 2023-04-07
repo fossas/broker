@@ -9,7 +9,7 @@ struct TestLogger {
 
 impl TestLogger {
     fn output(&self) -> String {
-        self.output.join("")
+        self.output.join("\n")
     }
 
     fn new() -> Self {

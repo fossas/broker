@@ -4,10 +4,16 @@ expression: logger.output()
 ---
 
 Diagnosing connections to configured repositories
+
 ❌ https://github.com/fossas/doesnotexist.git
+
 Diagnosing connection to FOSSA
-✅ check fossa API connection with no auth required❌ check fossa API connection with auth required
+
+✅ check fossa API connection with no auth required
+❌ check fossa API connection with auth required
+
 Errors found while checking integrations
+
 ❌ https://github.com/fossas/doesnotexist.git
 
 Broker encountered an error while trying to connect to your git remote at 'https://github.com/fossas/doesnotexist.git'.
@@ -34,7 +40,9 @@ stdout: ''
 stderr: '{git authentication or missing repo error}'
 
 
+
 Errors found while checking connection to FOSSA
+
 ❌ Error checking connection to FOSSA: GET to fossa endpoint 'https://app.fossa.com/api/cli/organization' with authentication required
 
 Broker received an "Unauthorized" status response from FOSSA. This can mean that the fossa_integration_key configured in your config.yml file is not correct. You can obtain a FOSSA API key by going to Settings => Integrations => API in the FOSSA application.
