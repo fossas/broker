@@ -27,11 +27,11 @@ impl Logger for TestLogger {
 fn fix_output_filters() -> Vec<(&'static str, &'static str)> {
     vec![
         (
-            r"fatal: could not read Username for 'https://github.com': terminal prompts disabled",
+            "fatal: could not read Username for 'https://github.com': terminal prompts disabled",
             "{git authentication or missing repo error}",
         ),
         (
-            r"remote: Repository not found.\s*fatal: repository '[^']' not found",
+            r"remote: Repository not found.\s*fatal: repository '[^']*' not found",
             "{git authentication or missing repo error}",
         ),
     ]
