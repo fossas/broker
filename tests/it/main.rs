@@ -20,5 +20,6 @@ mod db;
 mod debug;
 mod fix;
 mod fossa_cli;
+mod init;
 mod queue;
 mod remote_git;
