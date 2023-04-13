@@ -1,25 +1,34 @@
+use std::sync::RwLock;
+
 use crate::helper::{load_config, set_snapshot_vars};
 use broker::subcommand::fix::Logger;
 use insta::assert_snapshot;
 
 /// A logger that prints to stdout and also keeps track of what has been logged so that we can test it
+#[derive(Default)]
 struct TestLogger {
-    output: Vec<String>,
+    output: RwLock<Vec<String>>,
 }
 
 impl TestLogger {
     fn output(&self) -> String {
-        self.output.join("\n")
+        self.output
+            .read()
+            .expect("read lock must not be poisoned")
+            .join("\n")
     }
 
     fn new() -> Self {
-        TestLogger { output: vec![] }
+        Default::default()
     }
 }
 
 impl Logger for TestLogger {
     fn log(&self, content: &str) {
-        self.output.push(content.to_string());
+        self.output
+            .write()
+            .expect("write lock must not be poisoned")
+            .push(content.to_string());
     }
 }
 
@@ -46,8 +55,8 @@ async fn with_successful_http_no_auth_integration() {
     )
     .await;
 
-    let mut logger = TestLogger::new();
-    broker::subcommand::fix::main(&conf, &mut logger)
+    let logger = TestLogger::new();
+    broker::subcommand::fix::main(&conf, &logger)
         .await
         .expect("should run fix");
 
@@ -66,8 +75,8 @@ async fn with_failing_http_basic_auth_integration() {
         "testdata/database/empty.sqlite"
     )
     .await;
-    let mut logger = TestLogger::new();
-    broker::subcommand::fix::main(&conf, &mut logger)
+    let logger = TestLogger::new();
+    broker::subcommand::fix::main(&conf, &logger)
         .await
         .expect("should run fix");
 
@@ -87,8 +96,8 @@ async fn with_failing_http_no_auth_integration() {
     )
     .await;
 
-    let mut logger = TestLogger::new();
-    broker::subcommand::fix::main(&conf, &mut logger)
+    let logger = TestLogger::new();
+    broker::subcommand::fix::main(&conf, &logger)
         .await
         .expect("should run fix");
 
