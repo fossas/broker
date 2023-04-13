@@ -18,7 +18,7 @@ impl TestLogger {
 }
 
 impl Logger for TestLogger {
-    fn log(&mut self, content: &str) {
+    fn log(&self, content: &str) {
         self.output.push(content.to_string());
     }
 }
