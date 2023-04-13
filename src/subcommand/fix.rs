@@ -272,7 +272,7 @@ impl Error {
 
 /// A logger. This is used to print the output to stdout
 pub trait Logger {
-    /// Log things. This is mutable because TestLogger mutates when we log
+    /// Log things
     fn log(&self, content: &str);
 }
 
