@@ -24,6 +24,8 @@ use crate::ext::{
     result::WrapErr,
 };
 
+pub mod bundle;
+
 /// Errors that are possibly surfaced when running debugging operations.
 #[derive(Debug, thiserror::Error)]
 pub enum Error {

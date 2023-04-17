@@ -26,7 +26,7 @@ use std::{
 };
 
 use error_stack::{report, IntoReport, Report, ResultExt};
-use tokio::task;
+use tokio::{fs::File, task};
 
 use crate::{
     ext::{
@@ -58,12 +58,36 @@ pub enum Error {
 /// Returns the file names without their path components.
 #[tracing::instrument]
 pub async fn list_contents(dir: &Path) -> Result<Vec<String>, Report<Error>> {
-    let mut contents = tokio::fs::read_dir(dir).await.context(Error::IO)?;
-    let mut entries = Vec::new();
-    while let Some(entry) = contents.next_entry().await.context(Error::IO)? {
-        entries.push(entry.file_name().to_string_lossy().to_string());
-    }
-    Ok(entries)
+    let dir = dir.to_owned();
+    run_background(move || sync::list_contents(&dir))
+        .await
+        .change_context(Error::IO)
+}
+
+/// Create a new temporary file.
+///
+/// The file will be created in the location returned by [`std::env::temp_dir()`].
+///
+/// # Security
+///
+/// This variant is secure/reliable in the presence of a pathological temporary file cleaner.
+///
+/// # Resource Leaking
+///
+/// The temporary file will be automatically removed by the OS when the last handle to it is closed.
+/// This doesn't rely on Rust destructors being run, so will (almost) never fail to clean up the temporary file.
+///
+/// # Errors
+///
+/// If the file can not be created, `Err` is returned.
+///
+/// [`std::env::temp_dir()`]: https://doc.rust-lang.org/std/env/fn.temp_dir.html
+//
+// Documentation above taken from the [`tempfile::tempfile`] docs.
+//
+#[tracing::instrument]
+pub async fn tempfile() -> Result<File, Report<Error>> {
+    run_background(sync::tempfile).await.map(File::from_std)
 }
 
 /// Moves a file from one location to another.

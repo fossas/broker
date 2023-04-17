@@ -21,11 +21,14 @@
 //! or swapping to a backing FS implementation that is async native.
 
 use std::{
-    env, fmt, fs, iter,
+    env, fmt,
+    fs::{self, File},
+    iter,
     path::{Path, PathBuf},
 };
 
 use error_stack::{IntoReport, Report, ResultExt};
+use itertools::Itertools;
 use once_cell::sync::OnceCell;
 use tracing::debug;
 
@@ -65,6 +68,49 @@ pub enum Error {
     /// The value was already set.
     #[error("value already set: {0}")]
     ValueAlreadySet(String),
+
+    /// Generic IO error.
+    #[error("underlying IO error")]
+    IO,
+}
+
+/// Lists the contents of a directory.
+/// Returns the file names without their path components.
+#[tracing::instrument]
+pub fn list_contents(dir: &Path) -> Result<Vec<String>, Report<Error>> {
+    std::fs::read_dir(dir)
+        .context(Error::IO)?
+        .map_ok(|entry| entry.file_name().to_string_lossy().to_string())
+        .collect::<Result<Vec<_>, _>>()
+        .context(Error::IO)
+}
+
+/// Create a new temporary file.
+///
+/// The file will be created in the location returned by [`std::env::temp_dir()`].
+///
+/// # Security
+///
+/// This variant is secure/reliable in the presence of a pathological temporary file cleaner.
+///
+/// # Resource Leaking
+///
+/// The temporary file will be automatically removed by the OS when the last handle to it is closed.
+/// This doesn't rely on Rust destructors being run, so will (almost) never fail to clean up the temporary file.
+///
+/// # Errors
+///
+/// If the file can not be created, `Err` is returned.
+///
+/// [`std::env::temp_dir()`]: https://doc.rust-lang.org/std/env/fn.temp_dir.html
+//
+// Documentation above taken from the [`tempfile::tempfile`] docs.
+//
+#[tracing::instrument]
+pub fn tempfile() -> Result<File, Report<Error>> {
+    tempfile::tempfile().context(Error::IO)
+        .help("altering the temporary directory location may resolve this issue")
+        .describe("temporary directory location uses $TMPDIR on Linux and macOS; for Windows it uses the 'GetTempPath' system call")
 }
 
 /// Searches configured locations for the file with the provided name.
