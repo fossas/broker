@@ -53,6 +53,17 @@ pub enum ValidationError {
     RetentionBelowMinimum,
 }
 
+/// Export mode for the debug bundle.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BundleExport {
+    /// Exporting the debug bundle is not forced on:
+    /// it's up to Broker to determine whether it's appropriate to export.
+    Auto,
+
+    /// Exporting the debug bundle is toggled on by the customer.
+    Force,
+}
+
 /// Validated config values for observability.
 #[derive(Debug, Clone, PartialEq, Eq, Getters, new)]
 #[getset(get = "pub")]

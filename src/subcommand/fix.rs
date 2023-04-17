@@ -1,6 +1,6 @@
 //! Implementation for the fix command
 
-use crate::ext::secrecy::REDACTION_LITERAL;
+use crate::{debug, ext::secrecy::REDACTION_LITERAL};
 use colored::Colorize;
 use core::result::Result;
 use error_stack::Report;
@@ -293,7 +293,11 @@ macro_rules! log {
 
 /// The primary entrypoint for the fix command.
 #[tracing::instrument(skip_all, fields(subcommand = "fix"))]
-pub async fn main<L: Logger>(config: &Config, logger: &L) -> Result<(), Report<Error>> {
+pub async fn main<L: Logger>(
+    config: &Config,
+    logger: &L,
+    export: debug::BundleExport,
+) -> Result<(), Report<Error>> {
     let integration_errors = check_integrations(logger, config).await;
     let fossa_connection_errors = check_fossa_connection(logger, config).await;
     print_errors(
