@@ -29,7 +29,9 @@ use std::{
 
 use error_stack::{IntoReport, Report, ResultExt};
 use itertools::Itertools;
+use libflate::gzip;
 use once_cell::sync::OnceCell;
+use serde_json::Value;
 use tempfile::NamedTempFile;
 use tracing::debug;
 
@@ -128,6 +130,40 @@ where
     std::io::copy(&mut source, &mut copy).context(Error::IO)?;
     copy.as_file().sync_all().context(Error::IO)?;
     Ok(copy)
+}
+
+/// Copies the given FOSSA CLI debug bundle into a new temporary file, returning the temporary file
+/// and its new relative file name (to be used in the overall debug bundle).
+///
+/// If the file does not end with `.json.gz`, no decompression or formatting is performed,
+/// and the `rel` argument is returned unmodified.
+///
+/// The contents of the source file will have been written to the temp file and a best effort
+/// is made to sync the contents to disk before this function returns.
+///
+/// The debug bundle is decompressed and prettified during this operation.
+#[tracing::instrument]
+pub fn copy_debug_bundle<P, Q>(file: P, rel: Q) -> Result<(NamedTempFile, PathBuf), Report<Error>>
+where
+    P: AsRef<Path> + std::fmt::Debug,
+    Q: AsRef<Path> + std::fmt::Debug,
+{
+    const EXT: &str = ".json.gz";
+    if !file.as_ref().to_string_lossy().ends_with(&EXT) {
+        let copy = copy_temp(file)?;
+        return (copy, rel.as_ref().to_path_buf()).wrap_ok();
+    }
+
+    let source = File::open(file).context(Error::IO)?;
+    let mut reader = gzip::Decoder::new(source).context(Error::IO)?;
+    let data: Value = serde_json::from_reader(&mut reader).context(Error::IO)?;
+
+    let mut copy = NamedTempFile::new().context(Error::IO)?;
+    serde_json::to_writer_pretty(&mut copy, &data).context(Error::IO)?;
+    copy.as_file().sync_all().context(Error::IO)?;
+
+    let renamed = rel.as_ref().to_string_lossy().replace(EXT, ".json");
+    (copy, PathBuf::from(renamed)).wrap_ok()
 }
 
 /// Searches configured locations for the file with the provided name.

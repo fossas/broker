@@ -327,15 +327,19 @@ pub async fn main<L: Logger>(
     );
 
     if had_errors || matches!(export, debug::BundleExport::Always) {
-        log!(logger, "\n{}\n", "Generating debug bundle".bold().blue());
+        log!(logger, "\n{}\n", "Collecting debug bundle".bold().blue());
         let bundler = TarGzBundler::new().change_context(Error::GenerateDebugBundle)?;
         let bundle = bundle::generate(ctx, bundler, "fossa.broker.debug.tar.gz")
             .change_context(Error::GenerateDebugBundle)?;
 
         log!(
             logger,
-            "✅ Generated debug bundle at '{}'",
+            "✅ Collected debug bundle at '{}'",
             bundle.location().display()
+        );
+        log!(
+            logger,
+            "Please include this debug bundle in any request to FOSSA Support!"
         );
     }
 

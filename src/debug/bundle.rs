@@ -18,7 +18,7 @@ use tracing::{debug, error};
 use walkdir::WalkDir;
 
 use crate::{
-    ext::{error_stack::IntoContext, io, tracing::span_records},
+    ext::{error_stack::IntoContext, io::sync::copy_debug_bundle, tracing::span_records},
     AppContext,
 };
 
@@ -136,10 +136,13 @@ where
         }
 
         // Copy the file to temp first, so that it's not changed while the tar is being built.
-        let copy = io::sync::copy_temp(path).change_context(Error::CreateTempFile)?;
+        // This also decompresses and formats debug bundles if the copied file is in fact a debug bundle.
+        let (copy, rel) = copy_debug_bundle(path, rel).change_context(Error::CreateTempFile)?;
+
+        // Add the file to the bundle.
         bundler
-            .add_file(copy.path(), rel)
-            .context_lazy(|| Error::bundle_contents(&debug_root, rel))?;
+            .add_file(copy.path(), &rel)
+            .context_lazy(|| Error::bundle_contents(&debug_root, &rel))?;
     }
 
     bundler.finalize(path).context(Error::Finalize)
