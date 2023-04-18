@@ -273,15 +273,15 @@ impl Error {
 /// A logger. This is used to print the output to stdout
 pub trait Logger {
     /// Log things
-    fn log(&self, content: &str);
+    fn log<S: AsRef<str>>(&self, content: S);
 }
 
 /// A logger that just prints to stdout
 pub struct StdoutLogger;
 
 impl Logger for StdoutLogger {
-    fn log(&self, content: &str) {
-        println!("{content}");
+    fn log<S: AsRef<str>>(&self, content: S) {
+        println!("{}", content.as_ref());
     }
 }
 
@@ -308,9 +308,9 @@ pub async fn main<L: Logger>(config: &Config, logger: &L) -> Result<(), Report<E
 // If there are no errors, it returns None.
 fn print_errors<L: Logger>(logger: &L, msg: &str, errors: Vec<Error>) {
     if !errors.is_empty() {
-        logger.log(&format!("{}\n", msg.bold().red()));
+        logger.log(format!("{}\n", msg.bold().red()));
         for err in errors {
-            logger.log(&err.fix_explanation());
+            logger.log(err.fix_explanation());
         }
     }
 }
@@ -324,15 +324,15 @@ async fn check_integrations<L: Logger>(logger: &L, config: &Config) -> Vec<Error
         .bold()
         .blue()
         .to_string();
-    logger.log(&title);
+    logger.log(title);
     let integrations = config.integrations();
     let mut errors = Vec::new();
     for integration in integrations.iter() {
         let remote = integration.remote();
         match check_integration(integration).await {
-            Ok(()) => logger.log(&format!("✅ {remote}")),
+            Ok(()) => logger.log(format!("✅ {remote}")),
             Err(err) => {
-                logger.log(&format!("❌ {remote}"));
+                logger.log(format!("❌ {remote}"));
                 errors.push(err);
             }
         }
@@ -355,7 +355,7 @@ async fn check_fossa_connection<L: Logger>(logger: &L, config: &Config) -> Vec<E
         .bold()
         .blue()
         .to_string();
-    logger.log(&title);
+    logger.log(title);
     let mut errors = Vec::new();
 
     let get_with_no_auth = check_fossa_get_with_no_auth(config).await;

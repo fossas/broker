@@ -24,11 +24,11 @@ impl TestLogger {
 }
 
 impl Logger for TestLogger {
-    fn log(&self, content: &str) {
+    fn log<S: AsRef<str>>(&self, content: S) {
         self.output
             .write()
             .expect("write lock must not be poisoned")
-            .push(content.to_string());
+            .push(content.as_ref().to_string());
     }
 }
 
