@@ -270,16 +270,39 @@ impl Error {
     }
 }
 
+/// A logger. This is used to print the output to stdout
+pub trait Logger {
+    /// Log things
+    fn log<S: AsRef<str>>(&self, content: S);
+}
+
+/// A logger that just prints to stdout
+pub struct StdoutLogger;
+
+impl Logger for StdoutLogger {
+    fn log<S: AsRef<str>>(&self, content: S) {
+        println!("{}", content.as_ref());
+    }
+}
+
+macro_rules! log {
+  ($logger:ident, $($arg:tt)*) => {{
+    $logger.log(&format!($($arg)*));
+  }}
+}
+
 /// The primary entrypoint for the fix command.
 #[tracing::instrument(skip_all, fields(subcommand = "fix"))]
-pub async fn main(config: &Config) -> Result<(), Report<Error>> {
-    let integration_errors = check_integrations(config).await;
-    let fossa_connection_errors = check_fossa_connection(config).await;
+pub async fn main<L: Logger>(config: &Config, logger: &L) -> Result<(), Report<Error>> {
+    let integration_errors = check_integrations(logger, config).await;
+    let fossa_connection_errors = check_fossa_connection(logger, config).await;
     print_errors(
+        logger,
         "\nErrors found while checking integrations",
         integration_errors,
     );
     print_errors(
+        logger,
         "\nErrors found while checking connection to FOSSA",
         fossa_connection_errors,
     );
@@ -289,11 +312,11 @@ pub async fn main(config: &Config) -> Result<(), Report<Error>> {
 // If there are errors, returns a string containing all of the error messages for a section.
 // Sections are things like "checking integrations" or "checking fossa connection"
 // If there are no errors, it returns None.
-fn print_errors(msg: &str, errors: Vec<Error>) {
+fn print_errors<L: Logger>(logger: &L, msg: &str, errors: Vec<Error>) {
     if !errors.is_empty() {
-        println!("{}\n", msg.bold().red());
+        log!(logger, "{}\n", msg.bold().red());
         for err in errors {
-            println!("{}", err.fix_explanation());
+            logger.log(err.fix_explanation());
         }
     }
 }
@@ -301,23 +324,21 @@ fn print_errors(msg: &str, errors: Vec<Error>) {
 /// Check that Broker can connect to the integrations
 /// This is currently done by running `git ls-remote <remote>` using the authentication
 /// info from the transport.
-#[tracing::instrument(skip(config))]
-async fn check_integrations(config: &Config) -> Vec<Error> {
+#[tracing::instrument(skip(config, logger))]
+async fn check_integrations<L: Logger>(logger: &L, config: &Config) -> Vec<Error> {
     let title = "\nDiagnosing connections to configured repositories\n"
         .bold()
         .blue()
         .to_string();
-    println!("{title}");
+    logger.log(title);
     let integrations = config.integrations();
     let mut errors = Vec::new();
     for integration in integrations.iter() {
         let remote = integration.remote();
         match check_integration(integration).await {
-            Ok(()) => {
-                println!("✅ {remote}")
-            }
+            Ok(()) => log!(logger, "✅ {remote}"),
             Err(err) => {
-                println!("❌ {remote}");
+                log!(logger, "❌ {remote}");
                 errors.push(err);
             }
         }
@@ -334,32 +355,32 @@ async fn check_integration(integration: &Integration) -> Result<(), Error> {
     Ok(())
 }
 
-#[tracing::instrument(skip(config))]
-async fn check_fossa_connection(config: &Config) -> Vec<Error> {
+#[tracing::instrument(skip(config, logger))]
+async fn check_fossa_connection<L: Logger>(logger: &L, config: &Config) -> Vec<Error> {
     let title = "\nDiagnosing connection to FOSSA\n"
         .bold()
         .blue()
         .to_string();
-    println!("{title}");
+    logger.log(title);
     let mut errors = Vec::new();
 
     let get_with_no_auth = check_fossa_get_with_no_auth(config).await;
     match get_with_no_auth {
         Ok(_) => {
-            println!("✅ check fossa API connection with no auth required");
+            logger.log("✅ check fossa API connection with no auth required");
         }
         Err(err) => {
-            println!("❌ check fossa API connection with no auth required");
-            errors.push(err)
+            logger.log("❌ check fossa API connection with no auth required");
+            errors.push(err);
         }
     }
     let get_with_auth = check_fossa_get_with_auth(config).await;
     match get_with_auth {
         Ok(_) => {
-            println!("✅ check fossa API connection with auth required");
+            logger.log("✅ check fossa API connection with auth required");
         }
         Err(err) => {
-            println!("❌ check fossa API connection with auth required");
+            logger.log("❌ check fossa API connection with auth required");
             errors.push(err);
         }
     }

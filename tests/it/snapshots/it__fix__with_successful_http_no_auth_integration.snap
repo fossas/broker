@@ -1,0 +1,26 @@
+---
+source: tests/it/fix.rs
+expression: logger.output()
+---
+
+Diagnosing connections to configured repositories
+
+✅ https://github.com/fossas/broker.git
+
+Diagnosing connection to FOSSA
+
+✅ check fossa API connection with no auth required
+❌ check fossa API connection with auth required
+
+Errors found while checking connection to FOSSA
+
+❌ Error checking connection to FOSSA: GET to fossa endpoint 'https://app.fossa.com/api/cli/organization' with authentication required
+
+Broker received an "Unauthorized" status response from FOSSA. This can mean that the fossa_integration_key configured in your config.yml file is not correct. You can obtain a FOSSA API key by going to Settings => Integrations => API in the FOSSA application.
+
+The URL Broker attempted to connect to was 'https://app.fossa.com/api/cli/organization'. Please make sure you can make a request to that URL. For example, try this curl command:
+
+curl -H "Authorization: Bearer <your fossa api key>" https://app.fossa.com/api/cli/organization
+
+Full error message: HTTP status client error (401 Unauthorized) for url (https://app.fossa.com/api/cli/organization)
+
