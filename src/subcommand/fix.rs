@@ -285,6 +285,12 @@ impl Logger for StdoutLogger {
     }
 }
 
+macro_rules! log {
+  ($logger:ident, $($arg:tt)*) => {{
+    $logger.log(&format!($($arg)*));
+  }}
+}
+
 /// The primary entrypoint for the fix command.
 #[tracing::instrument(skip_all, fields(subcommand = "fix"))]
 pub async fn main<L: Logger>(config: &Config, logger: &L) -> Result<(), Report<Error>> {
@@ -308,7 +314,7 @@ pub async fn main<L: Logger>(config: &Config, logger: &L) -> Result<(), Report<E
 // If there are no errors, it returns None.
 fn print_errors<L: Logger>(logger: &L, msg: &str, errors: Vec<Error>) {
     if !errors.is_empty() {
-        logger.log(format!("{}\n", msg.bold().red()));
+        log!(logger, "{}\n", msg.bold().red());
         for err in errors {
             logger.log(err.fix_explanation());
         }
@@ -330,9 +336,9 @@ async fn check_integrations<L: Logger>(logger: &L, config: &Config) -> Vec<Error
     for integration in integrations.iter() {
         let remote = integration.remote();
         match check_integration(integration).await {
-            Ok(()) => logger.log(format!("✅ {remote}")),
+            Ok(()) => log!(logger, "✅ {remote}"),
             Err(err) => {
-                logger.log(format!("❌ {remote}"));
+                log!(logger, "❌ {remote}");
                 errors.push(err);
             }
         }
