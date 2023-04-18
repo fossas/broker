@@ -92,7 +92,7 @@ impl RawFixArgs {
     pub async fn validate(self) -> Result<FixArgs, Report<Error>> {
         let runtime = self.runtime.validate().await?;
         let export_bundle = if self.export_bundle {
-            BundleExport::Force
+            BundleExport::Always
         } else {
             BundleExport::Auto
         };

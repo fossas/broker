@@ -56,12 +56,11 @@ pub enum ValidationError {
 /// Export mode for the debug bundle.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BundleExport {
-    /// Exporting the debug bundle is not forced on:
-    /// it's up to Broker to determine whether it's appropriate to export.
+    /// It's up to Broker to determine whether it's appropriate to export.
     Auto,
 
     /// Exporting the debug bundle is toggled on by the customer.
-    Force,
+    Always,
 }
 
 /// Validated config values for observability.

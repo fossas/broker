@@ -9,7 +9,7 @@
 
 use std::path::{Path, PathBuf};
 
-use error_stack::{Context, Result};
+use error_stack::{Context, Result, ResultExt};
 use getset::Getters;
 use libflate::gzip;
 use tempfile::NamedTempFile;
@@ -18,7 +18,7 @@ use tracing::{debug, error};
 use walkdir::WalkDir;
 
 use crate::{
-    ext::{error_stack::IntoContext, tracing::span_records},
+    ext::{error_stack::IntoContext, io, tracing::span_records},
     AppContext,
 };
 
@@ -101,7 +101,7 @@ pub struct EntryMetadata {}
 /// In the future, we'd like to decompress and potentially prettify the FOSSA CLI debug bundles
 /// before including them in the overall debug bundle; this would yield better compression ratios.
 /// For now though we just include them as is.
-#[tracing::instrument(skip(bundler, path), fields(debug_root, path))]
+// #[tracing::instrument(skip(bundler, path), fields(debug_root, path))]
 pub fn generate<B, P>(ctx: &AppContext, mut bundler: B, path: P) -> Result<Bundle, Error>
 where
     B: Bundler,
@@ -135,9 +135,10 @@ where
             continue;
         }
 
-        // Otherwise just copy the file in.
+        // Copy the file to temp first, so that it's not changed while the tar is being built.
+        let copy = io::sync::copy_temp(path).change_context(Error::CreateTempFile)?;
         bundler
-            .add_file(path, rel)
+            .add_file(copy.path(), rel)
             .context_lazy(|| Error::bundle_contents(&debug_root, rel))?;
     }
 

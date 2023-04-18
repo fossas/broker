@@ -1,9 +1,16 @@
 //! Implementation for the fix command
 
-use crate::{debug, ext::secrecy::REDACTION_LITERAL};
+use crate::{
+    debug::{
+        self,
+        bundle::{self, TarGzBundler},
+    },
+    ext::secrecy::REDACTION_LITERAL,
+    AppContext,
+};
 use colored::Colorize;
 use core::result::Result;
-use error_stack::Report;
+use error_stack::{Report, ResultExt};
 use indoc::formatdoc;
 use std::time::Duration;
 
@@ -56,6 +63,10 @@ pub enum Error {
     /// Generating an example command for a transport
     #[error("generate example command")]
     GenerateExampleCommand,
+
+    /// Generating the debug bundle.
+    #[error("generate debug bundle")]
+    GenerateDebugBundle,
 }
 
 impl Error {
@@ -75,6 +86,7 @@ impl Error {
             Error::GenerateExampleCommand => {
                 "❌ Generating an example command for a remote".to_string()
             }
+            Error::GenerateDebugBundle => "❌ Generating the debug bundle".to_string(),
         }
     }
 
@@ -292,14 +304,17 @@ macro_rules! log {
 }
 
 /// The primary entrypoint for the fix command.
-#[tracing::instrument(skip_all, fields(subcommand = "fix"))]
+#[tracing::instrument(skip(config, logger), fields(subcommand = "fix"))]
 pub async fn main<L: Logger>(
+    ctx: &AppContext,
     config: &Config,
     logger: &L,
     export: debug::BundleExport,
 ) -> Result<(), Report<Error>> {
     let integration_errors = check_integrations(logger, config).await;
     let fossa_connection_errors = check_fossa_connection(logger, config).await;
+    let had_errors = !integration_errors.is_empty() || !fossa_connection_errors.is_empty();
+
     print_errors(
         logger,
         "\nErrors found while checking integrations",
@@ -310,6 +325,20 @@ pub async fn main<L: Logger>(
         "\nErrors found while checking connection to FOSSA",
         fossa_connection_errors,
     );
+
+    if had_errors || matches!(export, debug::BundleExport::Always) {
+        log!(logger, "\n{}\n", "Generating debug bundle".bold().blue());
+        let bundler = TarGzBundler::new().change_context(Error::GenerateDebugBundle)?;
+        let bundle = bundle::generate(ctx, bundler, "fossa.broker.debug.tar.gz")
+            .change_context(Error::GenerateDebugBundle)?;
+
+        log!(
+            logger,
+            "✅ Generated debug bundle at '{}'",
+            bundle.location().display()
+        );
+    }
+
     Ok(())
 }
 

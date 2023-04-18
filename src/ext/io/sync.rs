@@ -30,6 +30,7 @@ use std::{
 use error_stack::{IntoReport, Report, ResultExt};
 use itertools::Itertools;
 use once_cell::sync::OnceCell;
+use tempfile::NamedTempFile;
 use tracing::debug;
 
 use crate::{
@@ -111,6 +112,22 @@ pub fn tempfile() -> Result<File, Report<Error>> {
     tempfile::tempfile().context(Error::IO)
         .help("altering the temporary directory location may resolve this issue")
         .describe("temporary directory location uses $TMPDIR on Linux and macOS; for Windows it uses the 'GetTempPath' system call")
+}
+
+/// Copies a given file into a new temporary file, returning the temporary file.
+///
+/// The contents of the source file will have been written to the temp file and a best effort
+/// is made to sync the contents to disk before this function returns.
+#[tracing::instrument]
+pub fn copy_temp<P>(file: P) -> Result<NamedTempFile, Report<Error>>
+where
+    P: AsRef<Path> + std::fmt::Debug,
+{
+    let mut source = File::open(file).context(Error::IO)?;
+    let mut copy = NamedTempFile::new().context(Error::IO)?;
+    std::io::copy(&mut source, &mut copy).context(Error::IO)?;
+    copy.as_file().sync_all().context(Error::IO)?;
+    Ok(copy)
 }
 
 /// Searches configured locations for the file with the provided name.
