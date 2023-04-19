@@ -332,9 +332,11 @@ where
         let a = fs::read_to_string(entry.path()).expect("must read source file");
         let b = fs::read_to_string(dest.join(rel).as_path()).expect("must read dest file");
 
+        // Compare content with normalized line endings
+        // so that tests don't get tripped up over platform differences.
         assert_eq!(
-            a,
-            b,
+            normalize_line_endings(a),
+            normalize_line_endings(b),
             "file contents must be equivalent for '{}'",
             entry.path().display()
         );
@@ -351,4 +353,9 @@ pub fn expand_debug_bundle<P: AsRef<Path>>(bundle: P) -> TempDir {
     archive.unpack(dir.path()).expect("must unpack archive");
 
     dir
+}
+
+#[track_caller]
+fn normalize_line_endings(input: String) -> String {
+    input.replace("\r\n", "\n")
 }
