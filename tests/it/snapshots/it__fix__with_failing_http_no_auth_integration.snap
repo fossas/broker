@@ -47,6 +47,7 @@ curl -H "Authorization: Bearer <your fossa api key>" https://app.fossa.com/api/c
 
 Full error message: HTTP status client error (401 Unauthorized) for url (https://app.fossa.com/api/cli/organization)
 
+
 Collecting debug bundle
 
 ❌ Debug bundle collection disabled.

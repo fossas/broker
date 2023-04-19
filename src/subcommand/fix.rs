@@ -321,7 +321,7 @@ pub async fn main<L: Logger>(
         fossa_connection_errors,
     );
 
-    log!(logger, "{}\n", "Collecting debug bundle".bold().blue());
+    log!(logger, "\n{}\n", "Collecting debug bundle".bold().blue());
     match export {
         BundleExport::Disable if had_errors => log!(logger, "❌ Debug bundle collection disabled."),
         BundleExport::Auto if had_errors => collect_bundle(config, logger)?,
