@@ -136,7 +136,6 @@ async fn main_fix(args: config::RawFixArgs) -> Result<(), Error> {
         .change_context(Error::InternalSetup)?;
 
     broker::subcommand::fix::main(
-        args.runtime().context(),
         &conf,
         &broker::subcommand::fix::StdoutLogger,
         args.export_bundle(),

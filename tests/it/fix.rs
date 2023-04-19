@@ -1,7 +1,13 @@
 use std::sync::RwLock;
 
-use crate::helper::{load_config, set_snapshot_vars};
-use broker::subcommand::fix::Logger;
+use crate::helper::{
+    assert_equal_contents, copy_recursive, expand_debug_bundle, load_config, set_snapshot_vars,
+    temp_config,
+};
+use broker::{
+    debug::{bundler::TarGz, Bundle, BundleExport},
+    subcommand::fix::Logger,
+};
 use insta::assert_snapshot;
 
 /// A logger that prints to stdout and also keeps track of what has been logged so that we can test it
@@ -56,7 +62,7 @@ async fn with_successful_http_no_auth_integration() {
     .await;
 
     let logger = TestLogger::new();
-    broker::subcommand::fix::main(&conf, &logger)
+    broker::subcommand::fix::main(&conf, &logger, BundleExport::Disable)
         .await
         .expect("should run fix");
 
@@ -76,7 +82,7 @@ async fn with_failing_http_basic_auth_integration() {
     )
     .await;
     let logger = TestLogger::new();
-    broker::subcommand::fix::main(&conf, &logger)
+    broker::subcommand::fix::main(&conf, &logger, BundleExport::Disable)
         .await
         .expect("should run fix");
 
@@ -97,7 +103,7 @@ async fn with_failing_http_no_auth_integration() {
     .await;
 
     let logger = TestLogger::new();
-    broker::subcommand::fix::main(&conf, &logger)
+    broker::subcommand::fix::main(&conf, &logger, BundleExport::Disable)
         .await
         .expect("should run fix");
 
@@ -106,4 +112,21 @@ async fn with_failing_http_no_auth_integration() {
         assert_snapshot!(logger.output());
        }
     );
+}
+
+#[tokio::test]
+async fn generates_debug_bundle() {
+    let (tmp, conf, _ctx) = temp_config!(load);
+    copy_recursive(
+        "testdata/fossa.broker.debug/raw",
+        conf.debug().location().as_path(),
+    );
+
+    let bundle_target = tmp.path().join("fossa.broker.debug.tar.gz");
+    let bundler = TarGz::new().expect("must create bundler");
+    let bundle =
+        Bundle::collect(conf.debug(), bundler, &bundle_target).expect("must collect debug bundle");
+
+    let unpacked = expand_debug_bundle(bundle.location());
+    assert_equal_contents("testdata/fossa.broker.debug/bundled", unpacked.path());
 }

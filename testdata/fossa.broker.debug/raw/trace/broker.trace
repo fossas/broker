@@ -1,0 +1,1 @@
+{"timestamp":"2023-04-05T16:30:24.086526Z","level":"INFO","fields":{"message":"Debug artifacts being stored in '/Users/me/.config/fossa/broker/debug/trace'"},"target":"broker::debug"}

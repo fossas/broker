@@ -1,12 +1,8 @@
 //! Implementation for the fix command
 
 use crate::{
-    debug::{
-        self,
-        bundle::{self, TarGzBundler},
-    },
+    debug::{self, bundler, Bundle, BundleExport},
     ext::secrecy::REDACTION_LITERAL,
-    AppContext,
 };
 use colored::Colorize;
 use core::result::Result;
@@ -304,9 +300,8 @@ macro_rules! log {
 }
 
 /// The primary entrypoint for the fix command.
-#[tracing::instrument(skip(config, logger), fields(subcommand = "fix"))]
+// #[tracing::instrument(skip(config, logger), fields(subcommand = "fix"))]
 pub async fn main<L: Logger>(
-    ctx: &AppContext,
     config: &Config,
     logger: &L,
     export: debug::BundleExport,
@@ -326,22 +321,31 @@ pub async fn main<L: Logger>(
         fossa_connection_errors,
     );
 
-    if had_errors || matches!(export, debug::BundleExport::Always) {
-        log!(logger, "\n{}\n", "Collecting debug bundle".bold().blue());
-        let bundler = TarGzBundler::new().change_context(Error::GenerateDebugBundle)?;
-        let bundle = bundle::generate(ctx, bundler, "fossa.broker.debug.tar.gz")
-            .change_context(Error::GenerateDebugBundle)?;
-
-        log!(
-            logger,
-            "✅ Collected debug bundle at '{}'",
-            bundle.location().display()
-        );
-        log!(
-            logger,
-            "Please include this debug bundle in any request to FOSSA Support!"
-        );
+    log!(logger, "{}\n", "Collecting debug bundle".bold().blue());
+    match export {
+        BundleExport::Disable if had_errors => log!(logger, "❌ Debug bundle collection disabled."),
+        BundleExport::Auto if had_errors => collect_bundle(config, logger)?,
+        BundleExport::Disable | BundleExport::Auto => log!(logger, "✅ Debug bundle not needed."),
+        BundleExport::Always => collect_bundle(config, logger)?,
     }
+
+    Ok(())
+}
+
+fn collect_bundle<L: Logger>(config: &Config, logger: &L) -> Result<(), Report<Error>> {
+    let bundler = bundler::TarGz::new().change_context(Error::GenerateDebugBundle)?;
+    let bundle = Bundle::collect(config.debug(), bundler, "fossa.broker.debug.tar.gz")
+        .change_context(Error::GenerateDebugBundle)?;
+
+    log!(
+        logger,
+        "✅ Collected debug bundle at '{}'",
+        bundle.location().display()
+    );
+    log!(
+        logger,
+        "Please include this debug bundle in any request to FOSSA Support."
+    );
 
     Ok(())
 }
