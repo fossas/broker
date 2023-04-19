@@ -6,6 +6,9 @@ FOSSA users use Broker to scan local projects,
 importing them into the FOSSA service (including FOSSA in the cloud)
 without sharing access to the source code of the project.
 
+_Have a question not answered in the docs?_
+_Check [the FAQ](./reference/faq.md), open an issue, or send us a support request!_
+
 ## System requirements
 
 Most modern systems can run Broker with no issues.
