@@ -63,10 +63,8 @@ impl Error {
 /// Generate a debug bundle for the application at the specified location.
 /// Ultimately this means "write a copy of every file inside the debug root to the bundler".
 ///
-/// In the future, we'd like to decompress and potentially prettify the FOSSA CLI debug bundles
-/// before including them in the overall debug bundle; this would yield better compression ratios.
-/// For now though we just include them as is.
-// #[tracing::instrument(skip(bundler, path), fields(debug_root, path))]
+/// FOSSA CLI debug bundles are decompressed and prettified before including in the overall bundle.
+#[tracing::instrument(skip(bundler, path), fields(debug_root, path))]
 pub fn generate<B, P>(conf: &Config, mut bundler: B, path: P) -> Result<Bundle, Error>
 where
     B: Bundler,
