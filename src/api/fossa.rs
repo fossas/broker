@@ -249,8 +249,9 @@ impl OrgConfig {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ProjectMetadata {
     name: String,
-    branch: Option<String>,
     revision: String,
+    branch: Option<String>,
+    team: Option<String>,
 }
 
 impl ProjectMetadata {
@@ -261,13 +262,15 @@ impl ProjectMetadata {
             Reference::Git(reference) => match reference {
                 git::Reference::Branch { name: branch, head } => Self {
                     name,
-                    branch: Some(branch.to_string()),
                     revision: head.to_string(),
+                    branch: Some(branch.to_string()),
+                    team: integration.team().to_owned(),
                 },
                 git::Reference::Tag { name: tag, .. } => Self {
                     name,
-                    branch: None,
                     revision: tag.to_string(),
+                    branch: None,
+                    team: integration.team().to_owned(),
                 },
             },
         }
@@ -321,6 +324,9 @@ pub async fn upload_scan(
     ];
     if let Some(branch) = &project.branch {
         query.push(("branch", branch.to_string()));
+    }
+    if let Some(team) = &project.team {
+        query.push(("team", team.to_string()));
     }
 
     let req = new_client()?

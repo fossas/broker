@@ -69,12 +69,16 @@ This block specifies how to configure Broker to communicate with a git server fo
 
 | Value           | Required? | Description                                                                       | Suggested default |
 |-----------------|-----------|-----------------------------------------------------------------------------------|-------------------|
-| `poll_interval` | Required  | How often Broker checks with the remote repository to see whether it has changed. | `1 hour`          |
+| `poll_interval` | Required  | How often Broker checks with the remote repository to see whether it has changed.<sup>1</sup> | `1 hour`          |
 | `remote`        | Required  | The remote git repository address.                                                | N/A               |
 | `auth`          | Required  | Required authentication to clone this repository.                                 | N/A               |
+| `team`          | Optional  | The team in FOSSA to which this project should be assigned.<sup>2</sup>           | N/A               |
 
-The poll interval defines the interval at which Broker _checks for updates_, not the interval at which Broker actually analyzes the repository.
+**[1]**: The poll interval defines the interval at which Broker _checks for updates_, not the interval at which Broker actually analyzes the repository.
 For more details on authentication, see [integration authentication](#integration-authentication).
+
+**[2]**: Team settings only affect newly imported projects. Changing this value later requires using the FOSSA UI.
+If the project already exists before transitioning it to be managed by Broker, this also has no effect.
 
 # Appendix
 
