@@ -51,7 +51,7 @@ For more information on what a "debugging artifact" is, see [Debug Artifacts](./
 | Value            | Required? | Description                                                | Suggested default                             |
 |------------------|-----------|------------------------------------------------------------|-----------------------------------------------|
 | `location`       | Required  | The root directory into which debug artifacts are written. | `{USER_HOME}/.config/fossa/broker/debugging/` |
-| `retention.days` | Optional  | Remove debug artifacts that are older than this time span. | `7`                                      |
+| `retention.days` | Optional  | Remove debug artifacts that are older than this time span. | `7`                                           |
 
 ## Integrations
 
@@ -67,18 +67,23 @@ Supported types:
 
 This block specifies how to configure Broker to communicate with a git server for a specific git repository.
 
-| Value           | Required? | Description                                                                       | Suggested default |
-|-----------------|-----------|-----------------------------------------------------------------------------------|-------------------|
+| Value           | Required? | Description                                                                                   | Suggested default |
+|-----------------|-----------|-----------------------------------------------------------------------------------------------|-------------------|
 | `poll_interval` | Required  | How often Broker checks with the remote repository to see whether it has changed.<sup>1</sup> | `1 hour`          |
-| `remote`        | Required  | The remote git repository address.                                                | N/A               |
-| `auth`          | Required  | Required authentication to clone this repository.                                 | N/A               |
-| `team`          | Optional  | The team in FOSSA to which this project should be assigned.<sup>2</sup>           | N/A               |
+| `remote`        | Required  | The remote git repository address.                                                            | N/A               |
+| `auth`          | Required  | Required authentication to clone this repository.                                             | N/A               |
+| `team`          | Optional  | The team in FOSSA to which this project should be assigned.<sup>2</sup>                       | N/A               |
+| `title`         | Optional  | Specify a custom title for the project instead of using the default.<sup>3</sup>              | N/A               |
 
 **[1]**: The poll interval defines the interval at which Broker _checks for updates_, not the interval at which Broker actually analyzes the repository.
 For more details on authentication, see [integration authentication](#integration-authentication).
 
 **[2]**: Team settings only affect newly imported projects. Changing this value later requires using the FOSSA UI.
 If the project already exists before transitioning it to be managed by Broker, this also has no effect.
+
+**[3]**: Title settings only affect newly imported projects. Changing this value later requires using the FOSSA UI.
+If the project already exists before transitioning it to be managed by Broker, this also has no effect.
+If unspecified, Broker uses a default title, which is just the configured `git` remote.
 
 # Appendix
 

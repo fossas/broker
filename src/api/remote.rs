@@ -116,6 +116,10 @@ pub struct Integration {
     #[builder(default)]
     team: Option<String>,
 
+    /// The title for this project.
+    #[getset(get = "pub")]
+    title: Option<String>,
+
     /// The protocol Broker uses to communicate with the remote code host.
     #[getset(get = "pub")]
     #[builder(setter(into))]
