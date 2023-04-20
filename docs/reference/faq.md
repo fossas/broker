@@ -12,11 +12,11 @@ feel free to open an issue or send us a support request.
 _This question refers to FOSSA CLI's [`.fossa.yml` config file](https://github.com/fossas/fossa-cli/blob/master/docs/references/files/fossa-yml.md)_
 _and FOSSA CLI's [`fossa-deps` config file](https://github.com/fossas/fossa-cli/blob/master/docs/references/files/fossa-deps.md)._
 
-Broker itself does not, however when Broker runs FOSSA CLI, it does read those config files, so they are respected.
-The main caveat however is that FOSSA CLI does not actually upload the results of the scan to FOSSA; Broker does.
+Broker itself does not. However, when Broker runs FOSSA CLI, the CLI does read those config files, so they are respected.
+The main caveat is that FOSSA CLI does not actually upload the results of the scan to FOSSA; Broker does.
 
-This is done for a few reasons, but primarily in order to offer predictability and observability to the upload process,
-both for FOSSA and for IT organizations, since Broker performs extremely comprehensive tracing of low-level details
+This is done for a few reasons, but primarily in order to offer predictability and observability to the upload process.
+This is useful both for FOSSA and for IT organizations, since this allows Broker to report extremely comprehensive tracing of low-level details
 in its debugging information.
 
 The upshot of this is that any `.fossa.yml` config file setting that controls how the project information is uploaded to FOSSA
