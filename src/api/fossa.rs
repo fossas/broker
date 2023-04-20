@@ -300,7 +300,7 @@ pub async fn upload_scan(
     opts: &Config,
     project: &ProjectMetadata,
     cli: &CliMetadata,
-    source_units: SourceUnits,
+    source_units: &SourceUnits,
 ) -> Result<Locator, Error> {
     let url = opts.endpoint().join("api/builds/custom")?;
 
@@ -332,7 +332,7 @@ pub async fn upload_scan(
 
     run_request::<UploadResponse>(req)
         .await
-        .change_context_lazy(|| Error::upload_scan(&locator, &source_units))?
+        .change_context_lazy(|| Error::upload_scan(&locator, source_units))?
         .into()
 }
 

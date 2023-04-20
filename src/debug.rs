@@ -106,7 +106,7 @@ impl Config {
                 tracing_subscriber::fmt::layer()
                     .compact()
                     .with_file(false)
-                    .with_level(false)
+                    .with_level(true)
                     .with_line_number(false)
                     .with_target(false)
                     .with_writer(std::io::stderr)
