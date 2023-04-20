@@ -125,7 +125,7 @@ async fn generates_debug_bundle() {
     let bundle_target = tmp.path().join("fossa.broker.debug.tar.gz");
     let bundler = TarGz::new().expect("must create bundler");
     let bundle =
-        Bundle::collect(conf.debug(), bundler, &bundle_target).expect("must collect debug bundle");
+        Bundle::collect(conf.debug(), bundler, bundle_target).expect("must collect debug bundle");
 
     let unpacked = expand_debug_bundle(bundle.location());
     assert_equal_contents("testdata/fossa.broker.debug/bundled", unpacked.path());
