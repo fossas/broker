@@ -5,7 +5,7 @@ We strive to have most questions answerable by the docs generally, but some ques
 aren't obviously answered by documentation (often because they span multiple topics).
 
 This is the home for such questions! If you have a question not answered here,
-feel free to open an issue or send us a support request.
+feel free to send us a support request via [support.fossa.com](https://support.fossa.com).
 
 ## Does Broker understand FOSSA CLI config files checked into the repository being scanned?
 

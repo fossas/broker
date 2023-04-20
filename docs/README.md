@@ -7,7 +7,7 @@ importing them into the FOSSA service (including FOSSA in the cloud)
 without sharing access to the source code of the project.
 
 _Have a question not answered in the docs?_
-_Check [the FAQ](./reference/faq.md), open an issue, or send us a support request!_
+_Check [the FAQ](./reference/faq.md) or send us a support request via [support.fossa.com](https://support.fossa.com)!_
 
 ## System requirements
 
