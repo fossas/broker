@@ -50,6 +50,13 @@ cargo dist generate-ci github \
   --installer github-shell
 ```
 
+### cross compilation
+
+Sometimes, especially when debugging a platform build issue, it's useful to "cross compile" the project
+from your home operating system to a destination operating system.
+
+Steps to do so are located in the [cross compilation reference](./reference/cross-compile.md).
+
 ### snapshot testing
 
 Broker uses [insta](https://docs.rs/insta) to perform snapshot testing of outputs.
