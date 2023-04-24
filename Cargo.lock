@@ -221,6 +221,7 @@ dependencies = [
  "insta",
  "itertools",
  "libflate",
+ "ntapi 0.4.1",
  "once_cell",
  "proptest",
  "regex",
@@ -1561,6 +1562,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "ntapi"
+version = "0.4.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e8a3895c6391c39d7fe7ebc444a87eb2991b2a0bc718fdabd071eec617fc68e4"
+dependencies = [
+ "winapi",
+]
+
+[[package]]
 name = "nu-ansi-term"
 version = "0.46.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2546,7 +2556,7 @@ dependencies = [
  "cfg-if",
  "core-foundation-sys",
  "libc",
- "ntapi",
+ "ntapi 0.3.7",
  "once_cell",
  "winapi",
 ]
