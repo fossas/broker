@@ -26,6 +26,7 @@ jobs:
       with:
         profile: minimal
         toolchain: ${{ matrix.toolchain }}
+        override: true
     - uses: Swatinem/rust-cache@v2
       with:
         shared-key: "dynamic-analysis"
@@ -66,6 +67,7 @@ jobs:
       with:
         profile: minimal
         toolchain: ${{ matrix.toolchain }}
+        override: true
     - uses: Swatinem/rust-cache@v2
       with:
         shared-key: "dynamic-analysis"
