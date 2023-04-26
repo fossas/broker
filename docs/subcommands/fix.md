@@ -19,6 +19,20 @@ Diagnosing connection to FOSSA
 ```
 
 If there are problems, then we will report the problem and give you instructions on how to fix or diagnose the problem.
+See [problem output examples](#problem-output-examples) for examples of cases where Broker finds issues and what they mean.
+
+## Debug bundle
+
+The Broker debug bundle contains all the information FOSSA needs to troubleshoot Broker in your environment.
+For more information on what this debug bundle contains, see the [debug bundle reference](../reference/debug-bundle.md).
+
+In the case that `broker fix` finds issues, a debug bundle is automatically created in the directory in which Broker is running.
+A debug bundle can also be saved by running `broker fix --export-bundle`, which causes the debug bundle to be written
+even if there are no issues.
+
+If, after running `broker fix`, you submit a support ticket to FOSSA, please always include the generated debug bundle in the request.
+
+## Problem output examples
 
 For example, here is some output with two problems. The first problem is an error while trying to connect to https://github.com/fossas/fossa-cli.git. The second is while trying to make an authenticated connection to the FOSSA API.
 

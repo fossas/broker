@@ -1,3 +1,15 @@
+
+## v0.2.0
+
+Adds debug bundle generation to `broker fix`.
+Debug bundles are generated automatically if `broker fix` finds errors, or can be generated via `broker fix --export-bundle`.
+
+For more information see the [`fix` subcommand documentation](https://github.com/fossas/broker/blob/main/docs/subcommands/fix.md)
+and the [debug bundle reference](https://github.com/fossas/broker/blob/main/docs/reference/debug-bundle.md).
+
+Adds support for assigning newly imported projects to a team in FOSSA and setting their title.
+For more information, see the [config reference](https://github.com/fossas/broker/blob/main/docs/reference/config.md#integrations).
+
 ## v0.1.1
 
 Add `broker fix`

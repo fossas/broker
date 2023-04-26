@@ -9,8 +9,15 @@ jobs:
       matrix:
         include:
         - os: ubuntu-latest
+          toolchain: stable
         - os: macos-latest
+          toolchain: stable
         - os: windows-latest
+          # Windows uses 1.68 until the napi issue fixed in napi@0.4.1
+          # percolates its way up our dependency graph.
+          # https://github.com/MSxDOS/ntapi/issues/15
+          # (will require a new `yaque` version, since that's what transitively pulls this in).
+          toolchain: '1.68'
     
     runs-on: ${{ matrix.os }}
     steps:
@@ -18,7 +25,7 @@ jobs:
     - uses: actions-rs/toolchain@v1
       with:
         profile: minimal
-        toolchain: stable
+        toolchain: ${{ matrix.toolchain }}
     - uses: Swatinem/rust-cache@v2
       with:
         shared-key: "dynamic-analysis"
@@ -42,8 +49,15 @@ jobs:
       matrix:
         include:
         - os: ubuntu-latest
+          toolchain: stable
         - os: macos-latest
+          toolchain: stable
         - os: windows-latest
+          # Windows uses 1.68 until the napi issue fixed in napi@0.4.1
+          # percolates its way up our dependency graph.
+          # https://github.com/MSxDOS/ntapi/issues/15
+          # (will require a new `yaque` version, since that's what transitively pulls this in).
+          toolchain: '1.68'
 
     runs-on: ${{ matrix.os }}
     steps:
@@ -51,7 +65,7 @@ jobs:
     - uses: actions-rs/toolchain@v1
       with:
         profile: minimal
-        toolchain: stable
+        toolchain: ${{ matrix.toolchain }}
     - uses: Swatinem/rust-cache@v2
       with:
         shared-key: "dynamic-analysis"

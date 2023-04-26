@@ -7,7 +7,7 @@ use error_stack::{Result, ResultExt};
 mod args;
 mod file;
 
-pub use args::{RawInitArgs, RawRunArgs, RunArgs, DISABLE_FILE_DISCOVERY_VAR};
+pub use args::{RawFixArgs, RawInitArgs, RawRunArgs, RunArgs, DISABLE_FILE_DISCOVERY_VAR};
 pub use file::Config;
 
 /// Errors that are possibly surfaced during validation of config values.

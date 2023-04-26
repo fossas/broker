@@ -76,6 +76,17 @@ integrations:
     auth:
       type: none
       transport: http
+    # optionally, a team may be specified.
+    # team settings only affect newly imported projects. changing this value later requires using the FOSSA UI.
+    # if the project already exists before transitioning it to be managed by Broker, this also has no effect.
+    # uncomment `team` below to add the project to the specified team.
+    # team: 'Some Team'
+    # 
+    # optionally, a project title may be specified.
+    # name settings only affect newly imported projects. changing this value later requires using the FOSSA UI.
+    # if the project already exists before transitioning it to be managed by Broker, this also has no effect.
+    # uncomment `title` below to specify a custom name for the project.
+    # title: Broker
 
   # This is an example of using an auth type of "none" with an HTTP URL
   # This can be used for public repositories on github, gitlab, etc.

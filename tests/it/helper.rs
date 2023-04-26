@@ -53,7 +53,7 @@ macro_rules! temp_config {
     }};
     (load) => {{
         let (tmp, config_file_path) = temp_config!();
-        let raw_args = RawRunArgs::new(
+        let raw_args = broker::config::RawRunArgs::new(
             Some(config_file_path.to_string_lossy().to_string()),
             None, // Infer the DB path to be a sibling of the config file.
             Some(tmp.path().to_path_buf()),
@@ -270,9 +270,92 @@ macro_rules! load_config_err {
     };
 }
 
+use std::{
+    fs::{self, File},
+    path::Path,
+};
+
 pub(crate) use assert_error_stack_snapshot;
+use libflate::gzip;
 pub(crate) use load_config;
 pub(crate) use load_config_err;
 pub(crate) use set_snapshot_vars;
 pub(crate) use temp_config;
 pub(crate) use temp_ctx;
+use tempfile::TempDir;
+
+#[track_caller]
+pub fn copy_recursive<P, Q>(source: P, dest: Q)
+where
+    P: AsRef<Path>,
+    Q: AsRef<Path>,
+{
+    let source = source.as_ref();
+    let dest = dest.as_ref();
+
+    for entry in walkdir::WalkDir::new(source).follow_links(false) {
+        let entry = entry.expect("must walk source dir");
+        let rel = entry
+            .path()
+            .strip_prefix(source)
+            .expect("walked content must be children of source dir");
+
+        let target = dest.join(rel);
+        if entry.file_type().is_dir() {
+            std::fs::create_dir_all(target).expect("must create destination dir");
+        } else if entry.file_type().is_file() {
+            std::fs::copy(entry.path(), target).expect("must copy file to destination dir");
+        }
+    }
+}
+
+#[track_caller]
+pub fn assert_equal_contents<P, Q>(source: P, dest: Q)
+where
+    P: AsRef<Path>,
+    Q: AsRef<Path>,
+{
+    let source = source.as_ref();
+    let dest = dest.as_ref();
+
+    for entry in walkdir::WalkDir::new(source).follow_links(false) {
+        let entry = entry.expect("must walk source dir");
+        if !entry.file_type().is_file() {
+            continue;
+        }
+
+        let rel = entry
+            .path()
+            .strip_prefix(source)
+            .expect("walked content must be children of source dir");
+
+        let a = fs::read_to_string(entry.path()).expect("must read source file");
+        let b = fs::read_to_string(dest.join(rel).as_path()).expect("must read dest file");
+
+        // Compare content with normalized line endings
+        // so that tests don't get tripped up over platform differences.
+        assert_eq!(
+            normalize_line_endings(a),
+            normalize_line_endings(b),
+            "file contents must be equivalent for '{}'",
+            entry.path().display()
+        );
+    }
+}
+
+#[track_caller]
+pub fn expand_debug_bundle<P: AsRef<Path>>(bundle: P) -> TempDir {
+    let handle = File::open(bundle).expect("must open file");
+    let decompressed = gzip::Decoder::new(handle).expect("must be a gzip file");
+    let mut archive = tar::Archive::new(decompressed);
+
+    let dir = TempDir::new().expect("must create temp dir");
+    archive.unpack(dir.path()).expect("must unpack archive");
+
+    dir
+}
+
+#[track_caller]
+fn normalize_line_endings(input: String) -> String {
+    input.replace("\r\n", "\n")
+}
