@@ -1,0 +1,10 @@
+{
+  "bundleArgs": [
+    "/Users/me/.config/fossa/broker/fossa",
+    "analyze",
+    "--debug",
+    "--output",
+    "/var/folders/q7/3nvvpy0d6js28m8lypw3tcx80000gn/T/.tmpMY3D8l"
+  ],
+  "bundleCLIVersion": "fossa-cli version 3.7.4 (revision 45d187a7cc9c compiled with ghc-9.0)"
+}

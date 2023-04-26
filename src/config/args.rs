@@ -1,4 +1,25 @@
 //! Types and functions for parsing & validating CLI arguments.
+//!
+//! `Raw` prefixes indicate that the type is the initial parsed value before any validation;
+//! once validated they turn into the same name without the `Raw` prefix.
+//! For example, `RawRunArgs -> RunArgs`.
+//!
+//! # Background
+//!
+//! There is no exported function in `config` that parses raw args; instead these are
+//! parsed automatically by `clap` since they implement `Parser` and are included in the
+//! top-level subcommand configuration sent to `clap`.
+//!
+//! Unlike with the config file, there's not really a concept of these args "failing to parse",
+//! as `clap` steps in and shows the user errors in this case. By the time `clap` hands
+//! us this structure, it's been successfully parsed.
+//!
+//! Meanwhile if we make validation part of parsing (e.g. in the style of "parse, don't validate"),
+//! we can't show a formatted error message with all our help and context, because `clap` takes over
+//! and renders the error however it thinks is best.
+//!
+//! This odd dichotomy is why we have to leak the `Raw*` implementations to the package consumer,
+//! because the consumer (`main`) needs to be able to give this type to `clap` for it to be parsed.
 
 use std::path::PathBuf;
 
@@ -10,6 +31,7 @@ use indoc::indoc;
 use serde::Serialize;
 
 use crate::{
+    debug::BundleExport,
     ext::{
         error_stack::{merge_error_stacks, DescribeContext, ErrorHelper},
         io,
@@ -37,21 +59,64 @@ pub enum Error {
     DataRoot,
 }
 
+/// Arguments used by the "fix" command.
+#[derive(Debug, Clone, Parser, Serialize, new)]
+#[command(version, about)]
+pub struct RawFixArgs {
+    /// Include all the same args as used with `run`.
+    ///
+    /// These are flattened into the args, so they appear to the user
+    /// as though they were in this struct directly.
+    #[clap(flatten)]
+    runtime: RawRunArgs,
+
+    /// Always save the debug bundle.
+    ///
+    /// `broker fix` automatically saves the debug bundle if it is not able
+    /// to resolve the issue, but this option causes the debug bundle to always be saved.
+    #[arg(long)]
+    export_bundle: bool,
+}
+
+impl RawFixArgs {
+    /// Validate the raw args provided.
+    ///
+    /// In practice, if the user provided a path to the db and config file, the validation is straightforward.
+    /// If the user did not provide one or both, this function discovers their location on disk
+    /// or errors if they are not able to be found.
+    ///
+    /// In the case of the database file, if one was not provided _and_ not found,
+    /// it is assumed to be a sibling to the config file.
+    /// Database implementations then create it if it does not exist.
+    #[tracing::instrument]
+    pub async fn validate(self) -> Result<FixArgs, Report<Error>> {
+        let runtime = self.runtime.validate().await?;
+        let export_bundle = if self.export_bundle {
+            BundleExport::Always
+        } else {
+            BundleExport::Auto
+        };
+
+        Ok(FixArgs {
+            runtime,
+            export_bundle,
+        })
+    }
+}
+
 /// Arguments used by the "run" command.
-/// The "Raw" prefix indicates that this is the initial parsed value before any validation.
-///
-/// # Background
-///
-/// There is no exported function in `config` that parses these args; instead these are
-/// parsed automatically by `clap` since they implement `Parser` and are included in the
-/// top-level subcommand configuration sent to `clap`.
-///
-/// Unlike with the config file, there's not really a concept of these args "failing to parse",
-/// as `clap` steps in and shows the user errors in this case. By the time `clap` hands
-/// us this structure, it's been successfully parsed.
-///
-/// This odd dichotomy is why we have to leak the `RawRunArgs` implementation to the package consumer,
-/// because the consumer (`main`) needs to be able to give this type to `clap` for it to be parsed.
+#[derive(Debug, Clone, PartialEq, Eq, Getters, CopyGetters)]
+pub struct FixArgs {
+    /// Runtime config options, like those used in `run`.
+    #[getset(get = "pub")]
+    runtime: RunArgs,
+
+    /// How to export the debug bundle.
+    #[getset(get_copy = "pub")]
+    export_bundle: BundleExport,
+}
+
+/// Arguments used by the "run" command.
 #[derive(Debug, Clone, Parser, Serialize, new)]
 #[command(version, about)]
 pub struct RawRunArgs {
@@ -201,8 +266,6 @@ pub struct RunArgs {
 }
 
 /// Arguments used by the "init" command.
-/// The "Raw" prefix indicates that this is the initial parsed value before any validation.
-/// See the comments on [`RawRunArgs`] for a more detailed explanation of why we need this pre-validation struct.
 #[derive(Debug, Clone, Parser, Serialize, new)]
 #[command(version, about)]
 pub struct RawInitArgs {

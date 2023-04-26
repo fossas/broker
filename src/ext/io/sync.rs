@@ -21,12 +21,18 @@
 //! or swapping to a backing FS implementation that is async native.
 
 use std::{
-    env, fmt, fs, iter,
+    env, fmt,
+    fs::{self, File},
+    iter,
     path::{Path, PathBuf},
 };
 
 use error_stack::{IntoReport, Report, ResultExt};
+use itertools::Itertools;
+use libflate::gzip;
 use once_cell::sync::OnceCell;
+use serde_json::Value;
+use tempfile::NamedTempFile;
 use tracing::debug;
 
 use crate::{
@@ -65,6 +71,99 @@ pub enum Error {
     /// The value was already set.
     #[error("value already set: {0}")]
     ValueAlreadySet(String),
+
+    /// Generic IO error.
+    #[error("underlying IO error")]
+    IO,
+}
+
+/// Lists the contents of a directory.
+/// Returns the file names without their path components.
+#[tracing::instrument]
+pub fn list_contents(dir: &Path) -> Result<Vec<String>, Report<Error>> {
+    std::fs::read_dir(dir)
+        .context(Error::IO)?
+        .map_ok(|entry| entry.file_name().to_string_lossy().to_string())
+        .collect::<Result<Vec<_>, _>>()
+        .context(Error::IO)
+}
+
+/// Create a new temporary file.
+///
+/// The file will be created in the location returned by [`std::env::temp_dir()`].
+///
+/// # Security
+///
+/// This variant is secure/reliable in the presence of a pathological temporary file cleaner.
+///
+/// # Resource Leaking
+///
+/// The temporary file will be automatically removed by the OS when the last handle to it is closed.
+/// This doesn't rely on Rust destructors being run, so will (almost) never fail to clean up the temporary file.
+///
+/// # Errors
+///
+/// If the file can not be created, `Err` is returned.
+///
+/// [`std::env::temp_dir()`]: https://doc.rust-lang.org/std/env/fn.temp_dir.html
+//
+// Documentation above taken from the [`tempfile::tempfile`] docs.
+//
+#[tracing::instrument]
+pub fn tempfile() -> Result<File, Report<Error>> {
+    tempfile::tempfile().context(Error::IO)
+        .help("altering the temporary directory location may resolve this issue")
+        .describe("temporary directory location uses $TMPDIR on Linux and macOS; for Windows it uses the 'GetTempPath' system call")
+}
+
+/// Copies a given file into a new temporary file, returning the temporary file.
+///
+/// The contents of the source file will have been written to the temp file and a best effort
+/// is made to sync the contents to disk before this function returns.
+#[tracing::instrument]
+pub fn copy_temp<P>(file: P) -> Result<NamedTempFile, Report<Error>>
+where
+    P: AsRef<Path> + std::fmt::Debug,
+{
+    let mut source = File::open(file).context(Error::IO)?;
+    let mut copy = NamedTempFile::new().context(Error::IO)?;
+    std::io::copy(&mut source, &mut copy).context(Error::IO)?;
+    copy.as_file().sync_all().context(Error::IO)?;
+    Ok(copy)
+}
+
+/// Copies the given FOSSA CLI debug bundle into a new temporary file, returning the temporary file
+/// and its new relative file name (to be used in the overall debug bundle).
+///
+/// If the file does not end with `.json.gz`, no decompression or formatting is performed,
+/// and the `rel` argument is returned unmodified.
+///
+/// The contents of the source file will have been written to the temp file and a best effort
+/// is made to sync the contents to disk before this function returns.
+///
+/// The debug bundle is decompressed and prettified during this operation.
+#[tracing::instrument]
+pub fn copy_debug_bundle<P, Q>(file: P, rel: Q) -> Result<(NamedTempFile, PathBuf), Report<Error>>
+where
+    P: AsRef<Path> + std::fmt::Debug,
+    Q: AsRef<Path> + std::fmt::Debug,
+{
+    const EXT: &str = ".json.gz";
+    if !file.as_ref().to_string_lossy().ends_with(&EXT) {
+        let copy = copy_temp(file)?;
+        return (copy, rel.as_ref().to_path_buf()).wrap_ok();
+    }
+
+    let source = File::open(file).context(Error::IO)?;
+    let mut reader = gzip::Decoder::new(source).context(Error::IO)?;
+    let data: Value = serde_json::from_reader(&mut reader).context(Error::IO)?;
+
+    let mut copy = NamedTempFile::new().context(Error::IO)?;
+    serde_json::to_writer_pretty(&mut copy, &data).context(Error::IO)?;
+    copy.as_file().sync_all().context(Error::IO)?;
+
+    let renamed = rel.as_ref().to_string_lossy().replace(EXT, ".json");
+    (copy, PathBuf::from(renamed)).wrap_ok()
 }
 
 /// Searches configured locations for the file with the provided name.

@@ -246,11 +246,24 @@ impl OrgConfig {
 }
 
 /// The metadata for a project to upload.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Getters)]
+#[getset(get = "pub")]
 pub struct ProjectMetadata {
+    /// The name of the project. Used to build the locator.
     name: String,
-    branch: Option<String>,
+
+    /// The revision of the project. Used to build the locator.
     revision: String,
+
+    /// The title to give the project in the UI.
+    /// If not provided, defaults to `name`.
+    title: Option<String>,
+
+    /// The branch at which the project was scanned, if any.
+    branch: Option<String>,
+
+    /// The team to which the project should be assigned, if any.
+    team: Option<String>,
 }
 
 impl ProjectMetadata {
@@ -261,13 +274,17 @@ impl ProjectMetadata {
             Reference::Git(reference) => match reference {
                 git::Reference::Branch { name: branch, head } => Self {
                     name,
-                    branch: Some(branch.to_string()),
                     revision: head.to_string(),
+                    title: integration.title().to_owned(),
+                    branch: Some(branch.to_string()),
+                    team: integration.team().to_owned(),
                 },
                 git::Reference::Tag { name: tag, .. } => Self {
                     name,
-                    branch: None,
                     revision: tag.to_string(),
+                    title: integration.title().to_owned(),
+                    branch: None,
+                    team: integration.team().to_owned(),
                 },
             },
         }
@@ -309,18 +326,29 @@ pub async fn upload_scan(
         .project(&project.name)
         .revision(&project.revision)
         .build();
-    let package_locator = locator.clone().into_package();
+
+    // v0.1.1 of Broker didn't have this field, so it defaults to an empty string
+    // in case jobs from v0.1.1 are present when this version runs.
+    // In such a case we'll default it to `name`.
+    // This should be removed once v0.1.1 is no longer a recent version.
+    let title = match project.title() {
+        Some(title) if !title.is_empty() => title.to_string(),
+        _ => project.name().to_string(),
+    };
 
     // We don't currently include metadata such as team/policies/etc.
     // We can add it to integration config as users request it though.
     let mut query = vec![
-        ("title", package_locator.to_string()),
+        ("title", title),
         ("locator", locator.to_string()),
         ("cliVersion", cli.version.to_string()),
         ("managedBuild", String::from("true")),
     ];
     if let Some(branch) = &project.branch {
         query.push(("branch", branch.to_string()));
+    }
+    if let Some(team) = &project.team {
+        query.push(("team", team.to_string()));
     }
 
     let req = new_client()?

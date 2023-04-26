@@ -46,7 +46,8 @@ enum Commands {
     Init(config::RawInitArgs),
 
     /// Automatically detect problems with Broker and fix them.
-    Fix(config::RawRunArgs),
+    Fix(config::RawFixArgs),
+
     /// Run Broker with the current config.
     Run(config::RawRunArgs),
 
@@ -117,13 +118,13 @@ async fn main_init(args: config::RawInitArgs) -> Result<(), Error> {
 
 /// Automatically detect problems with Broker and fix them.
 /// If they can't be fixed, generate a debug bundle.
-async fn main_fix(args: config::RawRunArgs) -> Result<(), Error> {
+async fn main_fix(args: config::RawFixArgs) -> Result<(), Error> {
     let args = args.validate()
         .await
         .change_context(Error::DetermineEffectiveConfig)
         .help("try running Broker with the '--help' argument to see available options and usage suggestions")?;
 
-    let conf = config::load(&args)
+    let conf = config::load(args.runtime())
         .await
         .change_context(Error::DetermineEffectiveConfig)
         .documentation_lazy(doc::link::config_file_reference)?;
@@ -134,9 +135,13 @@ async fn main_fix(args: config::RawRunArgs) -> Result<(), Error> {
         .run_tracing_sink()
         .change_context(Error::InternalSetup)?;
 
-    broker::subcommand::fix::main(&conf, &broker::subcommand::fix::StdoutLogger)
-        .await
-        .change_context(Error::Runtime)
+    broker::subcommand::fix::main(
+        &conf,
+        &broker::subcommand::fix::StdoutLogger,
+        args.export_bundle(),
+    )
+    .await
+    .change_context(Error::Runtime)
 }
 
 /// Run Broker with the current config.

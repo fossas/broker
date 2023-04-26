@@ -125,6 +125,8 @@ pub(super) enum Integration {
     #[serde(rename = "git")]
     Git {
         poll_interval: String,
+        team: Option<String>,
+        title: Option<String>,
         remote: String,
         auth: Auth,
     },
@@ -138,6 +140,8 @@ impl TryFrom<Integration> for remote::Integration {
             Integration::Git {
                 poll_interval,
                 remote,
+                team,
+                title,
                 auth,
             } => {
                 let poll_interval = remote::PollInterval::try_from(poll_interval)?;
@@ -175,7 +179,13 @@ impl TryFrom<Integration> for remote::Integration {
                     }?,
                 };
 
-                remote::Integration::new(poll_interval, protocol.into()).wrap_ok()
+                remote::Integration::builder()
+                    .poll_interval(poll_interval)
+                    .team(team)
+                    .title(title)
+                    .protocol(protocol)
+                    .build()
+                    .wrap_ok()
             }
         }
     }

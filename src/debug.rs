@@ -10,7 +10,7 @@ use std::path::{Path, PathBuf};
 
 use derive_more::{AsRef, From, Into};
 use derive_new::new;
-use error_stack::{report, Report};
+use error_stack::{report, Report, ResultExt};
 use getset::{CopyGetters, Getters};
 use rolling_file::{BasicRollingFileAppender, RollingConditionBasic};
 use tracing::{info, Metadata};
@@ -23,6 +23,11 @@ use crate::ext::{
     error_stack::{DescribeContext, ErrorHelper, IntoContext},
     result::WrapErr,
 };
+
+use self::bundler::Bundler;
+
+mod bundle;
+pub mod bundler;
 
 /// Errors that are possibly surfaced when running debugging operations.
 #[derive(Debug, thiserror::Error)]
@@ -41,6 +46,10 @@ pub enum Error {
     /// If it didn't exist and can't be created, this error is returned.
     #[error("failed to create tracing output location")]
     EnsureTraceRoot,
+
+    /// It's unfortunately possible for collecting a debug bundle to fail.
+    #[error("collecting debug bundle")]
+    CollectDebugBundle,
 }
 
 /// Errors that are possibly surfaced during validation of config values.
@@ -49,6 +58,19 @@ pub enum ValidationError {
     /// Retentions must be above a minimum value.
     #[error("retention value is too small")]
     RetentionBelowMinimum,
+}
+
+/// Export mode for the debug bundle.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BundleExport {
+    /// Bundle export is disabled entirely.
+    Disable,
+
+    /// It's up to Broker to determine whether it's appropriate to export.
+    Auto,
+
+    /// Exporting the debug bundle is toggled on by the customer.
+    Always,
 }
 
 /// Validated config values for observability.
@@ -220,5 +242,32 @@ impl TryFrom<usize> for ArtifactRetentionCount {
         } else {
             Ok(Self(value))
         }
+    }
+}
+
+/// Intended to provide FOSSA employees with all the information required to debug
+/// Broker in any environment, without sharing sensitive information.
+#[derive(Debug, Clone, Getters, Default)]
+#[getset(get = "pub")]
+pub struct Bundle {
+    /// The location to the debug bundle that was persisted.
+    location: PathBuf,
+}
+
+impl Bundle {
+    /// Collect a debug bundle from the working environment.
+    pub fn collect<B, P>(conf: &Config, bundler: B, path: P) -> Result<Self, Report<Error>>
+    where
+        P: AsRef<Path>,
+        B: Bundler,
+        B::Error: error_stack::Context,
+    {
+        bundle::generate(conf, bundler, path).change_context(Error::CollectDebugBundle)
+    }
+
+    /// Whether the debug bundle is is empty.
+    /// Empty debug bundles do not actually exist on disk.
+    pub fn is_empty(&self) -> bool {
+        self.location.as_os_str().is_empty()
     }
 }

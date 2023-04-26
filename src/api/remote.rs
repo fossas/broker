@@ -20,6 +20,7 @@ use getset::{CopyGetters, Getters};
 use humantime::parse_duration;
 use serde::{Deserialize, Serialize};
 use tempfile::TempDir;
+use typed_builder::TypedBuilder;
 
 use crate::{
     db,
@@ -102,14 +103,26 @@ impl TryFrom<String> for Remote {
 /// along with its protocol (which describes how to download the code so it can be analyzed).
 ///
 /// This type stores this combination of data.
-#[derive(Debug, Clone, PartialEq, Eq, Getters, CopyGetters, Deserialize, Serialize, new)]
+#[derive(
+    Debug, Clone, PartialEq, Eq, Getters, CopyGetters, Deserialize, Serialize, TypedBuilder,
+)]
 pub struct Integration {
     /// The interval at which Broker should poll the remote code host for whether the code has changed.
     #[getset(get_copy = "pub")]
     poll_interval: PollInterval,
 
+    /// The team to which this project should be assigned, if any.
+    #[getset(get = "pub")]
+    #[builder(default)]
+    team: Option<String>,
+
+    /// The title for this project.
+    #[getset(get = "pub")]
+    title: Option<String>,
+
     /// The protocol Broker uses to communicate with the remote code host.
     #[getset(get = "pub")]
+    #[builder(setter(into))]
     protocol: Protocol,
 }
 

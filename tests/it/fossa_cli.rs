@@ -1,9 +1,6 @@
 use std::path::PathBuf;
 
-use broker::{
-    config::RawRunArgs,
-    fossa_cli::{self, DesiredVersion, Location},
-};
+use broker::fossa_cli::{self, DesiredVersion, Location};
 use tracing_test::traced_test;
 use uuid::Uuid;
 
