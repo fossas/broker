@@ -65,11 +65,6 @@ tar = "0.4.38"
 libflate = "1.3.0"
 typed-builder = "0.14.0"
 
-# Is not actually used in this program; only referenced here so that we can force transitive deps to resolve to this version.
-# Used by the chain: `yaque -> sysinfo -> ntapi`. Once `yaque` updates to a dependency that pulls in the correct version,
-# this can be removed.
-ntapi = "0.4.1"
-
 [dev-dependencies]
 insta = { version = "1.29.0", features = ["filters", "json", "yaml"] }
 proptest = "1.1.0"
