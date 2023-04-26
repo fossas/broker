@@ -34,3 +34,13 @@ Steps:
 1. `cargo build --target x86_64-pc-windows-gnu`
 
 Now your build still fails but at least your testing loop is faster 🥲
+
+## Cross version compile
+
+You can also do this across versions:
+
+```
+; rustup install 1.68
+; rustup target add x86_64-pc-windows-gnu --toolchain 1.68
+; rustup run 1.68 cargo build --target x86_64-pc-windows-gnu
+```
