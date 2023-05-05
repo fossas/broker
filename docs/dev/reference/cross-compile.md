@@ -32,6 +32,10 @@ Steps:
 
 Now your build still fails but at least your testing loop is faster 🥲
 
+Also note that running some tests may fail when using `cross`, since they run in the Docker context.
+To test on those platforms, configure the test to run under [native cross compilation](#native-cross-compilation)
+or run it directly on the target platform.
+
 ## Cross version compile
 
 You can also do this across versions:
