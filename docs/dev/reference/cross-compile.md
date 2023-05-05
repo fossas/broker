@@ -27,17 +27,35 @@ You can! ✨
 
 Steps:
 
-1. Install the `mingw-64` package.
-  - On macOS, that's `brew install mingw-w64`
-  - On Debian/Ubuntu, that's `sudo apt-get install mingw-w64`
-1. `rustup target add x86_64-pc-windows-gnu`
-1. `cargo build --target x86_64-pc-windows-gnu`
+1. Install [`cross`](https://github.com/cross-rs/cross): `cargo binstall cross`
+1. `cross build --target x86_64-pc-windows-gnu`
 
 Now your build still fails but at least your testing loop is faster 🥲
 
 ## Cross version compile
 
 You can also do this across versions:
+
+```
+; rustup install 1.68
+; rustup run 1.68 cross build --target x86_64-pc-windows-gnu
+```
+
+## Native cross compilation
+
+`cross` uses Docker to do its thing.
+
+If you don't like that, you can cross compile by installing dependencies yourself,
+assuming that's supported without emulation:
+
+1. Install the `mingw-64` package.
+  - On macOS, that's `brew install mingw-w64`
+  - On Debian/Ubuntu, that's `sudo apt-get install mingw-w64`
+  - On Arch, that's `sudo pacman -S mingw-w64`, install all
+1. `rustup target add x86_64-pc-windows-gnu`
+1. `cargo build --target x86_64-pc-windows-gnu`
+
+And that still works across versions:
 
 ```
 ; rustup install 1.68
