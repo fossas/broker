@@ -12,12 +12,13 @@ use std::fmt::Debug;
 use std::io::{Cursor, Read};
 use std::path::{Path, PathBuf};
 use tempfile::tempdir;
+use tokio::fs;
 use tokio::io::{AsyncBufReadExt, AsyncReadExt, BufReader};
 use tracing::{debug, warn};
 
 use crate::ext::command::{Command, CommandDescriber, OutputProvider};
 use crate::ext::error_stack::{DescribeContext, ErrorHelper, IntoContext};
-use crate::ext::io::{self, spawn_blocking};
+use crate::ext::io::{spawn_blocking, spawn_blocking_wrap};
 use crate::ext::result::DiscardResult;
 use crate::ext::result::{WrapErr, WrapOk};
 use crate::ext::tracing::span_record;
@@ -305,16 +306,24 @@ impl Location {
             bail!(Error::Execution(description.to_string()));
         }
 
-        // Move the debug bundle to the correct location.
+        // Copy the debug bundle to the correct location.
         // Don't error the process if this fails, as it's not critical to the scan process.
+        // We're copying instead of moving because on Linux, it's likely these are at different mount points.
         let debug_bundle = tmp.path().join("fossa.debug.json.gz");
         let destination = self.artifacts.debug_bundle(scan_id);
-        match io::rename(&debug_bundle, &destination).await {
+        if let Err(err) = fs::create_dir_all(self.artifacts.as_path()).await {
+            warn!(
+                "failed to create FOSSA CLI debug bundle location {:?}: {err:#}",
+                self.artifacts.as_path()
+            );
+        }
+
+        match fs::copy(&debug_bundle, &destination).await {
             Ok(_) => debug!("stored FOSSA CLI debug bundle at {destination:?}"),
             Err(err) => {
                 warn!("failed to store FOSSA CLI debug bundle at {destination:?}: {err:#}")
             }
-        };
+        }
 
         // Parse the output. We only care about source units.
         serde_json::from_str::<AnalysisResult>(&stdout)
@@ -343,10 +352,14 @@ pub async fn find_or_download(
     let command_in_config_dir = ctx.data_root().join(command);
     let current_path: Option<PathBuf> = if check_command_existence(&command_in_config_dir).await {
         Some(command_in_config_dir)
-    } else if check_command_existence(&PathBuf::from(&command)).await {
-        Some(PathBuf::from(command))
     } else {
-        None
+        match find_in_path(command).await {
+            Ok(path) => Some(path),
+            Err(err) => {
+                debug!("failed to find {command} in path: {err:?}");
+                None
+            }
+        }
     };
 
     // If the CLI isn't already local, download it.
@@ -425,6 +438,14 @@ async fn local_version(current_path: &PathBuf) -> Result<Version, Error> {
     span_record!(fossa_version_output, debug raw_version);
 
     Version::parse(raw_version).change_context_lazy(|| Error::running_cli(&output))
+}
+
+/// Find the path to the command in `$PATH`.
+async fn find_in_path(command: &str) -> Result<PathBuf, Error> {
+    let command = command.to_string();
+    spawn_blocking_wrap(|| which::which(command))
+        .await
+        .change_context(Error::FindVersion)
 }
 
 /// Given a path to a possible fossa executable, return whether or not it successfully runs

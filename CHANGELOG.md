@@ -1,4 +1,17 @@
 
+## v0.2.1
+
+Resolves a couple minor bugs:
+- Copy debug bundles instead of renaming them from the temp location.
+  This resolves issues preventing debug bundles from being stored for Linux installations where the temporary location
+  and the home folder are on separate mount points.
+- Locate `fossa` in `$PATH` before running it.
+  This resolves issues where some Linux implementations cannot execute commands without the full path.
+
+Additionally, Broker now reports to FOSSA that the build is being submitted by Broker instead of FOSSA CLI.
+Today FOSSA doesn't do anything with this information, but in the future we can use this to display
+projects that are imported by Broker with a different icon or different search parameters.
+
 ## v0.2.0
 
 Adds debug bundle generation to `broker fix`.
