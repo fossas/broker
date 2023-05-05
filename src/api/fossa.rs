@@ -27,6 +27,13 @@ use crate::{
 
 use super::remote::{Integration, Reference};
 
+/// Specify that this upload came from Broker.
+///
+/// Currently Core doesn't do anything with this value but in the future we can use this
+/// to disambiguate Broker builds.
+const ANALYSIS_SOURCE_KEY: &str = "analysisSource";
+const ANALYSIS_SOURCE: &str = concat!("broker:", env!("CARGO_PKG_VERSION"));
+
 /// Errors encountered using this module.
 #[derive(Debug, Error)]
 pub enum Error {
@@ -343,6 +350,7 @@ pub async fn upload_scan(
         ("locator", locator.to_string()),
         ("cliVersion", cli.version.to_string()),
         ("managedBuild", String::from("true")),
+        (ANALYSIS_SOURCE_KEY, ANALYSIS_SOURCE.to_string()),
     ];
     if let Some(branch) = &project.branch {
         query.push(("branch", branch.to_string()));
@@ -390,7 +398,7 @@ impl Endpoint {
 }
 
 fn new_client() -> Result<Client, Error> {
-    static APP_USER_AGENT: &str = concat!(env!("CARGO_PKG_NAME"), "/", env!("CARGO_PKG_VERSION"),);
+    static APP_USER_AGENT: &str = concat!(env!("CARGO_PKG_NAME"), "/", env!("CARGO_PKG_VERSION"));
     ClientBuilder::new()
         .user_agent(APP_USER_AGENT)
         .build()
