@@ -12,12 +12,13 @@ use std::fmt::Debug;
 use std::io::{Cursor, Read};
 use std::path::{Path, PathBuf};
 use tempfile::tempdir;
+use tokio::fs;
 use tokio::io::{AsyncBufReadExt, AsyncReadExt, BufReader};
 use tracing::{debug, warn};
 
 use crate::ext::command::{Command, CommandDescriber, OutputProvider};
 use crate::ext::error_stack::{DescribeContext, ErrorHelper, IntoContext};
-use crate::ext::io::{self, spawn_blocking, spawn_blocking_wrap};
+use crate::ext::io::{spawn_blocking, spawn_blocking_wrap};
 use crate::ext::result::DiscardResult;
 use crate::ext::result::{WrapErr, WrapOk};
 use crate::ext::tracing::span_record;
@@ -305,16 +306,17 @@ impl Location {
             bail!(Error::Execution(description.to_string()));
         }
 
-        // Move the debug bundle to the correct location.
+        // Copy the debug bundle to the correct location.
         // Don't error the process if this fails, as it's not critical to the scan process.
+        // We're copying instead of moving because on Linux, it's likely these are at different mount points.
         let debug_bundle = tmp.path().join("fossa.debug.json.gz");
         let destination = self.artifacts.debug_bundle(scan_id);
-        match io::rename(&debug_bundle, &destination).await {
+        match fs::copy(&debug_bundle, &destination).await {
             Ok(_) => debug!("stored FOSSA CLI debug bundle at {destination:?}"),
             Err(err) => {
                 warn!("failed to store FOSSA CLI debug bundle at {destination:?}: {err:#}")
             }
-        };
+        }
 
         // Parse the output. We only care about source units.
         serde_json::from_str::<AnalysisResult>(&stdout)
