@@ -5,6 +5,69 @@ Static binaries are not a goal for Broker for Windows or macOS environments.
 
 ## Why `musl`?
 
+Rust, as we all know, links statically!
+
+... Except that really only applies to _crates_. When we start talking about FFI,
+Rust programs _can_ link with C FFI statically, or they can do it dynamically.
+
+And what about the core runtime, like the allocator? By default, Rust programs
+dynamically link to the system `libc`, like any C program would!
+
+```
+❯ cargo build --release
+❯ ldd target/release/broker
+  linux-vdso.so.1 (0x00007ffc763fe000)
+        libbz2.so.1.0 => /usr/lib/libbz2.so.1.0 (0x00007effa5181000)
+        libgcc_s.so.1 => /usr/lib/libgcc_s.so.1 (0x00007effa515c000)
+        libm.so.6 => /usr/lib/libm.so.6 (0x00007effa4313000)
+        libc.so.6 => /usr/lib/libc.so.6 (0x00007effa4129000)
+        /lib64/ld-linux-x86-64.so.2 => /usr/lib64/ld-linux-x86-64.so.2 (0x00007effa51a5000)
+```
+
+Usually this is fine, and even preferred. It lets system operators choose which
+version of `libc` to use, and additionally reduces the size of the binary.
+Unfortunately this can cause problems:
+
+```
+❯ docker run -it --rm roboxes/rhel8
+❯ sudo docker cp target/release/broker 0fd8973ab69c:/root/broker
+[root@0fd8973ab69c ~]# ln -s /usr/lib64/libbz2.so.1 /usr/lib64/libbz2.so.1.0
+[root@0fd8973ab69c ~]# ./broker --version
+./broker: /lib64/libm.so.6: version `GLIBC_2.29' not found (required by ./broker)
+./broker: /lib64/libc.so.6: version `GLIBC_2.32' not found (required by ./broker)
+./broker: /lib64/libc.so.6: version `GLIBC_2.29' not found (required by ./broker)
+./broker: /lib64/libc.so.6: version `GLIBC_2.33' not found (required by ./broker)
+./broker: /lib64/libc.so.6: version `GLIBC_2.34' not found (required by ./broker)
+[root@0fd8973ab69c ~]# ldd --version
+ldd (GNU libc) 2.28
+```
+
+If we build against `musl` instead, we can avoid this issue:
+
+```
+❯ cross build --target=x86_64-unknown-linux-musl --features jemalloc --release
+❯ ldd target/x86_64-unknown-linux-musl/release/broker
+      statically linked
+```
+
+And now when we run it in a system with an older `libc`, it works:
+
+```
+❯ docker run -it --rm roboxes/rhel8
+❯ sudo docker cp target/x86_64-unknown-linux-musl/release/broker 0fd8973ab69c:/root/broker
+[root@0fd8973ab69c ~]# ./broker --version
+broker 0.2.1
+```
+
+We also get static linking of our other dependencies for free,
+no more need to mess around with e.g. `libbz2`:
+
+```
+[root@0fd8973ab69c ~]# rm /usr/lib64/libbz2.so.1.0
+rm: remove symbolic link '/usr/lib64/libbz2.so.1.0'? y
+[root@0fd8973ab69c ~]# ./broker --version
+broker 0.2.1
+```
 
 ## Why `jemalloc`?
 

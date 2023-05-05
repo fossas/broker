@@ -50,6 +50,13 @@ cargo dist generate-ci github \
   --installer github-shell
 ```
 
+### static builds
+
+We use `musl` with `jemalloc` for static builds.
+
+For more information, including why we use these particular options,
+see the [static binary reference](./reference/static-binary.md).
+
 ### cross compilation
 
 Sometimes, especially when debugging a platform build issue, it's useful to "cross compile" the project
