@@ -311,6 +311,13 @@ impl Location {
         // We're copying instead of moving because on Linux, it's likely these are at different mount points.
         let debug_bundle = tmp.path().join("fossa.debug.json.gz");
         let destination = self.artifacts.debug_bundle(scan_id);
+        if let Err(err) = fs::create_dir_all(self.artifacts.as_path()).await {
+            warn!(
+                "failed to create FOSSA CLI debug bundle location {:?}: {err:#}",
+                self.artifacts.as_path()
+            );
+        }
+
         match fs::copy(&debug_bundle, &destination).await {
             Ok(_) => debug!("stored FOSSA CLI debug bundle at {destination:?}"),
             Err(err) => {
