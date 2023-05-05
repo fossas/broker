@@ -17,7 +17,7 @@ use tracing::{debug, warn};
 
 use crate::ext::command::{Command, CommandDescriber, OutputProvider};
 use crate::ext::error_stack::{DescribeContext, ErrorHelper, IntoContext};
-use crate::ext::io::{self, spawn_blocking};
+use crate::ext::io::{self, spawn_blocking, spawn_blocking_wrap};
 use crate::ext::result::DiscardResult;
 use crate::ext::result::{WrapErr, WrapOk};
 use crate::ext::tracing::span_record;
@@ -343,10 +343,14 @@ pub async fn find_or_download(
     let command_in_config_dir = ctx.data_root().join(command);
     let current_path: Option<PathBuf> = if check_command_existence(&command_in_config_dir).await {
         Some(command_in_config_dir)
-    } else if check_command_existence(&PathBuf::from(&command)).await {
-        Some(PathBuf::from(command))
     } else {
-        None
+        match find_in_path(command).await {
+            Ok(path) => Some(path),
+            Err(err) => {
+                debug!("failed to find {command} in path: {err:?}");
+                None
+            }
+        }
     };
 
     // If the CLI isn't already local, download it.
@@ -425,6 +429,14 @@ async fn local_version(current_path: &PathBuf) -> Result<Version, Error> {
     span_record!(fossa_version_output, debug raw_version);
 
     Version::parse(raw_version).change_context_lazy(|| Error::running_cli(&output))
+}
+
+/// Find the path to the command in `$PATH`.
+async fn find_in_path(command: &str) -> Result<PathBuf, Error> {
+    let command = command.to_string();
+    spawn_blocking_wrap(|| which::which(command))
+        .await
+        .change_context(Error::FindVersion)
 }
 
 /// Given a path to a possible fossa executable, return whether or not it successfully runs
