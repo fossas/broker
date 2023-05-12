@@ -46,10 +46,10 @@ base64 = "0.21.0"
 itertools = "0.10.5"
 time = { version = "0.3.20", features = ["parsing"] }
 yaque = "0.6.4"
-reqwest = { version = "0.11.17", default-features = false, features = ["rustls-tls-native-roots"] }
+reqwest = { version = "0.11.17" }
 zip = "0.6.4"
 bytes = "1.4.0"
-sqlx = { version = "0.6.3", features = ["runtime-tokio-rustls", "sqlite", "migrate", "macros", "time", "offline"] }
+sqlx = { version = "0.6.3", features = ["runtime-tokio-native-tls", "sqlite", "migrate", "macros", "time", "offline"] }
 async-trait = "0.1.68"
 semver = { version = "1.0.17", features = ["serde"] }
 tap = "1.0.1"
@@ -91,6 +91,12 @@ opt-level = 3
 
 [profile.dev.package.similar]
 opt-level = 3
+
+[target.x86_64-unknown-linux-musl]
+pre-build = [
+    "dpkg --add-architecture $CROSS_DEB_ARCH",
+    "apt-get update && apt-get install --assume-yes libssl-dev:$CROSS_DEB_ARCH"
+]
 
 # The profile that 'cargo dist' will build with
 [profile.dist]
