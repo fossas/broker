@@ -8,10 +8,10 @@ on:
 jobs:
   metadata:
     runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     outputs:
       version: ${{ steps.generate.outputs.version }}
-      title: ${{ steps.generate.outputs.title }}
-      changelog: ${{ steps.generate.outputs.changelog }}
     steps:
       - uses: actions/checkout@v3
       - uses: actions-rs/toolchain@v1
@@ -29,25 +29,9 @@ jobs:
           VERSION=$(cargo metadata | jq -r '.packages[] | select(.name == "broker") | .version')
           TITLE=$(parse-changelog CHANGELOG.md --title)
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
-          echo "title=$TITLE" >> "$GITHUB_OUTPUT"
 
-          EOF=$(dd if=/dev/urandom bs=15 count=1 status=none | base64)
-          echo "changelog=<<$EOF" >> "$GITHUB_ENV"
-          parse-changelog CHANGELOG.md $VERSION >> "$GITHUB_ENV"
-          echo "$EOF" >> "$GITHUB_ENV"
-
-  create-release:
-    needs: [metadata]
-    runs-on: ubuntu-latest
-    env:
-      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      RELEASE_TITLE: ${{ needs.metadata.outputs.title }}
-      RELEASE_CHANGELOG: ${{ needs.metadata.outputs.changelog }}
-    steps:
-      - uses: actions/checkout@v3
-      - run: |
-          echo "$RELEASE_CHANGELOG" >> release_changelog.md
-          gh release create ${{ github.ref_name }} --draft --title="$RELEASE_TITLE" --notes-file=release_changelog.md
+          parse-changelog CHANGELOG.md $VERSION release_changelog.md
+          gh release create ${{ github.ref_name }} --draft --title="$TITLE" --notes-file=release_changelog.md
           gh release upload ${{ github.ref_name }} LICENSE CHANGELOG.md README.md
 
   build:
@@ -65,8 +49,8 @@ jobs:
             os-name: windows
             toolchain: '1.68'
 
-    needs: [metadata, create-release]
-    if: ${{ needs.create-release.result == 'success' }}
+    needs: [metadata]
+    if: ${{ needs.metadata.result == 'success' }}
     name: ${{ matrix.os-name }}-build
     runs-on: ${{ matrix.os }}
     env:
@@ -114,8 +98,8 @@ jobs:
   # We'll uncomment this in a future release when we're confident this release process works.
   #
   # publish-release:
-  #   needs: [create-release, build]
-  #   if: ${{ needs.create-release.result == 'success' && needs.build.result == 'success' }}
+  #   needs: [metadata, build]
+  #   if: ${{ needs.metadata.result == 'success' && needs.build.result == 'success' }}
   #   runs-on: ubuntu-latest
   #   env:
   #     GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
