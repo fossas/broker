@@ -32,7 +32,7 @@ jobs:
 
           parse-changelog CHANGELOG.md $VERSION >> release_changelog.md
           gh release create ${{ github.ref_name }} --draft --title="$TITLE" --notes-file=release_changelog.md
-          gh release upload ${{ github.ref_name }} LICENSE CHANGELOG.md README.md
+          gh release upload ${{ github.ref_name }} LICENSE CHANGELOG.md README.md --clobber
 
   build:
     strategy:
@@ -90,7 +90,7 @@ jobs:
         run: |
           cargo build --release
           mv target/release/broker.exe release/broker-$RELEASE_VERSION-x86_64-windows.exe
-      - run: gh release upload ${{ github.ref_name }} (find release -mindepth 1 | xargs)
+      - run: gh release upload ${{ github.ref_name }} (find release -mindepth 1 | xargs) --clobber
 
   # We'll uncomment this in a future release when we're confident this release process works.
   #
