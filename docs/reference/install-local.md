@@ -8,14 +8,12 @@ First, navigate to the latest release by clicking this link: https://github.com/
 The release will have a table under `Download`, with an entry for each system Broker supports.
 Choose the appropriate download based on your local system:
 
-- For Windows, choose `x86_64-pc-windows-msvc`. Download the `.zip` file, not the `.pdb` file (the latter is for debugging).
+- For Windows, choose `broker-{version}-x86_64-windows.exe`.
+- For Linux, choose `broker-{version}-x86_64-linux`.
+  - This is a static binary, and should work for any modern Linux installation.
 - For macOS:
-  - If you have an M-series processor, choose `aarch64-apple-darwin`.
-  - If you have an Intel processor or you aren't sure, choose `x86_64-apple-darwin`.
-- For Linux, choose `x86_64-unknown-linux-gnu`.
-
-Once you have that downloaded, open the archive, usually by double clicking it (although you can also use the command line).
-Inside the archive you'll find the `LICENSE` file, a copy of the `README`, and the `broker` executable (`broker.exe` on Windows).
+  - If you have an M-series processor, choose `broker-{version}-aarch64-macos`.
+  - If you have an Intel processor or aren't sure, choose `broker-{version}-x86_64-macos`.
 
 Open a terminal (macOS/Linux) or a command prompt (Windows) and navigate to the location to which you downloaded and extracted Broker.
 From there, you may either run Broker directly:

@@ -2,6 +2,9 @@
 build:
 	@cargo build --release
 
+build-static:
+	@cross build --features jemalloc --target=x86_64-unknown-linux-musl --release
+
 dev:
 	@cargo build
 
@@ -9,6 +12,10 @@ dev:
 test:
 	@cargo nextest run $(TEST_FILTER)
 	@cargo test --doc $(TEST_FILTER)
+
+test-static:
+	@cross nextest run --features jemalloc --target=x86_64-unknown-linux-musl $(TEST_FILTER)
+	@cross test --features jemalloc --target=x86_64-unknown-linux-musl --doc $(TEST_FILTER)
 
 review-snapshots:
 	@cargo insta test --test-runner nextest --review
@@ -37,4 +44,4 @@ clippy:
 doc:
 	@cargo doc --open --no-deps
 
-.PHONY: test run build dev delete-unused-snapshots review-snapshots generate-dist migration-status migrate-up migrate-down doc clippy
+.PHONY: test test-static run build build-static dev delete-unused-snapshots review-snapshots generate-dist migration-status migrate-up migrate-down doc clippy

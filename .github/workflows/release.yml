@@ -1,137 +1,112 @@
-# CI that:
-#
-# * checks for a Git Tag that looks like a release
-# * creates a Github Release™ and fills in its text
-# * builds artifacts with cargo-dist (executable-zips, installers)
-# * uploads those artifacts to the Github Release™
-#
-# Note that the Github Release™ will be created before the artifacts,
-# so there will be a few minutes where the release has no artifacts
-# and then they will slowly trickle in, possibly failing. To make
-# this more pleasant we mark the release as a "draft" until all
-# artifacts have been successfully uploaded. This allows you to
-# choose what to do with partial successes and avoids spamming
-# anyone with notifications before the release is actually ready.
-name: Release
+name: release
 
-permissions:
-  contents: write
-
-# This task will run whenever you push a git tag that looks like a version
-# like "v1", "v1.2.0", "v0.1.0-prerelease01", "my-app-v1.0.0", etc.
-# The version will be roughly parsed as ({PACKAGE_NAME}-)?v{VERSION}, where
-# PACKAGE_NAME must be the name of a Cargo package in your workspace, and VERSION
-# must be a Cargo-style SemVer Version.
-#
-# If PACKAGE_NAME is specified, then we will create a Github Release™ for that
-# package (erroring out if it doesn't have the given version or isn't cargo-dist-able).
-#
-# If PACKAGE_NAME isn't specified, then we will create a Github Release™ for all
-# (cargo-dist-able) packages in the workspace with that version (this is mode is
-# intended for workspaces with only one dist-able package, or with all dist-able
-# packages versioned/released in lockstep).
-#
-# If you push multiple tags at once, separate instances of this workflow will
-# spin up, creating an independent Github Release™ for each one.
-#
-# If there's a prerelease-style suffix to the version then the Github Release™
-# will be marked as a prerelease.
 on:
   push:
     tags:
       - '*-?v[0-9]+*'
 
 jobs:
-  # Create the Github Release™ so the packages have something to be uploaded to
-  create-release:
+  metadata:
     runs-on: ubuntu-latest
-    outputs:
-      has-releases: ${{ steps.create-release.outputs.has-releases }}
-    env:
-      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
       - uses: actions/checkout@v3
-      - name: Install Rust
-        run: rustup update 1.68 --no-self-update && rustup default 1.68
-      - name: Install cargo-dist
-        run: curl --proto '=https' --tlsv1.2 -LsSf https://github.com/axodotdev/cargo-dist/releases/download/v0.0.5/cargo-dist-v0.0.5-installer.sh | sh
-      - id: create-release
-        run: |
-          cargo dist manifest --tag=${{ github.ref_name }} --artifacts=all --no-local-paths --output-format=json > dist-manifest.json
-          echo "dist manifest ran successfully"
-          cat dist-manifest.json
-        
-          # Create the Github Release™ based on what cargo-dist thinks it should be
-          ANNOUNCEMENT_TITLE=$(cat dist-manifest.json | jq --raw-output ".announcement_title")
-          IS_PRERELEASE=$(cat dist-manifest.json | jq --raw-output ".announcement_is_prerelease")
-          cat dist-manifest.json | jq --raw-output ".announcement_github_body" > new_dist_announcement.md
-          gh release create ${{ github.ref_name }} --draft --prerelease="$IS_PRERELEASE" --title="$ANNOUNCEMENT_TITLE" --notes-file=new_dist_announcement.md
-          echo "created announcement!"
+      - uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: stable
+      - uses: actions-rs/install@v0.1
+        with:
+          crate: parse-changelog
+          version: latest
+      - run: |
+        VERSION=$(cargo metadata | jq -r '.packages[] | select(.name == "broker") | .version')
+        TITLE=$(parse-changelog CHANGELOG.md --title)
+        CHANGELOG=$(parse-changelog CHANGELOG.md $VERSION)
+        echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+        echo "title=$TITLE" >> "$GITHUB_OUTPUT"
+        echo "changelog=$CHANGELOG" >> "$GITHUB_OUTPUT"
 
-          # Upload the manifest to the Github Release™
-          gh release upload ${{ github.ref_name }} dist-manifest.json
-          echo "uploaded manifest!"
+  create-release:
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      RELEASE_TITLE: ${{ steps.metadata.outputs.title }}
+      RELEASE_CHANGELOG: ${{ steps.metadata.outputs.changelog }}
+    steps:
+      - run: |
+        echo "$RELEASE_CHANGELOG" >> release_changelog.md
+        gh release create ${{ github.ref_name }} --draft --title="$RELEASE_TITLE" --notes-file=release_changelog.md
+        gh release upload ${{ github.ref_name }} LICENSE CHANGELOG.md README.md
 
-          # Disable all the upload-artifacts tasks if we have no actual releases
-          HAS_RELEASES=$(cat dist-manifest.json | jq --raw-output ".releases != null")
-          echo "has-releases=$HAS_RELEASES" >> "$GITHUB_OUTPUT"
-
-  # Build and packages all the things
-  upload-artifacts:
-    # Let the initial task tell us to not run (currently very blunt)
-    needs: create-release
-    if: ${{ needs.create-release.outputs.has-releases == 'true' }}
+  build:
     strategy:
       matrix:
-        # For these target platforms
+        os: ['windows-latest', 'ubuntu-latest', 'macos-latest']
         include:
-        - os: macos-11
-          dist-args: --artifacts=local --target=aarch64-apple-darwin --target=x86_64-apple-darwin
-          install-dist: curl --proto '=https' --tlsv1.2 -LsSf https://github.com/axodotdev/cargo-dist/releases/download/v0.0.5/cargo-dist-v0.0.5-installer.sh | sh
-        - os: ubuntu-20.04
-          dist-args: --artifacts=local --target=x86_64-unknown-linux-gnu
-          install-dist: curl --proto '=https' --tlsv1.2 -LsSf https://github.com/axodotdev/cargo-dist/releases/download/v0.0.5/cargo-dist-v0.0.5-installer.sh | sh
-        - os: windows-2019
-          dist-args: --artifacts=local --target=x86_64-pc-windows-msvc
-          install-dist: irm  https://github.com/axodotdev/cargo-dist/releases/download/v0.0.5/cargo-dist-v0.0.5-installer.ps1 | iex
+          - os: ubuntu-latest
+            os-name: linux
+            toolchain: stable
+          - os: macos-latest
+            os-name: macos
+            toolchain: stable
+          - os: windows-latest
+            os-name: windows
+            toolchain: '1.68'
 
+    needs: [create-release]
+    if: ${{ needs.create-release.result == 'success' }}
+    name: ${{ matrix.os-name }}-build
     runs-on: ${{ matrix.os }}
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      RELEASE_VERSION: ${{ steps.metadata.outputs.version }}
     steps:
       - uses: actions/checkout@v3
-      - name: Install Rust
-        run: rustup update 1.68 --no-self-update && rustup default 1.68
-      - name: Install cargo-dist
-        run: ${{ matrix.install-dist }}
-      - name: Run cargo-dist
-        # This logic is a bit janky because it's trying to be a polyglot between
-        # powershell and bash since this will run on windows, macos, and linux!
-        # The two platforms don't agree on how to talk about env vars but they
-        # do agree on 'cat' and '$()' so we use that to marshal values between commands.
+      - uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: ${{ matrix.toolchain }}
+      - uses: actions-rs/install@v0.1
+        if: ${{ matrix.os-name == 'linux' }}
+        with:
+          crate: cross
+          version: latest
+      - uses: actions-rs/install@v0.1
+        with:
+          crate: cargo-nextest
+          version: latest
+      # Each platform has its own particulars, can't do cool matrix things here.
+      # Just fall back to conditionals.
+      - run: mkdir release
+      - if: ${{ matrix.os-name == 'linux' }}
         run: |
-          # Actually do builds and make zips and whatnot
-          cargo dist build --tag=${{ github.ref_name }} --output-format=json ${{ matrix.dist-args }} > dist-manifest.json
-          echo "dist ran successfully"
-          cat dist-manifest.json
-
-          # Parse out what we just built and upload it to the Github Release™
-          cat dist-manifest.json | jq --raw-output ".artifacts[]?.path | select( . != null )" > uploads.txt
-          echo "uploading..."
-          cat uploads.txt
-          gh release upload ${{ github.ref_name }} $(cat uploads.txt)
-          echo "uploaded!"
-
-  # Mark the Github Release™ as a non-draft now that everything has succeeded!
-  publish-release:
-    # Only run after all the other tasks, but it's ok if upload-artifacts was skipped
-    needs: [create-release, upload-artifacts]
-    if: ${{ always() && needs.create-release.result == 'success' && (needs.upload-artifacts.result == 'skipped' || needs.upload-artifacts.result == 'success') }}
-    runs-on: ubuntu-latest
-    env:
-      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-    steps:
-      - uses: actions/checkout@v3
-      - name: mark release as non-draft
+          cross nextest run --features jemalloc --target=x86_64-unknown-linux-musl
+          cross build --features jemalloc --target=x86_64-unknown-linux-musl --release
+          mv target/x86_64-unknown-linux-musl/release/broker release/broker-$RELEASE_VERSION-x86_64-linux
+      - if: ${{ matrix.os-name == 'macos' }}
         run: |
-          gh release edit ${{ github.ref_name }} --draft=false
+          cargo nextest run
+          rustup target add aarch64-apple-darwin
+          rustup target add x86_64-apple-darwin
+          cargo build --target=aarch64-apple-darwin --release
+          cargo build --target=x86_64-apple-darwin --release
+          mv target/aarch64-apple-darwin/release/broker release/broker-$RELEASE_VERSION-aarch64-macos
+          mv target/x86_64-apple-darwin/release/broker release/broker-$RELEASE_VERSION-x86_64-macos
+      - if: ${{ matrix.os-name == 'windows' }}
+        run: |
+          cargo nextest run
+          cargo build --release
+          mv target/release/broker.exe release/broker-$RELEASE_VERSION-x86_64-windows.exe
+      - run: gh release upload ${{ github.ref_name }} (find release -mindepth 1 | xargs)
+
+  # We'll uncomment this in a future release when we're confident this release process works.
+  #
+  # publish-release:
+  #   needs: [create-release, build]
+  #   if: ${{ needs.create-release.result == 'success' && needs.build.result == 'success' }}
+  #   runs-on: ubuntu-latest
+  #   env:
+  #     GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  #   steps:
+  #     - uses: actions/checkout@v3
+  #     - run: gh release edit ${{ github.ref_name }} --draft=false

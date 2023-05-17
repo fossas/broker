@@ -20,6 +20,14 @@ use error_stack::{fmt::ColorMode, Report, Result, ResultExt};
 use tap::TapFallible;
 use tracing::debug;
 
+// We use `jemalloc` as the global allocator for static builds.
+// Reference: `docs/dev/reference/static-binary.md`.
+#[cfg(feature = "jemalloc")]
+use tikv_jemallocator::Jemalloc;
+#[cfg(feature = "jemalloc")]
+#[global_allocator]
+static GLOBAL: Jemalloc = Jemalloc;
+
 #[derive(Debug, thiserror::Error)]
 enum Error {
     #[error("determine effective configuration")]
