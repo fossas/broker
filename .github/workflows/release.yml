@@ -18,11 +18,15 @@ jobs:
         with:
           profile: minimal
           toolchain: stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: "builds"
       - uses: actions-rs/install@v0.1
         with:
           crate: parse-changelog
           version: latest
-      - id: generate
+      - name: generate
+        id: generate
         # multi-line strings are special.
         # see: https://docs.github.com/en/actions/using-workflows/workflow-commands-for-github-actions#multiline-strings
         run: |
@@ -62,6 +66,9 @@ jobs:
         with:
           profile: minimal
           toolchain: ${{ matrix.toolchain }}
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: "builds"
       - uses: actions-rs/install@v0.1
         if: ${{ matrix.os-name == 'linux' }}
         with:
@@ -90,7 +97,7 @@ jobs:
         run: |
           cargo build --release
           mv target/release/broker.exe release/broker-$RELEASE_VERSION-x86_64-windows.exe
-      - run: gh release upload ${{ github.ref_name }} (find release -mindepth 1 | xargs) --clobber
+      - run: gh release upload ${{ github.ref_name }} $(find release -mindepth 1 | xargs) --clobber
 
   # We'll uncomment this in a future release when we're confident this release process works.
   #
