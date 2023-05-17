@@ -8,6 +8,10 @@ on:
 jobs:
   metadata:
     runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.generate.outputs.version }}
+      title: ${{ steps.generate.outputs.title }}
+      changelog: ${{ steps.generate.outputs.changelog }}
     steps:
       - uses: actions/checkout@v3
       - uses: actions-rs/toolchain@v1
@@ -18,7 +22,8 @@ jobs:
         with:
           crate: parse-changelog
           version: latest
-      - run: |
+      - id: generate
+        run: |
           VERSION=$(cargo metadata | jq -r '.packages[] | select(.name == "broker") | .version')
           TITLE=$(parse-changelog CHANGELOG.md --title)
           CHANGELOG=$(parse-changelog CHANGELOG.md $VERSION)
@@ -27,11 +32,12 @@ jobs:
           echo "changelog=$CHANGELOG" >> "$GITHUB_OUTPUT"
 
   create-release:
+    needs: [metadata]
     runs-on: ubuntu-latest
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      RELEASE_TITLE: ${{ steps.metadata.outputs.title }}
-      RELEASE_CHANGELOG: ${{ steps.metadata.outputs.changelog }}
+      RELEASE_TITLE: ${{ needs.metadata.outputs.title }}
+      RELEASE_CHANGELOG: ${{ needs.metadata.outputs.changelog }}
     steps:
       - run: |
           echo "$RELEASE_CHANGELOG" >> release_changelog.md
@@ -53,13 +59,13 @@ jobs:
             os-name: windows
             toolchain: '1.68'
 
-    needs: [create-release]
+    needs: [metadata, create-release]
     if: ${{ needs.create-release.result == 'success' }}
     name: ${{ matrix.os-name }}-build
     runs-on: ${{ matrix.os }}
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      RELEASE_VERSION: ${{ steps.metadata.outputs.version }}
+      RELEASE_VERSION: ${{ needs.metadata.outputs.version }}
     steps:
       - uses: actions/checkout@v3
       - uses: actions-rs/toolchain@v1
