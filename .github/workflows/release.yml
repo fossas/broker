@@ -19,12 +19,12 @@ jobs:
           crate: parse-changelog
           version: latest
       - run: |
-        VERSION=$(cargo metadata | jq -r '.packages[] | select(.name == "broker") | .version')
-        TITLE=$(parse-changelog CHANGELOG.md --title)
-        CHANGELOG=$(parse-changelog CHANGELOG.md $VERSION)
-        echo "version=$VERSION" >> "$GITHUB_OUTPUT"
-        echo "title=$TITLE" >> "$GITHUB_OUTPUT"
-        echo "changelog=$CHANGELOG" >> "$GITHUB_OUTPUT"
+          VERSION=$(cargo metadata | jq -r '.packages[] | select(.name == "broker") | .version')
+          TITLE=$(parse-changelog CHANGELOG.md --title)
+          CHANGELOG=$(parse-changelog CHANGELOG.md $VERSION)
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "title=$TITLE" >> "$GITHUB_OUTPUT"
+          echo "changelog=$CHANGELOG" >> "$GITHUB_OUTPUT"
 
   create-release:
     runs-on: ubuntu-latest
