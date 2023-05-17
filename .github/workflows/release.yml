@@ -30,7 +30,7 @@ jobs:
           TITLE=$(parse-changelog CHANGELOG.md --title)
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
 
-          parse-changelog CHANGELOG.md $VERSION release_changelog.md
+          parse-changelog CHANGELOG.md $VERSION >> release_changelog.md
           gh release create ${{ github.ref_name }} --draft --title="$TITLE" --notes-file=release_changelog.md
           gh release upload ${{ github.ref_name }} LICENSE CHANGELOG.md README.md
 
