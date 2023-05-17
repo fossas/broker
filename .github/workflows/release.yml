@@ -32,7 +32,7 @@ jobs:
           echo "title=$TITLE" >> "$GITHUB_OUTPUT"
 
           EOF=$(dd if=/dev/urandom bs=15 count=1 status=none | base64)
-          echo "changelog<<$EOF" >> "$GITHUB_ENV"
+          echo "changelog=<<$EOF" >> "$GITHUB_ENV"
           parse-changelog CHANGELOG.md $VERSION >> "$GITHUB_ENV"
           echo "$EOF" >> "$GITHUB_ENV"
 
@@ -44,6 +44,7 @@ jobs:
       RELEASE_TITLE: ${{ needs.metadata.outputs.title }}
       RELEASE_CHANGELOG: ${{ needs.metadata.outputs.changelog }}
     steps:
+      - uses: actions/checkout@v3
       - run: |
           echo "$RELEASE_CHANGELOG" >> release_changelog.md
           gh release create ${{ github.ref_name }} --draft --title="$RELEASE_TITLE" --notes-file=release_changelog.md
