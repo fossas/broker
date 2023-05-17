@@ -23,13 +23,18 @@ jobs:
           crate: parse-changelog
           version: latest
       - id: generate
+        # multi-line strings are special.
+        # see: https://docs.github.com/en/actions/using-workflows/workflow-commands-for-github-actions#multiline-strings
         run: |
           VERSION=$(cargo metadata | jq -r '.packages[] | select(.name == "broker") | .version')
           TITLE=$(parse-changelog CHANGELOG.md --title)
-          CHANGELOG=$(parse-changelog CHANGELOG.md $VERSION)
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
           echo "title=$TITLE" >> "$GITHUB_OUTPUT"
-          echo "changelog=$CHANGELOG" >> "$GITHUB_OUTPUT"
+
+          EOF=$(dd if=/dev/urandom bs=15 count=1 status=none | base64)
+          echo "changelog<<$EOF" >> "$GITHUB_ENV"
+          parse-changelog CHANGELOG.md $VERSION >> "$GITHUB_ENV"
+          echo "$EOF" >> "$GITHUB_ENV"
 
   create-release:
     needs: [metadata]
