@@ -8,12 +8,12 @@ First, navigate to the latest release by clicking this link: https://github.com/
 The release will have a table under `Download`, with an entry for each system Broker supports.
 Choose the appropriate download based on your local system:
 
-- For Windows, choose `broker-{version}-windows.exe`.
-- For macOS, choose `broker-{version}-macos`
-  - If you have an M-series processor, you'll still use this binary, but may need to have `Rosetta2` installed.
-    View Apple's support article here: https://support.apple.com/en-us/HT211861
-- For Linux, choose `broker-{version}-linux`.
+- For Windows, choose `broker-{version}-x86_64-windows.exe`.
+- For Linux, choose `broker-{version}-x86_64-linux`.
   - This is a static binary, and should work for any modern Linux installation.
+- For macOS:
+  - If you have an M-series processor, choose `broker-{version}-aarch64-macos`.
+  - If you have an Intel processor or aren't sure, choose `broker-{version}-x86_64-macos`.
 
 Open a terminal (macOS/Linux) or a command prompt (Windows) and navigate to the location to which you downloaded and extracted Broker.
 From there, you may either run Broker directly:

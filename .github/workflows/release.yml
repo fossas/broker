@@ -46,21 +46,12 @@ jobs:
           - os: ubuntu-latest
             os-name: linux
             toolchain: stable
-            cmd-build: cross build --features jemalloc --target=x86_64-unknown-linux-musl --release
-            cmd-test: cross nextest run --features jemalloc --target=x86_64-unknown-linux-musl
-            binary-ext:
           - os: macos-latest
             os-name: macos
             toolchain: stable
-            cmd-build: cargo build --release
-            cmd-test: cargo nextest run
-            binary-ext:
           - os: windows-latest
             os-name: windows
             toolchain: '1.68'
-            cmd-build: cargo build --release
-            cmd-test: cargo nextest run
-            binary-ext: .exe
 
     needs: [create-release]
     if: ${{ needs.create-release.result == 'success' }}
@@ -68,8 +59,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      BROKER_BIN: broker${{ matrix.binary-ext }}
-      OUTPUT_BIN: broker-${{ steps.metadata.outputs.version }}-${{ matrix.os-name }}${{ matrix.binary-ext }}
+      RELEASE_VERSION: ${{ steps.metadata.outputs.version }}
     steps:
       - uses: actions/checkout@v3
       - uses: actions-rs/toolchain@v1
@@ -77,6 +67,7 @@ jobs:
           profile: minimal
           toolchain: ${{ matrix.toolchain }}
       - uses: actions-rs/install@v0.1
+        if: ${{ matrix.os-name == 'linux' }}
         with:
           crate: cross
           version: latest
@@ -84,12 +75,29 @@ jobs:
         with:
           crate: cargo-nextest
           version: latest
-      - run: ${{ matrix.cmd-test }}
-      - run: ${{ matrix.cmd-build }}
-      - run: |
-          mkdir release
-          cp target/release/$BROKER_BIN release/$OUTPUT_BIN
-          gh release upload ${{ github.ref_name }} $OUTPUT_BIN
+      # Each platform has its own particulars, can't do cool matrix things here.
+      # Just fall back to conditionals.
+      - run: mkdir release
+      - if: ${{ matrix.os-name == 'linux' }}
+        run: |
+          cross nextest run --features jemalloc --target=x86_64-unknown-linux-musl
+          cross build --features jemalloc --target=x86_64-unknown-linux-musl --release
+          mv target/x86_64-unknown-linux-musl/release/broker release/broker-$RELEASE_VERSION-x86_64-linux
+      - if: ${{ matrix.os-name == 'macos' }}
+        run: |
+          cargo nextest run
+          rustup target add aarch64-apple-darwin
+          rustup target add x86_64-apple-darwin
+          cargo build --target=aarch64-apple-darwin --release
+          cargo build --target=x86_64-apple-darwin --release
+          mv target/aarch64-apple-darwin/release/broker release/broker-$RELEASE_VERSION-aarch64-macos
+          mv target/x86_64-apple-darwin/release/broker release/broker-$RELEASE_VERSION-x86_64-macos
+      - if: ${{ matrix.os-name == 'windows' }}
+        run: |
+          cargo nextest run
+          cargo build --release
+          mv target/release/broker.exe release/broker-$RELEASE_VERSION-x86_64-windows.exe
+      - run: gh release upload ${{ github.ref_name }} (find release -mindepth 1 | xargs)
 
   # We'll uncomment this in a future release when we're confident this release process works.
   #
