@@ -16,10 +16,13 @@ Choose the appropriate download based on your local system:
   - If you have an Intel processor or aren't sure, choose `broker-{version}-x86_64-macos`.
 
 Open a terminal (macOS/Linux) or a command prompt (Windows) and navigate to the location to which you downloaded and extracted Broker.
-From there, you may either run Broker directly:
+From there, you can run Broker directly:
 
 - Windows: `broker.exe -h`
 - macOS/Linux: `./broker -h`
+
+> Note: on macOS and Linux you may need to mark the downloaded binary as executable.
+> To do so, run `chmod +x broker`.
 
 You may want to move Broker to a more permanent location.
 For macOS and Linux, we recommend moving Broker to `/usr/local/bin/`:
