@@ -47,7 +47,7 @@ itertools = "0.10.5"
 time = { version = "0.3.21", features = ["parsing"] }
 yaque = "0.6.4"
 reqwest = { version = "0.11.17", features = ["rustls-tls"], default-features = false }
-zip = "0.6.5"
+zip = "0.6.6"
 bytes = "1.4.0"
 sqlx = { version = "0.6.3", features = ["runtime-tokio-rustls", "sqlite", "migrate", "macros", "time", "offline"], default-features = false }
 async-trait = "0.1.68"
