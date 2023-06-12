@@ -1,6 +1,6 @@
 //! Trait and implementations used by `bundle` to create debug bundles.
 
-use std::path::Path;
+use std::{fs, path::Path};
 
 use error_stack::Result;
 use libflate::gzip;
@@ -50,6 +50,7 @@ impl TarGz {
     ///
     /// This bundles the provided debug artifacts using a backing temp file,
     /// which is moved to a final location with the `finalize` method.
+    #[tracing::instrument]
     pub fn new() -> Result<Self, Error> {
         let file = NamedTempFile::new().context(Error::CreateTempFile)?;
         let encoder = gzip::Encoder::new(file).context(Error::CreateBundler)?;
@@ -62,6 +63,7 @@ impl TarGz {
 impl Bundler for TarGz {
     type Error = std::io::Error;
 
+    #[tracing::instrument(skip_all, fields(path = %path.as_ref().display(), name = %name.as_ref().display()))]
     fn add_file<P, N>(&mut self, path: P, name: N) -> std::result::Result<(), Self::Error>
     where
         P: AsRef<Path>,
@@ -70,11 +72,17 @@ impl Bundler for TarGz {
         self.inner.append_path_with_name(path, name)
     }
 
+    #[tracing::instrument(skip_all, fields(destination = %destination.as_ref().display()))]
     fn finalize<P: AsRef<Path>>(self, destination: P) -> std::result::Result<Bundle, Self::Error> {
         let zip = self.inner.into_inner()?;
         let handle = zip.finish().into_result()?;
         handle.as_file().sync_all()?;
-        handle.persist(&destination)?;
+
+        // `handle.persist` fails if asked to persist across mounts, since internally it uses a rename.
+        // Instead, just copy the file from temp.
+        let path = handle.into_temp_path();
+        fs::copy(&path, destination.as_ref())?;
+
         Ok(Bundle {
             location: destination.as_ref().to_path_buf(),
         })

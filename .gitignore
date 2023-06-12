@@ -1,3 +1,7 @@
+# Don't include any debug bundle generated during a run of Broker or FOSSA CLI.
+fossa.broker.debug.tar.gz
+fossa.debug.json.gz
+
 # Node isn't used for this actual project, but we have a node test fixture
 # to make tests run faster.
 node_modules
