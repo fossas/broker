@@ -1,4 +1,12 @@
 
+## v0.2.2
+
+Bug fix: 
+
+- Broker now copies its debug bundle (generated during `broker fix`) from the system temp location instead of renaming.
+  This resolves issues preventing debug bundles from being stored for Linux installations where the temporary location
+  and the home folder are on separate mount points.
+
 ## v0.2.1
 
 Features:
