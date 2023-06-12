@@ -74,8 +74,23 @@ pub enum Error {
     DownloadFossaCli,
 
     /// If we fail to run FOSSA CLI, this error is raised.
-    #[error("run FOSSA CLI")]
-    RunFossaCli,
+    #[error("run FOSSA CLI for '{integration}' at '{reference}'")]
+    RunFossaCli {
+        /// The integration being analyzed.
+        integration: Integration,
+
+        /// The reference being analyzed in the integration.
+        reference: Reference,
+    },
+}
+
+impl Error {
+    fn run_fossa_cli(integration: &Integration, reference: &Reference) -> Self {
+        Self::RunFossaCli {
+            integration: integration.to_owned(),
+            reference: reference.to_owned(),
+        }
+    }
 }
 
 /// Similar to [`AppContext`], but scoped for this subcommand.
@@ -353,14 +368,17 @@ async fn scan_git_reference<D: Database>(
         .change_context_lazy(|| Error::CloneReference(job.reference.clone()))?;
 
     // Record the CLI version for debugging purposes.
-    let cli_version = cli.version().await.change_context(Error::RunFossaCli)?;
+    let cli_version = cli
+        .version()
+        .await
+        .change_context_lazy(|| Error::run_fossa_cli(&job.integration, &job.reference))?;
     span_record!(cli_version, display cli_version);
 
     // Run the scan.
     let source_units = cli
         .analyze(&job.scan_id, cloned_location.path())
         .await
-        .change_context(Error::RunFossaCli)?;
+        .change_context_lazy(|| Error::run_fossa_cli(&job.integration, &job.reference))?;
 
     info!("Scanned '{}' at '{}'", job.integration, job.reference);
     Ok(UploadSourceUnits {
