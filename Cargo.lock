@@ -257,7 +257,7 @@ dependencies = [
  "test-strategy",
  "thiserror",
  "tikv-jemallocator",
- "time 0.3.21",
+ "time 0.3.22",
  "tokio",
  "tokio-retry",
  "tracing",
@@ -2518,7 +2518,7 @@ dependencies = [
  "sqlx-rt",
  "stringprep",
  "thiserror",
- "time 0.3.21",
+ "time 0.3.22",
  "tokio-stream",
  "url",
  "webpki-roots",
@@ -2794,9 +2794,9 @@ dependencies = [
 
 [[package]]
 name = "time"
-version = "0.3.21"
+version = "0.3.22"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8f3403384eaacbca9923fa06940178ac13e4edb725486d70e8e15881d0c836cc"
+checksum = "ea9e1b3cf1243ae005d9e74085d4d542f3125458f3a81af210d901dcd7411efd"
 dependencies = [
  "itoa",
  "serde",
@@ -2956,7 +2956,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "09d48f71a791638519505cefafe162606f706c25592e4bde4d97600c0195312e"
 dependencies = [
  "crossbeam-channel",
- "time 0.3.21",
+ "time 0.3.22",
  "tracing-subscriber",
 ]
 
@@ -3589,7 +3589,7 @@ dependencies = [
  "hmac",
  "pbkdf2",
  "sha1",
- "time 0.3.21",
+ "time 0.3.22",
  "zstd",
 ]
 

@@ -44,7 +44,7 @@ tracing-subscriber = { version = "0.3.17", features = ["json"] }
 url = "2.3.1"
 base64 = "0.21.2"
 itertools = "0.10.5"
-time = { version = "0.3.21", features = ["parsing"] }
+time = { version = "0.3.22", features = ["parsing"] }
 yaque = "0.6.4"
 reqwest = { version = "0.11.18", features = ["rustls-tls"], default-features = false }
 zip = "0.6.6"
