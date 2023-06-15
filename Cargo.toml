@@ -41,7 +41,7 @@ tokio = { version = "1.28.1", features = ["full", "fs"] }
 tracing = "0.1.37"
 tracing-appender = "0.2.2"
 tracing-subscriber = { version = "0.3.17", features = ["json"] }
-url = "2.3.1"
+url = "2.4.0"
 base64 = "0.21.2"
 itertools = "0.10.5"
 time = { version = "0.3.22", features = ["parsing"] }
