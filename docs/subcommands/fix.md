@@ -1,8 +1,8 @@
 # The `fix` subcommand
 
-The `fix` subcommand can be used to help you diagnose problems with your connection to fossa and with your connection to your integrations.
+`broker fix` can be used to help you diagnose problems with your connection to fossa and with your connection to your integrations.
 
-To use it, simple run `broker fix`. This will test `broker`'s ability to connect to each of your integrations and FOSSA's servers.
+_See [the FAQ](../reference/faq.md) for common questions related to this and other Broker functionality._
 
 If all goes well, you will see something like this:
 
