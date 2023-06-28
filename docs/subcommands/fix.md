@@ -1,8 +1,8 @@
 # The `fix` subcommand
 
-The `fix` subcommand can be used to help you diagnose problems with your connection to fossa and with your connection to your integrations.
+`broker fix` can be used to help you diagnose problems with your connection to fossa and with your connection to your integrations.
 
-To use it, simple run `broker fix`. This will test `broker`'s ability to connect to each of your integrations and FOSSA's servers.
+_See [the FAQ](../reference/faq.md) for common questions related to this and other Broker functionality._
 
 If all goes well, you will see something like this:
 
@@ -31,6 +31,12 @@ A debug bundle can also be saved by running `broker fix --export-bundle`, which 
 even if there are no issues.
 
 If, after running `broker fix`, you submit a support ticket to FOSSA, please always include the generated debug bundle in the request.
+
+## Subcommand FAQs
+
+- [Where is the `$DATA_ROOT`?](../reference/faq.md#where-is-the-data-root-for-broker)
+- [Where is the config file stored?](../reference/faq.md#where-is-the-config-file-stored)
+- [Where are debugging artifacts stored?](../reference/faq.md#where-are-debug-artifacts-stored)
 
 ## Problem output examples
 

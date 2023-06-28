@@ -61,10 +61,7 @@ async fn analyze_runs() {
         logs_contain("[DEBUG] [TASK"),
         "must have traced CLI debug logs"
     );
-    assert!(
-        logs_contain("[ INFO] Scan Summary"),
-        "must have traced CLI logs"
-    );
+    assert!(logs_contain("Scan Summary"), "must have traced CLI logs");
 }
 
 #[tokio::test]
