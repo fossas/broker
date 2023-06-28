@@ -30,6 +30,8 @@ See the [config reference](./reference/config.md) for more details.
 
 Initialize an empty configuration file and database.
 
+For more information, see the [`init` subcommand documentation](./subcommands/init.md).
+
 ### `fix`
 
 Diagnose possible issues in the local runtime environment that may be preventing
@@ -41,3 +43,5 @@ For more information, see the [`fix` subcommand documentation](./subcommands/fix
 
 Boots Broker using the local config file, scanning the projects on
 configured DevOps hosts and importing their metadata into FOSSA.
+
+For more information, see the [`run` subcommand documentation](./subcommands/run.md).
