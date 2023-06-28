@@ -164,7 +164,7 @@ pub enum Protocol {
 impl Display for Protocol {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Protocol::Git(transport) => write!(f, "git:{transport}"),
+            Protocol::Git(transport) => write!(f, "git::{transport}"),
         }
     }
 }
@@ -238,7 +238,7 @@ impl Reference {
 impl Display for Reference {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Reference::Git(reference) => write!(f, "git:{reference}"),
+            Reference::Git(reference) => write!(f, "git::{reference}"),
         }
     }
 }

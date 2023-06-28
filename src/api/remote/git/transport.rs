@@ -48,12 +48,11 @@ impl Display for Transport {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Transport::Ssh { endpoint, .. } => {
-                write!(f, "ssh:{endpoint}")
+                write!(f, "ssh::{endpoint}")
             }
-            Transport::Http { endpoint, auth } => match auth {
-                Some(_) => write!(f, "http:{endpoint} with auth"),
-                None => write!(f, "cloning via HTTP from {endpoint} with no auth"),
-            },
+            Transport::Http { endpoint, .. } => {
+                write!(f, "http::{endpoint}")
+            }
         }
     }
 }
