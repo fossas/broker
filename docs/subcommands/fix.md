@@ -32,6 +32,12 @@ even if there are no issues.
 
 If, after running `broker fix`, you submit a support ticket to FOSSA, please always include the generated debug bundle in the request.
 
+## Subcommand FAQs
+
+- [Where is the `$DATA_ROOT`?](../reference/faq.md#where-is-the-data-root-for-broker)
+- [Where is the config file stored?](../reference/faq.md#where-is-the-config-file-stored)
+- [Where are debugging artifacts stored?](../reference/faq.md#where-are-debug-artifacts-stored)
+
 ## Problem output examples
 
 For example, here is some output with two problems. The first problem is an error while trying to connect to https://github.com/fossas/fossa-cli.git. The second is while trying to make an authenticated connection to the FOSSA API.
