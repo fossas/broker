@@ -17,7 +17,7 @@ jemalloc = ["dep:tikv-jemallocator"]
 
 [dependencies]
 bytesize = { version = "1.2.0", features = ["serde"] }
-clap = { version = "4.2.7", features = ["derive", "cargo", "env"] }
+clap = { version = "4.3.9", features = ["derive", "cargo", "env"] }
 colored = "2.0.0"
 delegate = "0.9.0"
 derive-new = "0.5.9"
