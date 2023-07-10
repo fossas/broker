@@ -1,7 +1,13 @@
 
+## v0.2.3
+
+Bug fix:
+
+- Broker was not properly noting which revisions it had scanned, so it was scanning all recent tags and branches on every poll cycle. This is now fixed.
+
 ## v0.2.2
 
-Bug fix: 
+Bug fix:
 
 - Broker now copies its debug bundle (generated during `broker fix`) from the system temp location instead of renaming.
   This resolves issues preventing debug bundles from being stored for Linux installations where the temporary location

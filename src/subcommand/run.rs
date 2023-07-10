@@ -65,6 +65,10 @@ pub enum Error {
     #[error("handle task")]
     TaskHandle,
 
+    /// If we fail to set a task's state in the sqlite DB, this error is raised.
+    #[error("set task state")]
+    TaskSetState,
+
     /// If we fail to mark a task complete, this error is raised.
     #[error("mark task complete")]
     TaskComplete,
@@ -241,7 +245,7 @@ async fn poll_integration<D: Database>(
                     // No previous state; this must be a new reference.
                     Ok(None) => Some(Ok(reference)),
                     // There was previous state, it's only new if the state is different.
-                    // We're assuming "different state" always means "newer state". 
+                    // We're assuming "different state" always means "newer state".
                     // This is because state is currently expressed as a git commit string,
                     // which on its own doesn't have any form of ordering.
                     Ok(Some(db_state)) => {
@@ -318,6 +322,7 @@ async fn scan_git_references<D: Database>(
     .await
     .change_context(Error::DownloadFossaCli)
     .describe("Broker relies on fossa-cli to perform analysis of your projects")?;
+    let db = &ctx.db;
 
     loop {
         let guard = receiver.recv().await.change_context(Error::TaskReceive)?;
@@ -331,6 +336,14 @@ async fn scan_git_references<D: Database>(
             .send(&upload)
             .await
             .change_context(Error::TaskEnqueue)?;
+        let remote = job.integration.remote().to_owned();
+        let coordinate = job.reference.as_coordinate(&remote);
+        let state = job.reference.as_state();
+
+        // Mark this reference as scanned in the local DB
+        db.set_state(&coordinate, state)
+            .await
+            .change_context(Error::TaskSetState)?;
 
         guard.commit().change_context(Error::TaskComplete)?;
     }
