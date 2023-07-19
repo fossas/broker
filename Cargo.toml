@@ -37,7 +37,7 @@ subtle = "2.4.1"
 tempfile = "3.5.0"
 serde_yaml = "0.9.21"
 thiserror = "1.0.40"
-tokio = { version = "1.28.1", features = ["full", "fs"] }
+tokio = { version = "1.29.1", features = ["full", "fs"] }
 tracing = "0.1.37"
 tracing-appender = "0.2.2"
 tracing-subscriber = { version = "0.3.17", features = ["json"] }
