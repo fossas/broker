@@ -711,12 +711,25 @@ impl CommandDescriber for tokio::process::Command {
     }
 }
 
+// Double derefs here because this is implemented on `&T`.
+// Desugared, `&self` on `&T` means `&&T`.
+// We want to deref all the way down to `T`, which means dereferencing twice.
+//
+// Normally derefs are handled automatically, so we'd just write e.g. `self.stdout()`,
+// but in this case we want to be careful to access the `stdout()` method from the _underlying_ `&T`,
+// not the `stdout()` method that is currently executing, so we need to deref to make that explicit.
+//
+// You can tell this is the case because if you remove the derefs clippy warns:
+//
+// > function cannot return without recursing
+//
+// Which is not what we want in this case.
 impl<T> CommandDescriber for &T
 where
     T: CommandDescriber,
 {
     fn describe(&self) -> Description {
-        self.deref().describe()
+        self.deref().deref().describe()
     }
 }
 
@@ -783,20 +796,33 @@ impl OutputProvider for std::process::Output {
     }
 }
 
+// Double derefs here because this is implemented on `&T`.
+// Desugared, `&self` on `&T` means `&&T`.
+// We want to deref all the way down to `T`, which means dereferencing twice.
+//
+// Normally derefs are handled automatically, so we'd just write e.g. `self.stdout()`,
+// but in this case we want to be careful to access the `stdout()` method from the _underlying_ `&T`,
+// not the `stdout()` method that is currently executing, so we need to deref to make that explicit.
+//
+// You can tell this is the case because if you remove the derefs clippy warns:
+//
+// > function cannot return without recursing
+//
+// Which is not what we want in this case.
 impl<T> OutputProvider for &T
 where
     T: OutputProvider,
 {
     fn stdout(&self) -> Vec<u8> {
-        self.deref().stdout()
+        self.deref().deref().stdout()
     }
 
     fn stderr(&self) -> Vec<u8> {
-        self.deref().stderr()
+        self.deref().deref().stderr()
     }
 
     fn status(&self) -> ExitStatus {
-        self.deref().status()
+        self.deref().deref().status()
     }
 }
 
