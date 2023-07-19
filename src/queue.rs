@@ -88,7 +88,7 @@ where
 {
     fn new(internal: yaque::Sender) -> Self {
         Self {
-            t: PhantomData::default(),
+            t: PhantomData,
             internal,
         }
     }
@@ -169,7 +169,7 @@ where
 {
     fn new(internal: yaque::Receiver) -> Self {
         Self {
-            t: PhantomData::default(),
+            t: PhantomData,
             internal,
         }
     }
@@ -280,7 +280,7 @@ where
 impl<'a, T> From<yaque::queue::RecvGuard<'a, Vec<u8>>> for RecvGuard<'a, T> {
     fn from(internal: yaque::queue::RecvGuard<'a, Vec<u8>>) -> Self {
         Self {
-            t: PhantomData::default(),
+            t: PhantomData,
             internal,
         }
     }
