@@ -2625,7 +2625,7 @@ dependencies = [
 [[package]]
 name = "srclib"
 version = "0.1.0"
-source = "git+https://github.com/fossas/foundation-libs?branch=add-srclib#9d5639531bb0991bb356ea92fa39749970e2a50e"
+source = "git+https://github.com/fossas/foundation-libs#127286dcbb838e73c8d9ce1ff6544dc2367e4812"
 dependencies = [
  "getset",
  "lazy_static",
