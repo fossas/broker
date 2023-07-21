@@ -7,7 +7,7 @@ use broker::{
 use proptest::{prop_assert, prop_assert_eq};
 use url::Url;
 
-use crate::helper::assert_error_stack_snapshot;
+use crate::assert_error_stack_snapshot;
 use test_strategy::proptest;
 
 pub fn raw_base_args(config: &str, db: &str) -> RawRunArgs {

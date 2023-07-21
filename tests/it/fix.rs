@@ -1,8 +1,8 @@
 use std::sync::RwLock;
 
-use crate::helper::{
-    assert_equal_contents, copy_recursive, expand_debug_bundle, load_config, set_snapshot_vars,
-    temp_config,
+use crate::{
+    helper::{assert_equal_contents, copy_recursive, expand_debug_bundle},
+    load_config, set_snapshot_vars, temp_config,
 };
 use broker::{
     cmd::fix::Logger,

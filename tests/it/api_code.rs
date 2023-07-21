@@ -4,7 +4,7 @@ use broker::api::remote::{PollInterval, Remote};
 use proptest::{prop_assert, prop_assert_eq};
 use test_strategy::proptest;
 
-use crate::helper::{assert_error_stack_snapshot, duration::DurationInput};
+use crate::{assert_error_stack_snapshot, helper::duration::DurationInput};
 
 #[proptest]
 fn validate_poll_interval(input: DurationInput) {

@@ -4,7 +4,7 @@ use broker::fossa_cli::{self, DesiredVersion, Location};
 use tracing_test::traced_test;
 use uuid::Uuid;
 
-use crate::helper::{assert_error_stack_snapshot, temp_config};
+use crate::{assert_error_stack_snapshot, temp_config};
 
 #[tokio::test]
 async fn downloads_latest_cli() {

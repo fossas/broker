@@ -1,6 +1,6 @@
 use broker::api::{self, remote};
 
-use crate::helper::{assert_error_stack_snapshot, gen, load_config, load_config_err};
+use crate::{assert_error_stack_snapshot, helper::gen, load_config, load_config_err};
 
 #[tokio::test]
 async fn test_fossa_api_values() {

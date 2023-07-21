@@ -7,7 +7,7 @@ use broker::{
     doc::{crate_name, crate_version},
 };
 
-use crate::helper::assert_error_stack_snapshot;
+use crate::assert_error_stack_snapshot;
 
 /// Open a temporary database.
 ///

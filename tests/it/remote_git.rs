@@ -1,6 +1,5 @@
 //! Tests for git remotes
-use crate::helper::assert_error_stack_snapshot;
-use crate::helper::load_config;
+use crate::{assert_error_stack_snapshot, load_config};
 use broker::api::remote::{Reference, RemoteProvider};
 
 use broker::ext::secrecy::REDACTION_LITERAL;
