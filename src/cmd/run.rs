@@ -1,6 +1,5 @@
 //! Implementation for the `run` subcommand.
 
-use std::sync::Arc;
 use std::time::Duration;
 
 use error_stack::{Result, ResultExt};
@@ -9,7 +8,6 @@ use futures::{future::try_join_all, try_join, StreamExt};
 use indoc::indoc;
 use serde::{Deserialize, Serialize};
 use tap::TapFallible;
-use tokio::sync::Mutex;
 use tokio_retry::strategy::jitter;
 use tokio_retry::strategy::ExponentialBackoff;
 use tokio_retry::Retry;
@@ -21,7 +19,7 @@ use crate::api::fossa::{self, CliMetadata, ProjectMetadata};
 use crate::api::remote::Reference;
 use crate::ext::tracing::span_record;
 use crate::fossa_cli::{self, DesiredVersion, SourceUnits};
-use crate::queue::{self, Queue, Receiver, Sender};
+use crate::queue::Queue;
 use crate::AppContext;
 use crate::{
     api::remote::{Integration, RemoteProvider},
@@ -104,19 +102,15 @@ pub async fn main<D: Database>(ctx: &AppContext, config: Config, db: D) -> Resul
         db,
     };
 
-    let (scan_tx, scan_rx) = queue::open(&ctx.app, Queue::Scan)
-        .await
-        .change_context(Error::SetupPipeline)?;
-    let (upload_tx, upload_rx) = queue::open(&ctx.app, Queue::Upload)
-        .await
-        .change_context(Error::SetupPipeline)?;
+    let scan = Queue::default();
+    let upload = Queue::default();
 
     // This function runs a bunch of async background tasks.
     // Create them all, then just `try_join!` on all of them at the end.
     let healthcheck_worker = healthcheck(&ctx.db);
-    let integration_worker = poll_integrations(&ctx, scan_tx);
-    let scan_git_reference_worker = scan_git_references(&ctx, scan_rx, upload_tx);
-    let upload_worker = upload_scans(&ctx, upload_rx);
+    let integration_worker = poll_integrations(&ctx, &scan);
+    let scan_git_reference_worker = scan_git_references(&ctx, &scan, &upload);
+    let upload_worker = upload_scans(&ctx, &upload);
 
     // `try_join!` keeps all of the workers running until one of them fails,
     // at which point the failure is returned and remaining tasks are dropped.
@@ -180,18 +174,16 @@ struct UploadSourceUnits {
 #[tracing::instrument(skip_all)]
 async fn poll_integrations<D: Database>(
     ctx: &CmdContext<D>,
-    sender: Sender<ScanGitVCSReference>,
+    sender: &Queue<ScanGitVCSReference>,
 ) -> Result<(), Error> {
-    // The sender is not thread safe; ensure it's only run one at a time.
-    let sender = Arc::new(Mutex::new(sender));
-
     // Each integration is configured with a poll interval.
     // Rather than have one big poll loop that has to track polling times for each integration,
     // just create a task per integration; they're cheap.
-    let integration_workers =
-        ctx.config.integrations().iter().map(|integration| async {
-            poll_integration(&ctx.db, integration, sender.clone()).await
-        });
+    let integration_workers = ctx
+        .config
+        .integrations()
+        .iter()
+        .map(|integration| async { poll_integration(&ctx.db, integration, sender).await });
 
     // Run all the workers in parallel. If one errors, return that error and drop the rest.
     try_join_all(integration_workers).await.discard_ok()
@@ -201,7 +193,7 @@ async fn poll_integrations<D: Database>(
 async fn poll_integration<D: Database>(
     db: &D,
     integration: &Integration,
-    sender: Arc<Mutex<Sender<ScanGitVCSReference>>>,
+    sender: &Queue<ScanGitVCSReference>,
 ) -> Result<(), Error> {
     // We use this in a few places and may send it across threads, so just clone it locally.
     let remote = integration.remote().to_owned();
@@ -281,7 +273,6 @@ async fn poll_integration<D: Database>(
         }
         for reference in references {
             let job = ScanGitVCSReference::new(integration, &reference);
-            let mut sender = sender.lock().await;
             sender.send(&job).await.change_context(Error::TaskEnqueue)?;
 
             info!("Enqueued task to scan '{integration}' at '{reference}'");
@@ -311,8 +302,8 @@ async fn poll_integration<D: Database>(
 #[tracing::instrument(skip_all)]
 async fn scan_git_references<D: Database>(
     ctx: &CmdContext<D>,
-    mut receiver: Receiver<ScanGitVCSReference>,
-    mut uploader: Sender<UploadSourceUnits>,
+    receiver: &Queue<ScanGitVCSReference>,
+    uploader: &Queue<UploadSourceUnits>,
 ) -> Result<(), Error> {
     let cli = fossa_cli::find_or_download(
         &ctx.app,
@@ -322,11 +313,9 @@ async fn scan_git_references<D: Database>(
     .await
     .change_context(Error::DownloadFossaCli)
     .describe("Broker relies on fossa-cli to perform analysis of your projects")?;
-    let db = &ctx.db;
 
     loop {
-        let guard = receiver.recv().await.change_context(Error::TaskReceive)?;
-        let job = guard.item().change_context(Error::TaskReceive)?;
+        let job = receiver.recv().await.change_context(Error::TaskReceive)?;
 
         let upload = scan_git_reference(ctx, &job, &cli)
             .await
@@ -336,16 +325,6 @@ async fn scan_git_references<D: Database>(
             .send(&upload)
             .await
             .change_context(Error::TaskEnqueue)?;
-        let remote = job.integration.remote().to_owned();
-        let coordinate = job.reference.as_coordinate(&remote);
-        let state = job.reference.as_state();
-
-        // Mark this reference as scanned in the local DB
-        db.set_state(&coordinate, state)
-            .await
-            .change_context(Error::TaskSetState)?;
-
-        guard.commit().change_context(Error::TaskComplete)?;
     }
 }
 
@@ -388,11 +367,10 @@ async fn scan_git_reference<D: Database>(
 #[tracing::instrument(skip_all)]
 async fn upload_scans<D: Database>(
     ctx: &CmdContext<D>,
-    mut receiver: Receiver<UploadSourceUnits>,
+    receiver: &Queue<UploadSourceUnits>,
 ) -> Result<(), Error> {
     loop {
-        let guard = receiver.recv().await.change_context(Error::TaskReceive)?;
-        let job = guard.item().change_context(Error::TaskReceive)?;
+        let job = receiver.recv().await.change_context(Error::TaskReceive)?;
 
         let meta = ProjectMetadata::new(&job.integration, &job.reference);
         info!("Uploading scan for project: '{meta}'");
@@ -404,6 +382,14 @@ async fn upload_scans<D: Database>(
         debug!(scan_id = %job.scan_id, locator = %locator, "Uploaded scan");
         info!("Uploaded scan for project '{meta}' as locator: '{locator}'");
 
-        guard.commit().change_context(Error::TaskComplete)?;
+        let remote = job.integration.remote().to_owned();
+        let coordinate = job.reference.as_coordinate(&remote);
+        let state = job.reference.as_state();
+
+        // Mark this reference as scanned in the local DB.
+        ctx.db
+            .set_state(&coordinate, state)
+            .await
+            .change_context(Error::TaskSetState)?;
     }
 }
