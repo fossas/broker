@@ -89,6 +89,3 @@ thiserror = "1.0.40"
 
 [profile.dev.package.insta]
 opt-level = 3
-
-[profile.dev.package.similar]
-opt-level = 3

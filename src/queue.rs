@@ -1,9 +1,17 @@
 //! Async work queue implementation.
 
-use std::{fmt::Debug, marker::PhantomData};
+use std::{fmt::Debug, marker::PhantomData, time::Duration};
 
 use error_stack::Report;
 use serde::{de::DeserializeOwned, Serialize};
+use tokio::{
+    sync::mpsc::{
+        channel,
+        error::{TryRecvError, TrySendError},
+        Receiver,
+    },
+    time::interval,
+};
 
 use crate::ext::error_stack::IntoContext;
 
@@ -88,5 +96,162 @@ where
 impl<T> Debug for Queue<T> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "Queue<{}>", std::any::type_name::<T>())
+    }
+}
+
+/// A rate limiter, generally used for queue processing operations.
+///
+/// New rate limits are added to this limiter to be consumed on the provided interval.
+/// If there are already `count` limits ready to be used, additional limits are dropped
+/// until those are used.
+///
+/// In other words, this limiter allows bursting up to `count`.
+/// No attempt is made to "catch up": additional limits are simply lost.
+pub struct RateLimiter {
+    period: Duration,
+    rx: Receiver<()>,
+}
+
+impl RateLimiter {
+    /// Create a new instance which allows up to N items every time period.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `count` is 0.
+    pub fn new(count: usize, period: Duration) -> Self {
+        let (tx, rx) = channel::<()>(count);
+
+        // Hydrate the initial limiter by sending until it is full.
+        while tx.try_send(()).is_ok() {}
+
+        // Set up a job to hydrate the limiter until the receiver drops.
+        tokio::spawn(async move {
+            let mut ticker = interval(period);
+            ticker.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
+
+            loop {
+                ticker.tick().await;
+
+                // Send at most `count` into the limiter.
+                //
+                // Doing this instead of sending until the buffer is full (as at the start)
+                // because that way if there is a concurrent listener that prevents the buffer from filling
+                // the rate limit is still observed.
+                for _ in 0..count {
+                    if let Err(TrySendError::Closed(_)) = tx.try_send(()) {
+                        return;
+                    }
+                }
+            }
+        });
+
+        Self { period, rx }
+    }
+
+    /// Consume a rate limit from the limiter.
+    pub async fn consume(&mut self) {
+        if self.rx.recv().await.is_none() {
+            // This panic only happens in the face of a serious program bug,
+            // since the sender side is managed inside a `tokio::spawn` on `RateLimiter` creation
+            // and should not exit until the receiver is dropped.
+            panic!("RateLimiter: sending channel closed while receiver was still active");
+        }
+    }
+
+    /// Attempt to consume a rate limit from the limiter.
+    /// If successful, returns true; if there is not a rate limit available returns false.
+    pub fn try_consume(&mut self) -> bool {
+        match self.rx.try_recv() {
+            Ok(_) => true,
+            Err(TryRecvError::Empty) => false,
+            Err(TryRecvError::Disconnected) => {
+                // This panic only happens in the face of a serious program bug,
+                // since the sender side is managed inside a `tokio::spawn` on `RateLimiter` creation
+                // and should not exit until the receiver is dropped.
+                panic!("RateLimiter: sending channel closed while receiver was still active");
+            }
+        }
+    }
+}
+
+impl std::fmt::Debug for RateLimiter {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("RateLimiter")
+            .field("period", &self.period)
+            .finish()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+
+    use std::time::Instant;
+
+    use super::*;
+
+    #[tokio::test]
+    async fn rate_limit_limits() {
+        let one_ms = Duration::from_millis(1);
+        let two_ms = Duration::from_millis(2);
+
+        let start = Instant::now();
+        let mut limiter = RateLimiter::new(1, two_ms);
+
+        assert!(limiter.try_consume(), "immediately adds limit");
+        assert!(!limiter.try_consume(), "no additional limits");
+        limiter.consume().await;
+
+        // Assert on 1ms instead of 2, even though the limit period is 2ms,
+        // because time-based tests at this resolution are always fuzzy
+        // and I want to keep spurious test failures to a minimum.
+        //
+        // Even though on its own this introduces _some_ potential for bugs,
+        // I think between this and other tests we're covered.
+        assert!(
+            start.elapsed() > one_ms,
+            "limiter should have enforced min time period"
+        );
+    }
+
+    #[tokio::test]
+    async fn rate_limit_multi_limits() {
+        let two_ms = Duration::from_millis(2);
+        let limit = 3;
+
+        let mut limiter = RateLimiter::new(limit, two_ms);
+        let mut ticker = interval(two_ms);
+
+        for i in 0..5 {
+            ticker.tick().await;
+            for l in 0..limit {
+                assert!(
+                    limiter.try_consume(),
+                    "tick {i}: should have {limit} units available but had {l}"
+                );
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn rate_limit_ceiling() {
+        let interval = Duration::from_millis(5);
+        let limit = 1;
+
+        let mut limiter = RateLimiter::new(limit, interval);
+        let mut allowed = 0;
+
+        let start = Instant::now();
+        let stop = Duration::from_millis(200);
+        while start.elapsed() < stop {
+            limiter.consume().await;
+            allowed += 1;
+        }
+
+        // Again, specific times are tricky with all these async interleaving concurrent async operations.
+        // Just check that the range is reasonable.
+        assert!(
+            matches!(allowed, 35..=45),
+            "should have allowed 35-45 rate limit instances in {stop:?} at {interval:?} each; allowed: {allowed}"
+        );
     }
 }
