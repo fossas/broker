@@ -165,3 +165,13 @@ async fn test_integration_git_http_no_auth() {
 
     let None = auth else { panic!("must have parsed no auth value") };
 }
+
+#[tokio::test]
+async fn test_integration_short_poll_interval() {
+    let (config_file_path, err) = load_config_err!(
+        "testdata/config/short-poll-interval.yml",
+        "testdata/database/empty.sqlite"
+    )
+    .await;
+    assert_error_stack_snapshot!(&config_file_path, err);
+}

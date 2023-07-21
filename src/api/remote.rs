@@ -15,7 +15,7 @@ use async_trait::async_trait;
 use delegate::delegate;
 use derive_more::{AsRef, Display, From};
 use derive_new::new;
-use error_stack::{report, Report, ResultExt};
+use error_stack::{ensure, report, Report, ResultExt};
 use getset::{CopyGetters, Getters};
 use humantime::parse_duration;
 use serde::{Deserialize, Serialize};
@@ -39,6 +39,10 @@ pub enum ValidationError {
     /// Poll interval is parsed from a user-provided string.
     #[error("validate poll interval")]
     PollInterval,
+
+    /// Poll intervals must be at least a certain minimum.
+    #[error("poll interval must be a minimum of {}", humantime::format_duration(MIN_POLL_INTERVAL).to_string())]
+    MinPollInterval,
 
     /// The provided remote is not valid.
     #[error("validate remote location")]
@@ -189,14 +193,24 @@ impl PollInterval {
     }
 }
 
+/// This is set because Broker is intended to bring eventual observability;
+/// if users want faster polling than this it's probably because they want to make sure they don't miss revisions,
+/// in such a case we recommend CI integration.
+pub const MIN_POLL_INTERVAL: Duration = Duration::from_secs(60 * 60);
+
 impl TryFrom<String> for PollInterval {
     type Error = Report<ValidationError>;
 
     fn try_from(value: String) -> Result<Self, Self::Error> {
-        parse_duration(&value)
+        let parsed = parse_duration(&value)
             .context(ValidationError::PollInterval)
-            .describe_lazy(|| format!("provided value: {value}"))
-            .map(PollInterval)
+            .describe_lazy(|| format!("provided value: {value}"))?;
+
+        ensure!(
+            parsed >= MIN_POLL_INTERVAL,
+            ValidationError::MinPollInterval
+        );
+        PollInterval(parsed).wrap_ok()
     }
 }
 

@@ -1,0 +1,7 @@
+# Seeds for failure cases proptest has generated in the past. It is
+# automatically read and these particular cases re-run before any
+# novel cases are generated.
+#
+# It is recommended to check this file in to source control so that
+# everyone who runs the test benefits from these saved cases.
+cc 390f1c43e9851e085e2bab3c398dc280cd7f60c9827fa3e05717d2482d6a86bd # shrinks to input = _ValidatePollIntervalArgs { input: DurationInput { ns: None, us: None, ms: None, sec: Some((0, Seconds)), min: None, hr: None, day: None, wk: None, mo: None, yr: None } }

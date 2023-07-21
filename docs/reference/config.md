@@ -67,13 +67,13 @@ Supported types:
 
 This block specifies how to configure Broker to communicate with a git server for a specific git repository.
 
-| Value           | Required? | Description                                                                                   | Suggested default |
-|-----------------|-----------|-----------------------------------------------------------------------------------------------|-------------------|
-| `poll_interval` | Required  | How often Broker checks with the remote repository to see whether it has changed.<sup>1</sup> | `1 hour`          |
-| `remote`        | Required  | The remote git repository address.                                                            | N/A               |
-| `auth`          | Required  | Required authentication to clone this repository.                                             | N/A               |
-| `team`          | Optional  | The team in FOSSA to which this project should be assigned.<sup>2</sup>                       | N/A               |
-| `title`         | Optional  | Specify a custom title for the project instead of using the default.<sup>3</sup>              | N/A               |
+| Value           | Required? | Description                                                                                   | Suggested default | Minimum value |
+|-----------------|-----------|-----------------------------------------------------------------------------------------------|-------------------|---------------|
+| `poll_interval` | Required  | How often Broker checks with the remote repository to see whether it has changed.<sup>1</sup> | `1 hour`          | `1 hour`      |
+| `remote`        | Required  | The remote git repository address.                                                            | N/A               | N/A           |
+| `auth`          | Required  | Required authentication to clone this repository.                                             | N/A               | N/A           |
+| `team`          | Optional  | The team in FOSSA to which this project should be assigned.<sup>2</sup>                       | N/A               | N/A           |
+| `title`         | Optional  | Specify a custom title for the project instead of using the default.<sup>3</sup>              | N/A               | N/A           |
 
 **[1]**: The poll interval defines the interval at which Broker _checks for updates_, not the interval at which Broker actually analyzes the repository.
 For more details on authentication, see [integration authentication](#integration-authentication).

@@ -1,6 +1,6 @@
 //! Tests for `api::code` functionality.
 
-use broker::api::remote::{PollInterval, Remote};
+use broker::api::remote::{PollInterval, Remote, MIN_POLL_INTERVAL};
 use proptest::{prop_assert, prop_assert_eq};
 use test_strategy::proptest;
 
@@ -9,17 +9,23 @@ use crate::{assert_error_stack_snapshot, helper::duration::DurationInput};
 #[proptest]
 fn validate_poll_interval(input: DurationInput) {
     let user_input = input.to_string();
-    match PollInterval::try_from(user_input.clone()) {
-        Ok(validated) => prop_assert_eq!(
-            validated.as_ref(),
-            &input.expected_duration(),
-            "tested input: {:?}",
-            input
-        ),
-        Err(err) => prop_assert!(
-            false,
-            "unexpected parsing error '{err:#}' for input '{user_input}'"
-        ),
+
+    if input.expected_duration() < MIN_POLL_INTERVAL {
+        let parsed = PollInterval::try_from(user_input.clone());
+        prop_assert!(parsed.is_err());
+    } else {
+        match PollInterval::try_from(user_input.clone()) {
+            Ok(validated) => prop_assert_eq!(
+                validated.as_ref(),
+                &input.expected_duration(),
+                "tested input: {:?}",
+                input
+            ),
+            Err(err) => prop_assert!(
+                false,
+                "unexpected parsing error '{err:#}' for input '{user_input}'"
+            ),
+        }
     }
 }
 
