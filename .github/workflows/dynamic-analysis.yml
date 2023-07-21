@@ -33,11 +33,15 @@ jobs:
     - uses: taiki-e/install-action@v2
       with:
         tool: nextest
-    - run: RUN_INTEGRATION_TESTS=1 cargo nextest run
+    - run: cargo nextest run
+      env:
+        RUN_INTEGRATION_TESTS: "1"
     # nextest doesn't run doctests, but does test everything else: https://github.com/nextest-rs/nextest/issues/16
     # run doctests after; this won't result in any extra rebuilds and is very quick.
     # doctest overview: https://doc.rust-lang.org/rustdoc/write-documentation/documentation-tests.html
-    - run: RUN_INTEGRATION_TESTS=1 cargo test --doc
+    - run: cargo test --doc
+      env:
+        RUN_INTEGRATION_TESTS: "1"
 
   # Ensure every crate can actually build on all platforms.
   # The library part of the crate is built during tests, but the binary part isn't.
