@@ -77,29 +77,30 @@ fn write_config(data_root: &Path, filename: &str, force_write: bool) -> Result<b
     if config_file_path.try_exists().unwrap_or(false) && !force_write {
         return Ok(true);
     }
+
     std::fs::create_dir_all(data_root)
-    .context_lazy(|| Error::CreateDataRoot(data_root.to_owned()))
-    .describe_lazy(|| indoc! {"
-        Broker requires that the data root exists and is a directory in order to create config files.
-        If the directory does not exist, Broker attempts to create it at a default location for your user.
-    "})
-    .help_lazy(|| indoc! {"
-        This can happen if Broker did not have permission to create the directory.
-        Try creating the directory yourself then running Broker again.
-        Alternately, you may specify a different data root: run Broker with the `-h` argument to see how.
-    "})?;
+        .context_lazy(|| Error::CreateDataRoot(data_root.to_owned()))
+        .describe_lazy(|| indoc! {"
+            Broker requires that the data root exists and is a directory in order to create config files.
+            If the directory does not exist, Broker attempts to create it at a default location for your user.
+        "})
+        .help_lazy(|| indoc! {"
+            This can happen if Broker did not have permission to create the directory.
+            Try creating the directory yourself then running Broker again.
+            Alternately, you may specify a different data root: run Broker with the `-h` argument to see how.
+        "})?;
 
     fs::write(&config_file_path, default_config_file(data_root))
-    .context_lazy(|| Error::WriteConfigFile {
-        path: config_file_path.to_path_buf(),
-        data_root: data_root.to_path_buf(),
-    })
-    .help_lazy(|| indoc! {"
-        This can happen if Broker did not have permission to create files in the data root directory.
-        Ensure that your current user in the operating system is allowed to create files in the data root;
-        deleting it and re-creating it may resolve this issue.
-        Alternately, you may specify a different data root: run Broker with the `-h` argument to see how.
-    "})?;
+        .context_lazy(|| Error::WriteConfigFile {
+            path: config_file_path.to_path_buf(),
+            data_root: data_root.to_path_buf(),
+        })
+        .help_lazy(|| indoc! {"
+            This can happen if Broker did not have permission to create files in the data root directory.
+            Ensure that your current user in the operating system is allowed to create files in the data root;
+            deleting it and re-creating it may resolve this issue.
+            Alternately, you may specify a different data root: run Broker with the `-h` argument to see how.
+        "})?;
 
     Ok(false)
 }

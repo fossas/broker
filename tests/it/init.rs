@@ -4,7 +4,7 @@ use std::{fs, path::PathBuf};
 async fn on_empty_dir_creates_config_and_example() {
     let tmpdir = tempfile::tempdir().unwrap();
     let tmpdir = PathBuf::from(tmpdir.path());
-    broker::subcommand::init::main(&tmpdir).expect("should init");
+    broker::cmd::init::main(&tmpdir).expect("should init");
 
     let config_file_path = tmpdir.join("config.yml");
     assert!(
@@ -32,7 +32,7 @@ async fn when_config_files_exist_only_overwrites_example() {
 
     fs::write(&config_file_path, "hello").expect("should write config file");
     fs::write(&example_file_path, "hello").expect("should write config.example file");
-    broker::subcommand::init::main(&tmpdir).expect("should init");
+    broker::cmd::init::main(&tmpdir).expect("should init");
 
     assert_eq!(
         fs::read_to_string(&config_file_path).expect("should read config file"),

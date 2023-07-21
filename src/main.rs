@@ -121,7 +121,7 @@ async fn main_init(args: config::RawInitArgs) -> Result<(), Error> {
         .validate()
         .await
         .change_context(Error::DetermineEffectiveConfig)?;
-    broker::subcommand::init::main(ctx.data_root()).change_context(Error::Runtime)
+    broker::cmd::init::main(ctx.data_root()).change_context(Error::Runtime)
 }
 
 /// Automatically detect problems with Broker and fix them.
@@ -143,13 +143,9 @@ async fn main_fix(args: config::RawFixArgs) -> Result<(), Error> {
         .run_tracing_sink()
         .change_context(Error::InternalSetup)?;
 
-    broker::subcommand::fix::main(
-        &conf,
-        &broker::subcommand::fix::StdoutLogger,
-        args.export_bundle(),
-    )
-    .await
-    .change_context(Error::Runtime)
+    broker::cmd::fix::main(&conf, &broker::cmd::fix::StdoutLogger, args.export_bundle())
+        .await
+        .change_context(Error::Runtime)
 }
 
 /// Run Broker with the current config.
@@ -174,7 +170,7 @@ async fn main_run(args: config::RawRunArgs) -> Result<(), Error> {
         .await
         .change_context(Error::InternalSetup)?;
 
-    broker::subcommand::run::main(args.context(), conf, db)
+    broker::cmd::run::main(args.context(), conf, db)
         .await
         .change_context(Error::Runtime)
 }

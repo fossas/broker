@@ -5,8 +5,8 @@ use crate::helper::{
     temp_config,
 };
 use broker::{
+    cmd::fix::Logger,
     debug::{bundler::TarGz, Bundle, BundleExport},
-    subcommand::fix::Logger,
 };
 use insta::assert_snapshot;
 
@@ -62,7 +62,7 @@ async fn with_successful_http_no_auth_integration() {
     .await;
 
     let logger = TestLogger::new();
-    broker::subcommand::fix::main(&conf, &logger, BundleExport::Disable)
+    broker::cmd::fix::main(&conf, &logger, BundleExport::Disable)
         .await
         .expect("should run fix");
 
@@ -82,7 +82,7 @@ async fn with_failing_http_basic_auth_integration() {
     )
     .await;
     let logger = TestLogger::new();
-    broker::subcommand::fix::main(&conf, &logger, BundleExport::Disable)
+    broker::cmd::fix::main(&conf, &logger, BundleExport::Disable)
         .await
         .expect("should run fix");
 
@@ -103,7 +103,7 @@ async fn with_failing_http_no_auth_integration() {
     .await;
 
     let logger = TestLogger::new();
-    broker::subcommand::fix::main(&conf, &logger, BundleExport::Disable)
+    broker::cmd::fix::main(&conf, &logger, BundleExport::Disable)
         .await
         .expect("should run fix");
 

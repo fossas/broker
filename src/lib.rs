@@ -11,6 +11,7 @@
 #![warn(rust_2018_idioms)]
 
 pub mod api;
+pub mod cmd;
 pub mod config;
 pub mod db;
 pub mod debug;
@@ -18,7 +19,6 @@ pub mod doc;
 pub mod ext;
 pub mod fossa_cli;
 pub mod queue;
-pub mod subcommand;
 
 /// Get the path to a subdirectory of the data root for the current module
 /// with the given context.
