@@ -185,7 +185,10 @@ impl std::fmt::Debug for RateLimiter {
 #[cfg(test)]
 mod tests {
 
-    use std::time::Instant;
+    use tokio::{
+        select,
+        time::{sleep_until, Instant},
+    };
 
     use super::*;
 
@@ -215,11 +218,11 @@ mod tests {
 
     #[tokio::test]
     async fn rate_limit_multi_limits() {
-        let two_ms = Duration::from_millis(2);
+        let period = Duration::from_millis(100);
         let limit = 3;
 
-        let mut limiter = RateLimiter::new(limit, two_ms);
-        let mut ticker = interval(two_ms);
+        let mut limiter = RateLimiter::new(limit, period);
+        let mut ticker = interval(period);
 
         for i in 0..5 {
             ticker.tick().await;
@@ -234,24 +237,41 @@ mod tests {
 
     #[tokio::test]
     async fn rate_limit_ceiling() {
-        let interval = Duration::from_millis(5);
+        let interval = Duration::from_millis(70);
         let limit = 1;
 
         let mut limiter = RateLimiter::new(limit, interval);
         let mut allowed = 0;
 
         let start = Instant::now();
-        let stop = Duration::from_millis(200);
-        while start.elapsed() < stop {
-            limiter.consume().await;
-            allowed += 1;
+        let stop = Duration::from_millis(500);
+
+        // Illustration of this test timeline (in 10 ms chunks):
+        //
+        //                 100ms     200ms     300ms     400ms     500ms     600ms
+        // 10ms ticks   -> |         |         |         |         |         |
+        // Timeout      -> |         |         |         |         |X        |
+        // Rate limiter -> +      +  |  +      +      +  |   +     |+      + |
+        // Consumer     -> |+      + |    +    | +      +|     +   |  +      +
+        //
+        // Critically:
+        // - The limiter starts with 1
+        // - With a 70ms interval, that means 0-70ms are the first tick, then _70-140_ are the second.
+        //   In other words, the new tick starts inside the same millisecond in which it was consumed.
+        //
+        // This means we should see 6 70ms ticks inside a 500ms window.
+        loop {
+            select! {
+                _ = limiter.consume() => allowed += 1,
+                _ = sleep_until(start + stop) => break,
+            }
         }
 
-        // Again, specific times are tricky with all these async interleaving concurrent async operations.
-        // Just check that the range is reasonable.
-        assert!(
-            matches!(allowed, 35..=45),
-            "should have allowed 35-45 rate limit instances in {stop:?} at {interval:?} each; allowed: {allowed}"
+        let expected = 6;
+        assert_eq!(
+            allowed,
+            expected,
+            "should have allowed {expected} rate limit instances in {stop:?} at {interval:?} each; allowed: {allowed}"
         );
     }
 }
