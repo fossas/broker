@@ -34,7 +34,7 @@ secrecy = { version = "0.8.0", features = ["serde"] }
 serde = { version = "1.0.164", features = ["derive"] }
 strum = { version = "0.24.1", features = ["derive"] }
 subtle = "2.4.1"
-tempfile = "3.5.0"
+tempfile = "3.7.0"
 serde_yaml = "0.9.21"
 thiserror = "1.0.40"
 tokio = { version = "1.29.1", features = ["full", "fs"] }
