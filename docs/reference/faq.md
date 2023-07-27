@@ -14,7 +14,7 @@ feel free to send us a support request via [support.fossa.com](https://support.f
 - On Linux and macOS: `~/.config/fossa/broker/`
 - On Windows: `%USERPROFILE%\.config\fossa\broker`
 
-Elsewhere in these docs we refer to this as though it is an environment variable, e.g. `$DATA_ROOT` or `%DATA_ROOT%`.
+Elsewhere in these docs we refer to this as though it is an environment variable, as `DATA_ROOT`.
 Note that this is not a true environment variable, we just use it this way inside file paths in the documentation
 to make relative file paths clear.
 
@@ -23,7 +23,7 @@ For more information on this and other runtime customization, run `broker -h`.
 
 ### Can I customize the temporary directory used by Broker?
 
-- On Linux and macOS: set the `$TMPDIR` environment variable.
+- On Linux and macOS: set the `TMPDIR` environment variable.
 - On Windows: Broker uses the `GetTempPath` system call,
   [which checks for the existence of environment variables in the following order](https://learn.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-gettemppath2a#remarks)
   and uses the first path found:

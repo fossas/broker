@@ -34,7 +34,7 @@ If, after running `broker fix`, you submit a support ticket to FOSSA, please alw
 
 ## Subcommand FAQs
 
-- [Where is the `$DATA_ROOT`?](../reference/faq.md#where-is-the-data-root-for-broker)
+- [Where is the `DATA_ROOT`?](../reference/faq.md#where-is-the-data-root-for-broker)
 - [Where is the config file stored?](../reference/faq.md#where-is-the-config-file-stored)
 - [Where are debugging artifacts stored?](../reference/faq.md#where-are-debug-artifacts-stored)
 

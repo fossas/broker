@@ -14,5 +14,5 @@ After `broker init` finishes, it reports the data root and these actions to the 
 
 ## Subcommand FAQs
 
-- [Where is the `$DATA_ROOT`?](../reference/faq.md#where-is-the-data-root-for-broker)
+- [Where is the `DATA_ROOT`?](../reference/faq.md#where-is-the-data-root-for-broker)
 - [Where is the config file stored?](../reference/faq.md#where-is-the-config-file-stored)
