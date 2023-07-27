@@ -21,6 +21,17 @@ to make relative file paths clear.
 Most Broker subcommands allow customizing the data root via the `-r` flag.
 For more information on this and other runtime customization, run `broker -h`.
 
+### Can I customize the temporary directory used by Broker?
+
+- On Linux and macOS: set the `$TMPDIR` environment variable.
+- On Windows: Broker uses the `GetTempPath` system call,
+  [which checks for the existence of environment variables in the following order](https://learn.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-gettemppath2a#remarks)
+  and uses the first path found:
+  - The path specified by the `TMP` environment variable.
+  - The path specified by the `TEMP` environment variable.
+  - The path specified by the `USERPROFILE` environment variable.
+  - The Windows directory.
+
 ### Where is the config file stored?
 
 - On macOS and Linux, the config is stored at `$DATA_ROOT/config.yml`.
