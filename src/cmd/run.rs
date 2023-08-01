@@ -5,7 +5,9 @@ use std::time::Duration;
 use error_stack::{Result, ResultExt};
 use futures::TryStreamExt;
 use futures::{future::try_join_all, try_join, StreamExt};
+use governor::{Quota, RateLimiter};
 use indoc::indoc;
+use nonzero_ext::nonzero;
 use serde::{Deserialize, Serialize};
 use tap::TapFallible;
 use tokio_retry::strategy::jitter;
@@ -19,7 +21,7 @@ use crate::api::fossa::{self, CliMetadata, ProjectMetadata};
 use crate::api::remote::Reference;
 use crate::ext::tracing::span_record;
 use crate::fossa_cli::{self, DesiredVersion, SourceUnits};
-use crate::queue::{Queue, RateLimiter};
+use crate::queue::Queue;
 use crate::AppContext;
 use crate::{
     api::remote::{Integration, RemoteProvider},
@@ -377,16 +379,16 @@ async fn upload_scans<D: Database>(
     ctx: &CmdContext<D>,
     receiver: &Queue<UploadSourceUnits>,
 ) -> Result<(), Error> {
-    // This worker is per integration.
-    // Rate limit this to at most one upload per minute.
-    let mut rate_limiter = RateLimiter::new(1, Duration::from_secs(60));
+    // This worker is per integration, so the rate limiter should be constructed here instead of globally.
+    let quota = Quota::per_minute(nonzero!(1u32));
+    let limiter = RateLimiter::direct(quota);
 
     loop {
         let job = receiver.recv().await.change_context(Error::TaskReceive)?;
         let meta = ProjectMetadata::new(&job.integration, &job.reference);
-        if !rate_limiter.try_consume() {
-            info!("Waiting for rate limit to upload scan for project '{meta}'");
-            rate_limiter.consume().await;
+        if let Err(err) = limiter.check() {
+            info!("Integration '{meta}': {err}");
+            limiter.until_ready().await;
         }
 
         info!("Uploading scan for project: '{meta}'");
