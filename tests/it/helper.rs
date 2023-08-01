@@ -4,10 +4,19 @@
 //! as such each macro in this file must be independent of location.
 //! Mostly this just means "if the macro calls something else, it needs to reference it by fully qualified path".
 
+use std::{
+    fs::{self, File},
+    path::Path,
+};
+
+use libflate::gzip;
+use tempfile::TempDir;
+
 pub mod duration;
 pub mod gen;
 
 /// Create a context in a temporary directory.
+#[macro_export]
 macro_rules! temp_ctx {
     () => {{
         let tmp = tempfile::tempdir().expect("must create tempdir");
@@ -26,6 +35,7 @@ macro_rules! temp_ctx {
 ///
 /// If `load` is specified as an argument to this macro, the config is then also
 /// parsed, and loaded, and returned. The data root in the config is set to `{TMP_DIR}`.
+#[macro_export]
 macro_rules! temp_config {
     () => {{
         let tmp = tempfile::tempdir().expect("must create tempdir");
@@ -69,6 +79,7 @@ macro_rules! temp_config {
 ///
 /// If using `assert_error_stack_snapshot`, there's no need to run this, as it is run automatically.
 /// This macro is still exported for tests using `insta` directly.
+#[macro_export]
 macro_rules! set_snapshot_vars {
     () => {{
         // During error stack snapshot testing, colors really mess with readability.
@@ -126,6 +137,7 @@ macro_rules! set_snapshot_vars {
 // - Handling many modifiers in arbitrary order requires incremental tt munching.
 // - Building the vector of filters during that incremental process requires push down accumulation.
 //
+#[macro_export]
 macro_rules! assert_error_stack_snapshot {
     // Handle the `fossa_cli` case.
     (fossa_cli; $context:expr, $inner:expr) => {{
@@ -196,7 +208,7 @@ macro_rules! assert_error_stack_snapshot {
     }};
     // Run with the provided filters.
     (@run $filters:expr; $context:expr, $inner:expr) => {{
-        crate::helper::set_snapshot_vars!();
+        $crate::set_snapshot_vars!();
         insta::with_settings!({
             info => $context,
             filters => $filters,
@@ -208,7 +220,7 @@ macro_rules! assert_error_stack_snapshot {
     // Data root can't be integrated into filters since it relies on the `as_str` method of the `Regex` type,
     // which doesn't live long enough otherwise.
     (@run $filters:expr; data_root => $data_root:expr; $context:expr, $inner:expr) => {{
-        crate::helper::set_snapshot_vars!();
+        $crate::set_snapshot_vars!();
 
         // Filter the data root.
         // Additionally normalize trailing slash/backslashes to slash, since these are platform dependent.
@@ -237,6 +249,7 @@ macro_rules! assert_error_stack_snapshot {
 /// - Database: "testdata/database/empty.sqlite"
 ///
 /// Leave args unspecified to use the defaults.
+#[macro_export]
 macro_rules! load_config {
     () => {
         load_config!(
@@ -246,7 +259,7 @@ macro_rules! load_config {
     };
     ($config_path:expr, $db_path:expr) => {
         async {
-            let base = crate::args::raw_base_args($config_path, $db_path);
+            let base = $crate::args::raw_base_args($config_path, $db_path);
             let args = base.validate().await.expect("must have validated");
             let config = broker::config::load(&args)
                 .await
@@ -257,10 +270,11 @@ macro_rules! load_config {
 }
 
 /// Convenience macro to load a failing config inline with the test function (so errors are properly attributed).
+#[macro_export]
 macro_rules! load_config_err {
     ($config_path:expr, $db_path:expr) => {
         async {
-            let base = crate::args::raw_base_args($config_path, $db_path);
+            let base = $crate::args::raw_base_args($config_path, $db_path);
             let args = base.validate().await.expect("must have validated args");
             let err = broker::config::load(&args)
                 .await
@@ -270,19 +284,15 @@ macro_rules! load_config_err {
     };
 }
 
-use std::{
-    fs::{self, File},
-    path::Path,
-};
-
-pub(crate) use assert_error_stack_snapshot;
-use libflate::gzip;
-pub(crate) use load_config;
-pub(crate) use load_config_err;
-pub(crate) use set_snapshot_vars;
-pub(crate) use temp_config;
-pub(crate) use temp_ctx;
-use tempfile::TempDir;
+/// Convenience macro to guard the test such that it only runs if `RUN_INTEGRATION_TESTS` is set.
+#[macro_export]
+macro_rules! guard_integration_test {
+    () => {
+        if std::env::var("RUN_INTEGRATION_TESTS").is_err() {
+            return;
+        }
+    };
+}
 
 #[track_caller]
 pub fn copy_recursive<P, Q>(source: P, dest: Q)

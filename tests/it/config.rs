@@ -1,6 +1,6 @@
 use broker::api::{self, remote};
 
-use crate::helper::{assert_error_stack_snapshot, gen, load_config, load_config_err};
+use crate::{assert_error_stack_snapshot, helper::gen, load_config, load_config_err};
 
 #[tokio::test]
 async fn test_fossa_api_values() {
@@ -164,4 +164,14 @@ async fn test_integration_git_http_no_auth() {
     );
 
     let None = auth else { panic!("must have parsed no auth value") };
+}
+
+#[tokio::test]
+async fn test_integration_short_poll_interval() {
+    let (config_file_path, err) = load_config_err!(
+        "testdata/config/short-poll-interval.yml",
+        "testdata/database/empty.sqlite"
+    )
+    .await;
+    assert_error_stack_snapshot!(&config_file_path, err);
 }

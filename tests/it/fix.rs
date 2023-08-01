@@ -1,12 +1,13 @@
 use std::sync::RwLock;
 
-use crate::helper::{
-    assert_equal_contents, copy_recursive, expand_debug_bundle, load_config, set_snapshot_vars,
-    temp_config,
+use crate::{
+    guard_integration_test,
+    helper::{assert_equal_contents, copy_recursive, expand_debug_bundle},
+    load_config, set_snapshot_vars, temp_config,
 };
 use broker::{
+    cmd::fix::Logger,
     debug::{bundler::TarGz, Bundle, BundleExport},
-    subcommand::fix::Logger,
 };
 use insta::assert_snapshot;
 
@@ -54,6 +55,8 @@ fn fix_output_filters() -> Vec<(&'static str, &'static str)> {
 
 #[tokio::test]
 async fn with_successful_http_no_auth_integration() {
+    guard_integration_test!();
+
     set_snapshot_vars!();
     let (_, conf) = load_config!(
         "testdata/config/basic-http-no-auth.yml",
@@ -62,7 +65,7 @@ async fn with_successful_http_no_auth_integration() {
     .await;
 
     let logger = TestLogger::new();
-    broker::subcommand::fix::main(&conf, &logger, BundleExport::Disable)
+    broker::cmd::fix::main(&conf, &logger, BundleExport::Disable)
         .await
         .expect("should run fix");
 
@@ -75,6 +78,8 @@ async fn with_successful_http_no_auth_integration() {
 
 #[tokio::test]
 async fn with_failing_http_basic_auth_integration() {
+    guard_integration_test!();
+
     set_snapshot_vars!();
     let (_, conf) = load_config!(
         "testdata/config/basic-http-basic-bad-repo-name.yml",
@@ -82,7 +87,7 @@ async fn with_failing_http_basic_auth_integration() {
     )
     .await;
     let logger = TestLogger::new();
-    broker::subcommand::fix::main(&conf, &logger, BundleExport::Disable)
+    broker::cmd::fix::main(&conf, &logger, BundleExport::Disable)
         .await
         .expect("should run fix");
 
@@ -95,6 +100,8 @@ async fn with_failing_http_basic_auth_integration() {
 
 #[tokio::test]
 async fn with_failing_http_no_auth_integration() {
+    guard_integration_test!();
+
     set_snapshot_vars!();
     let (_, conf) = load_config!(
         "testdata/config/private-repo-http-no-auth.yml",
@@ -103,7 +110,7 @@ async fn with_failing_http_no_auth_integration() {
     .await;
 
     let logger = TestLogger::new();
-    broker::subcommand::fix::main(&conf, &logger, BundleExport::Disable)
+    broker::cmd::fix::main(&conf, &logger, BundleExport::Disable)
         .await
         .expect("should run fix");
 
@@ -116,6 +123,8 @@ async fn with_failing_http_no_auth_integration() {
 
 #[tokio::test]
 async fn generates_debug_bundle() {
+    guard_integration_test!();
+
     let (tmp, conf, _ctx) = temp_config!(load);
     copy_recursive(
         "testdata/fossa.broker.debug/raw",

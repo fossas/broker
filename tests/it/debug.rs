@@ -4,7 +4,7 @@ use broker::debug::ArtifactRetentionCount;
 use proptest::{prop_assert, prop_assert_eq};
 use test_strategy::proptest;
 
-use crate::helper::assert_error_stack_snapshot;
+use crate::assert_error_stack_snapshot;
 
 #[proptest]
 fn validate_artifact_retention_count(

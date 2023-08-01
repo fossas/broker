@@ -7,7 +7,7 @@ use std::path::Path;
 
 use tempfile::TempDir;
 
-use crate::helper::temp_config;
+use crate::temp_config;
 
 macro_rules! run {
     (broker => $($arg:tt)*) => {{

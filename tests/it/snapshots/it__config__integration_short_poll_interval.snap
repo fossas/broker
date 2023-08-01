@@ -1,0 +1,16 @@
+---
+source: tests/it/config.rs
+expression: err
+info: testdata/config/short-poll-interval.yml
+---
+load config file
+├╴at {source location}
+│
+├─▶ parse config file in v1 format
+│   ╰╴at {source location}
+│
+├─▶ validate parsed config file values
+│   ╰╴at {source location}
+│
+╰─▶ poll interval must be a minimum of 1h
+    ╰╴at {source location}
