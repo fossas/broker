@@ -10,14 +10,6 @@ use crate::ext::error_stack::IntoContext;
 /// Errors encountered using the queue.
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
-    /// An underlying IO operation failed.
-    #[error("underlying IO operation")]
-    IO,
-
-    /// Couldn't construct the queue, which usually means that the named queue is already in use.
-    #[error("open queue")]
-    Open,
-
     /// When sending to the queue, the item is serialized.
     /// If that serialize operation fails, this error is returned.
     #[error("serialize item")]
