@@ -26,7 +26,7 @@ Bug fixes:
 - Copy debug bundles instead of renaming them from the temp location.
   This resolves issues preventing debug bundles from being stored for Linux installations where the temporary location
   and the home folder are on separate mount points.
-- Locate `fossa` in `$PATH` before running it.
+- Locate `fossa` in `PATH` before running it.
   This resolves issues where some Linux implementations cannot execute commands without the full path.
 
 ## v0.2.0

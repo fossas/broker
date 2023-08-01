@@ -7,7 +7,7 @@ _For more information on the config, see the [config reference](../reference/con
 
 ## Subcommand FAQs
 
-- [Where is the `$DATA_ROOT`?](../reference/faq.md#where-is-the-data-root-for-broker)
+- [Where is the `DATA_ROOT`?](../reference/faq.md#where-is-the-data-root-for-broker)
 - [Where is the config file stored?](../reference/faq.md#where-is-the-config-file-stored)
 - [Where are debugging artifacts stored?](../reference/faq.md#where-are-debug-artifacts-stored)
 - [Does Broker understand FOSSA CLI config files?](../reference/faq.md#does-broker-understand-fossa-cli-config-files-checked-into-the-repository-being-scanned)
