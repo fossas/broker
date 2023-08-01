@@ -13,6 +13,11 @@ test:
 	@cargo nextest run $(TEST_FILTER)
 	@cargo test --doc $(TEST_FILTER)
 
+# make test-integration TEST_FILTER=init:: will run only tests with "init::" in their description
+test-integration:
+	@RUN_INTEGRATION_TESTS=1 cargo nextest run $(TEST_FILTER)
+	@RUN_INTEGRATION_TESTS=1 cargo test --doc $(TEST_FILTER)
+
 test-static:
 	@cross nextest run --features jemalloc --target=x86_64-unknown-linux-musl $(TEST_FILTER)
 	@cross test --features jemalloc --target=x86_64-unknown-linux-musl --doc $(TEST_FILTER)
@@ -44,4 +49,4 @@ clippy:
 doc:
 	@cargo doc --open --no-deps
 
-.PHONY: test test-static run build build-static dev delete-unused-snapshots review-snapshots generate-dist migration-status migrate-up migrate-down doc clippy
+.PHONY: test test-integration test-static run build build-static dev delete-unused-snapshots review-snapshots generate-dist migration-status migrate-up migrate-down doc clippy

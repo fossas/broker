@@ -4,10 +4,12 @@ use broker::fossa_cli::{self, DesiredVersion, Location};
 use tracing_test::traced_test;
 use uuid::Uuid;
 
-use crate::{assert_error_stack_snapshot, temp_config};
+use crate::{assert_error_stack_snapshot, guard_integration_test, temp_config};
 
 #[tokio::test]
 async fn downloads_latest_cli() {
+    guard_integration_test!();
+
     let (_tmp, config, ctx) = temp_config!(load);
 
     println!("Downloading CLI");
@@ -30,6 +32,8 @@ async fn downloads_latest_cli() {
 #[tokio::test]
 #[traced_test]
 async fn analyze_runs() {
+    guard_integration_test!();
+
     let (_tmp, config, ctx) = temp_config!(load);
     let scan_id = Uuid::new_v4().to_string();
     let project = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
@@ -66,6 +70,8 @@ async fn analyze_runs() {
 
 #[tokio::test]
 async fn analyze_fails() {
+    guard_integration_test!();
+
     let (_tmp, config, ctx) = temp_config!(load);
     let scan_id = Uuid::new_v4().to_string();
 
@@ -99,6 +105,8 @@ async fn analyze_fails() {
 /// Rust is dynamic only, so analyze Broker itself.
 #[tokio::test]
 async fn analyze_fails_dynamic() {
+    guard_integration_test!();
+
     let (_tmp, config, ctx) = temp_config!(load);
     let scan_id = Uuid::new_v4().to_string();
 
@@ -127,6 +135,8 @@ async fn analyze_fails_dynamic() {
 
 #[tokio::test]
 async fn parse_version_fails() {
+    guard_integration_test!();
+
     let (_tmp, config, ctx) = temp_config!(load);
 
     // Pretend Broker is FOSSA CLI

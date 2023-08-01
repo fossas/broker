@@ -284,6 +284,16 @@ macro_rules! load_config_err {
     };
 }
 
+/// Convenience macro to guard the test such that it only runs if `RUN_INTEGRATION_TESTS` is set.
+#[macro_export]
+macro_rules! guard_integration_test {
+    () => {
+        if std::env::var("RUN_INTEGRATION_TESTS").is_err() {
+            return;
+        }
+    };
+}
+
 #[track_caller]
 pub fn copy_recursive<P, Q>(source: P, dest: Q)
 where
