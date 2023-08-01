@@ -386,8 +386,8 @@ async fn upload_scans<D: Database>(
     loop {
         let job = receiver.recv().await.change_context(Error::TaskReceive)?;
         let meta = ProjectMetadata::new(&job.integration, &job.reference);
-        if let Err(err) = limiter.check() {
-            info!("Integration '{meta}': {err}");
+        if limiter.check().is_err() {
+            info!("Integration '{meta}': waiting for rate limit");
             limiter.until_ready().await;
         }
 
