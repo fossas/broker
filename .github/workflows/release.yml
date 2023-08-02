@@ -96,7 +96,7 @@ jobs:
         if: ${{ matrix.os == 'linux' }}
         env:
           - BROKER_EXE_PATH: "release/broker-$RELEASE_VERSION-x86_64-linux/broker"
-          - BUNDLE_FILE: "release/broker.bundle"
+          - BUNDLE_FILE: "release/broker-$RELEASE_VERSION-x86_64-linux/broker.bundle"
         run: |
           cosign version
           cosign sign-blob --yes --bundle "$BUNDLE_FILE" "$BROKER_EXE_PATH"
