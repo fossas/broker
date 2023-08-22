@@ -134,5 +134,4 @@ async fn generates_debug_bundle() {
 
     let unpacked = expand_debug_bundle(bundle.location());
     assert_equal_contents("testdata/fossa.broker.debug/bundled", unpacked.path());
-    
 }
