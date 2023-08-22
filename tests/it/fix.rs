@@ -56,7 +56,6 @@ fn fix_output_filters() -> Vec<(&'static str, &'static str)> {
 #[tokio::test]
 async fn with_successful_http_no_auth_integration() {
     guard_integration_test!();
-
     set_snapshot_vars!();
     let (_, conf) = load_config!(
         "testdata/config/basic-http-no-auth.yml",
@@ -79,7 +78,6 @@ async fn with_successful_http_no_auth_integration() {
 #[tokio::test]
 async fn with_failing_http_basic_auth_integration() {
     guard_integration_test!();
-
     set_snapshot_vars!();
     let (_, conf) = load_config!(
         "testdata/config/basic-http-basic-bad-repo-name.yml",
@@ -136,4 +134,5 @@ async fn generates_debug_bundle() {
 
     let unpacked = expand_debug_bundle(bundle.location());
     assert_equal_contents("testdata/fossa.broker.debug/bundled", unpacked.path());
+    
 }
