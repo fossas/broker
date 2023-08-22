@@ -101,14 +101,12 @@ async fn with_failing_http_basic_auth_integration() {
 #[tokio::test]
 async fn with_failing_http_no_auth_integration() {
     guard_integration_test!();
-
     set_snapshot_vars!();
     let (_, conf) = load_config!(
         "testdata/config/private-repo-http-no-auth.yml",
         "testdata/database/empty.sqlite"
     )
     .await;
-
     let logger = TestLogger::new();
     broker::cmd::fix::main(&conf, &logger, BundleExport::Disable)
         .await
