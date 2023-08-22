@@ -40,6 +40,7 @@ pub fn load(content: String) -> Result<super::Config, Report<Error>> {
 /// Unlike `RawRunArgs`, we don't have to leak this to consumers of the `config` module,
 /// so we don't.
 #[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
 struct RawConfigV1 {
     #[serde(rename = "fossa_endpoint")]
     endpoint: String,
@@ -51,6 +52,9 @@ struct RawConfigV1 {
     integrations: Vec<Integration>,
 
     debugging: Debugging,
+
+    #[allow(dead_code)]
+    version: usize,
 }
 
 impl RawConfigV1 {
@@ -77,6 +81,7 @@ fn validate(config: RawConfigV1) -> Result<super::Config, Report<Error>> {
 }
 
 #[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub(super) struct Debugging {
     location: PathBuf,
 
@@ -95,6 +100,7 @@ impl TryFrom<Debugging> for debug::Config {
 }
 
 #[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub(super) struct DebuggingRetention {
     days: usize,
 }
@@ -120,7 +126,7 @@ impl TryFrom<DebuggingRetention> for debug::Retention {
 }
 
 #[derive(Debug, Deserialize)]
-#[serde(tag = "type")]
+#[serde(tag = "type", deny_unknown_fields)]
 pub(super) enum Integration {
     #[serde(rename = "git")]
     Git {
@@ -192,7 +198,7 @@ impl TryFrom<Integration> for remote::Integration {
 }
 
 #[derive(Debug, Deserialize)]
-#[serde(tag = "type")]
+#[serde(tag = "type", deny_unknown_fields)]
 pub(super) enum Auth {
     #[serde(rename = "ssh_key_file")]
     SshKeyFile { path: PathBuf },

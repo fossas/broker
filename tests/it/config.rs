@@ -135,6 +135,26 @@ async fn test_integration_git_http_basic() {
 }
 
 #[tokio::test]
+async fn test_integration_git_http_basic_malformed_auth() {
+    let (config_file_path, err) = load_config_err!(
+        "testdata/config/basic-http-basic-malformed-auth.yml",
+        "testdata/database/empty.sqlite"
+    )
+    .await;
+    assert_error_stack_snapshot!(&config_file_path, err);
+}
+
+#[tokio::test]
+async fn test_integration_git_http_basic_malformed_debugging() {
+    let (config_file_path, err) = load_config_err!(
+        "testdata/config/basic-http-basic-malformed-debugging.yml",
+        "testdata/database/empty.sqlite"
+    )
+    .await;
+    assert_error_stack_snapshot!(&config_file_path, err);
+}
+
+#[tokio::test]
 async fn test_integration_git_http_header() {
     let (_, conf) = load_config!(
         "testdata/config/basic-http-header.yml",
