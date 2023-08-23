@@ -5,12 +5,15 @@ version: 1
 debugging:
   location: /home/me/.config/fossa/broker/debugging/
   retention:
-    days: 7
+    days: 3
 
 integrations:
   - type: git
     poll_interval: 1h
-    remote: http://github.com/github/doesnotexist.git
+    remote: https://github.com/fossas/broker.git
     auth:
-      type: none
-      transport: http
+      type: http_basic
+      username: jssblck
+      password: efgh5678
+      team: team
+      title: title

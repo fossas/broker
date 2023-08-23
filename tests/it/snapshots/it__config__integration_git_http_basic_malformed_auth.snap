@@ -1,7 +1,7 @@
 ---
 source: tests/it/config.rs
 expression: err
-info: testdata/config/basic-retention-malformed.yml
+info: testdata/config/basic-http-basic-malformed-auth.yml
 ---
 load config file
 ├╴at {source location}
@@ -12,5 +12,5 @@ load config file
 ├─▶ parse config file
 │   ╰╴at {source location}
 │
-╰─▶ debugging.retention: missing field `days` at line 7 column 13
+╰─▶ integrations: unknown field `team`, expected `username` or `password` at line 11 column 3
     ╰╴at {source location}
