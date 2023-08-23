@@ -53,8 +53,8 @@ struct RawConfigV1 {
 
     debugging: Debugging,
 
-    #[allow(dead_code)]
-    version: usize,
+    #[serde(rename(deserialize = "version"))]
+    _version: usize,
 }
 
 impl RawConfigV1 {
