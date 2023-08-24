@@ -367,7 +367,7 @@ impl From<String> for DatabaseFilePath {
 
 fn discovery_enabled() -> bool {
     std::env::var(DISABLE_FILE_DISCOVERY_VAR)
-        .map(|value| vec!["true", "1"].contains(&value.as_str()))
+        .map(|value| ["true", "1"].contains(&value.as_str()))
         .map(|value| !value)
         .unwrap_or(true)
 }
