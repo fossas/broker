@@ -70,7 +70,7 @@ async fn infers_db_path_failing_config() {
 }
 
 #[proptest]
-fn fossa_api_endpoint(#[strategy(r#"\PC+"#)] user_input: String) {
+fn fossa_api_endpoint(#[strategy(r"\PC+")] user_input: String) {
     let canonical = Url::parse(&user_input);
     let validated = Endpoint::try_from(user_input.clone());
 
@@ -109,7 +109,7 @@ fn fossa_api_endpoint(#[strategy(r#"\PC+"#)] user_input: String) {
 }
 
 #[proptest]
-fn fossa_api_key(#[strategy(r#"\PC+"#)] user_input: String) {
+fn fossa_api_key(#[strategy(r"\PC+")] user_input: String) {
     match Key::try_from(user_input.clone()) {
         Ok(validated) => prop_assert_eq!(validated.expose_secret(), &user_input),
         Err(err) => prop_assert!(false, "unexpected parse error: {:#}", err),
