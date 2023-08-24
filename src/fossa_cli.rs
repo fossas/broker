@@ -364,7 +364,7 @@ pub async fn find_or_download(
 
     // If the CLI isn't already local, download it.
     let Some(current_path) = current_path else {
-        return download(ctx, artifact_root, desired_version).await
+        return download(ctx, artifact_root, desired_version).await;
     };
 
     // Now we know the CLI exists locally, check if it matches the desired version.

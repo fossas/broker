@@ -94,7 +94,9 @@ pub async fn tempfile() -> Result<File, Report<Error>> {
 /// If the destination parent directory doesn't exist, it is created automatically.
 #[tracing::instrument]
 pub async fn rename(src: &Path, dst: &Path) -> Result<(), Report<Error>> {
-    let Some(parent) = dst.parent() else { return report!(Error::CreateParentDir(dst.to_path_buf())).wrap_err() };
+    let Some(parent) = dst.parent() else {
+        return report!(Error::CreateParentDir(dst.to_path_buf())).wrap_err();
+    };
     tokio::fs::create_dir_all(parent)
         .await
         .context_lazy(|| Error::CreateParentDir(dst.to_path_buf()))?;

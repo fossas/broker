@@ -70,24 +70,36 @@ async fn test_one_integration() {
     let (_, conf) = load_config!().await;
 
     let mut integrations = conf.integrations().as_ref().iter();
-    let Some(_) = integrations.next() else { panic!("must have parsed at least one integration") };
-    let None = integrations.next() else { panic!("must have parsed exactly one integration") };
+    let Some(_) = integrations.next() else {
+        panic!("must have parsed at least one integration")
+    };
+    let None = integrations.next() else {
+        panic!("must have parsed exactly one integration")
+    };
 }
 
 #[tokio::test]
 async fn test_integration_git_ssh_key_file() {
     let (_, conf) = load_config!().await;
 
-    let Some(integration) = conf.integrations().as_ref().iter().next() else { panic!("must have parsed at least one integration") };
+    let Some(integration) = conf.integrations().as_ref().iter().next() else {
+        panic!("must have parsed at least one integration")
+    };
     assert_eq!(integration.poll_interval(), gen::code_poll_interval("1h"));
 
-    let remote::Protocol::Git(remote::git::transport::Transport::Ssh{ endpoint, auth }) = integration.protocol() else { panic!("must have parsed integration to git") };
+    let remote::Protocol::Git(remote::git::transport::Transport::Ssh { endpoint, auth }) =
+        integration.protocol()
+    else {
+        panic!("must have parsed integration to git")
+    };
     assert_eq!(
         endpoint,
         &gen::code_remote("git@github.com:fossas/broker.git")
     );
 
-    let api::ssh::Auth::KeyFile(file) = auth else { panic!("must have parsed ssh key file auth") };
+    let api::ssh::Auth::KeyFile(file) = auth else {
+        panic!("must have parsed ssh key file auth")
+    };
     assert_eq!(file, &gen::path_buf("/home/me/.ssh/id_rsa"));
 }
 
@@ -99,16 +111,24 @@ async fn test_integration_git_ssh_key() {
     )
     .await;
 
-    let Some(integration) = conf.integrations().as_ref().iter().next() else { panic!("must have parsed at least one integration") };
+    let Some(integration) = conf.integrations().as_ref().iter().next() else {
+        panic!("must have parsed at least one integration")
+    };
     assert_eq!(integration.poll_interval(), gen::code_poll_interval("1h"));
 
-    let remote::Protocol::Git(remote::git::transport::Transport::Ssh{ endpoint, auth }) = integration.protocol() else { panic!("must have parsed integration") };
+    let remote::Protocol::Git(remote::git::transport::Transport::Ssh { endpoint, auth }) =
+        integration.protocol()
+    else {
+        panic!("must have parsed integration")
+    };
     assert_eq!(
         endpoint,
         &gen::code_remote("git@github.com:fossas/broker.git")
     );
 
-    let api::ssh::Auth::KeyValue(key) = auth else { panic!("must have parsed auth value") };
+    let api::ssh::Auth::KeyValue(key) = auth else {
+        panic!("must have parsed auth value")
+    };
     assert_eq!(key, &gen::secret("efgh5678"));
 }
 
@@ -120,16 +140,24 @@ async fn test_integration_git_http_basic() {
     )
     .await;
 
-    let Some(integration) = conf.integrations().as_ref().iter().next() else { panic!("must have parsed at least one integration") };
+    let Some(integration) = conf.integrations().as_ref().iter().next() else {
+        panic!("must have parsed at least one integration")
+    };
     assert_eq!(integration.poll_interval(), gen::code_poll_interval("1h"));
 
-    let remote::Protocol::Git(remote::git::transport::Transport::Http{ endpoint, auth }) = integration.protocol() else { panic!("must have parsed integration") };
+    let remote::Protocol::Git(remote::git::transport::Transport::Http { endpoint, auth }) =
+        integration.protocol()
+    else {
+        panic!("must have parsed integration")
+    };
     assert_eq!(
         endpoint,
         &gen::code_remote("https://github.com/fossas/broker.git")
     );
 
-    let Some(api::http::Auth::Basic { username, password }) = auth else { panic!("must have parsed auth value") };
+    let Some(api::http::Auth::Basic { username, password }) = auth else {
+        panic!("must have parsed auth value")
+    };
     assert_eq!(username, &String::from("jssblck"));
     assert_eq!(password, &gen::secret("efgh5678"));
 }
@@ -162,7 +190,9 @@ async fn test_integration_git_http_header() {
     )
     .await;
 
-    let Some(integration) = conf.integrations().as_ref().iter().next() else { panic!("must have parsed at least one integration") };
+    let Some(integration) = conf.integrations().as_ref().iter().next() else {
+        panic!("must have parsed at least one integration")
+    };
     assert_eq!(integration.poll_interval(), gen::code_poll_interval("1h"));
 }
 
@@ -174,16 +204,24 @@ async fn test_integration_git_http_no_auth() {
     )
     .await;
 
-    let Some(integration) = conf.integrations().as_ref().iter().next() else { panic!("must have parsed at least one integration") };
+    let Some(integration) = conf.integrations().as_ref().iter().next() else {
+        panic!("must have parsed at least one integration")
+    };
     assert_eq!(integration.poll_interval(), gen::code_poll_interval("1h"));
 
-    let remote::Protocol::Git(remote::git::transport::Transport::Http{ endpoint, auth }) = integration.protocol() else { panic!("must have parsed integration") };
+    let remote::Protocol::Git(remote::git::transport::Transport::Http { endpoint, auth }) =
+        integration.protocol()
+    else {
+        panic!("must have parsed integration")
+    };
     assert_eq!(
         endpoint,
         &gen::code_remote("https://github.com/fossas/broker.git")
     );
 
-    let None = auth else { panic!("must have parsed no auth value") };
+    let None = auth else {
+        panic!("must have parsed no auth value")
+    };
 }
 
 #[tokio::test]
