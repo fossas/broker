@@ -20,7 +20,7 @@ use uuid::Uuid;
 use crate::api::fossa::{self, CliMetadata, ProjectMetadata};
 use crate::api::remote::Reference;
 use crate::ext::tracing::span_record;
-use crate::fossa_cli::{self, DesiredVersion, SourceUnits};
+use crate::fossa_cli::{self, DesiredVersion, Location, SourceUnits};
 use crate::queue::Queue;
 use crate::AppContext;
 use crate::{
@@ -204,6 +204,19 @@ async fn poll_integration<D: Database>(
     integration: &Integration,
     sender: &Queue<ScanGitVCSReference>,
 ) -> Result<(), Error> {
+    loop {
+        if let Err(err) = execute_poll_integration(db, integration, sender).await {
+            warn!("attempt to poll integration failed: {err:#?}");
+        }
+    }
+}
+
+#[tracing::instrument(skip(db, sender))]
+async fn execute_poll_integration<D: Database>(
+    db: &D,
+    integration: &Integration,
+    sender: &Queue<ScanGitVCSReference>,
+) -> Result<(), Error> {
     // We use this in a few places and may send it across threads, so just clone it locally.
     let remote = integration.remote().to_owned();
     let poll_interval = integration.poll_interval().as_duration();
@@ -219,14 +232,13 @@ async fn poll_integration<D: Database>(
         }
     };
 
-    loop {
-        info!("Polling '{integration}'");
+    info!("Polling '{integration}'");
 
-        // Given that this operation is not latency sensitive, and temporary network issues can interfere,
-        // retry several times before permanently failing since a permanent failure means Broker shuts down
-        // entirely.
-        let strategy = ExponentialBackoff::from_millis(1000).map(jitter).take(10);
-        let references = Retry::spawn(strategy, get_references)
+    // Given that this operation is not latency sensitive, and temporary network issues can interfere,
+    // retry several times before permanently failing since a permanent failure means Broker shuts down
+    // entirely.
+    let strategy = ExponentialBackoff::from_millis(1000).map(jitter).take(10);
+    let references = Retry::spawn(strategy, get_references)
             .await
             .change_context(Error::PollIntegration)
             .describe_lazy(|| format!("poll for changes at {remote} in integration: {integration}"))
@@ -236,8 +248,8 @@ async fn poll_integration<D: Database>(
             warnings in the logs for more details.
             "})?;
 
-        // Filter to the list of references that are new since we last saw them.
-        let references = futures::stream::iter(references.into_iter())
+    // Filter to the list of references that are new since we last saw them.
+    let references = futures::stream::iter(references.into_iter())
             // Using `filter_map` instead of `filter` so that this closure gets ownership of `reference`,
             // which makes binding it across an await point easier (no lifetimes to mess with).
             .filter_map(|reference| async {
@@ -275,37 +287,36 @@ async fn poll_integration<D: Database>(
             Broker manages a local sqlite database; deleting it so it can be re-generated from scratch may resolve the issue.
             "})?;
 
-        // We sink the references here instead of during the stream so that
-        // if an error is encountered reading the stream, we don't send partial lists.
-        if references.is_empty() {
-            info!("No changes to '{integration}'");
-        }
-        for reference in references {
-            let job = ScanGitVCSReference::new(integration, &reference);
-            sender.send(&job).await.change_context(Error::TaskEnqueue)?;
-
-            info!("Enqueued task to scan '{integration}' at '{reference}'");
-        }
-
-        // Now wait for the next poll time.
-        // The fact that we poll, _then_ wait for the poll time, means that the actual
-        // time at which the poll occurs will slowly creep forward by whatever time
-        // it takes to perform the poll.
-        //
-        // This is considered okay, because we're interpreting "poll interval" as
-        // "poll at most this often"; i.e. it's used primarily as a rate limiting feature
-        // than as a "track changes this often" feature.
-        //
-        // The alternative would be starting the clock at the top of the loop,
-        // which while doable could (in the worst case) allow for endlessly
-        // polling if the poll takes at least as long as the interval.
-        //
-        // If we decide to make polling more consistent, [`tokio::time::interval`]
-        // is most likely the correct way to implement it.
-
-        info!("Next poll interval for '{integration}' in {poll_interval:?}");
-        tokio::time::sleep(poll_interval).await;
+    // We sink the references here instead of during the stream so that
+    // if an error is encountered reading the stream, we don't send partial lists.
+    if references.is_empty() {
+        info!("No changes to '{integration}'");
     }
+    for reference in references {
+        let job = ScanGitVCSReference::new(integration, &reference);
+        sender.send(&job).await.change_context(Error::TaskEnqueue)?;
+
+        info!("Enqueued task to scan '{integration}' at '{reference}'");
+    }
+    // Now wait for the next poll time.
+    // The fact that we poll, _then_ wait for the poll time, means that the actual
+    // time at which the poll occurs will slowly creep forward by whatever time
+    // it takes to perform the poll.
+    //
+    // This is considered okay, because we're interpreting "poll interval" as
+    // "poll at most this often"; i.e. it's used primarily as a rate limiting feature
+    // than as a "track changes this often" feature.
+    //
+    // The alternative would be starting the clock at the top of the loop,
+    // which while doable could (in the worst case) allow for endlessly
+    // polling if the poll takes at least as long as the interval.
+    //
+    // If we decide to make polling more consistent, [`tokio::time::interval`]
+    // is most likely the correct way to implement it.
+
+    info!("Next poll interval for '{integration}' in {poll_interval:?}");
+    tokio::time::sleep(poll_interval).await;
+    Ok(())
 }
 
 #[tracing::instrument(skip_all)]
@@ -324,15 +335,27 @@ async fn scan_git_references<D: Database>(
     .describe("Broker relies on fossa-cli to perform analysis of your projects")?;
 
     loop {
-        let job = receiver.recv().await.change_context(Error::TaskReceive)?;
-        let upload = scan_git_reference(ctx, &job, &cli)
-            .await
-            .change_context(Error::TaskHandle)?;
-        uploader
-            .send(&upload)
-            .await
-            .change_context(Error::TaskEnqueue)?;
+        if let Err(err) = execute_scan_git_references(ctx, receiver, uploader, &cli).await {
+            warn!("attempt to scan git reference failed: {err:#?}");
+        }
     }
+}
+
+#[tracing::instrument(skip_all)]
+async fn execute_scan_git_references<D: Database>(
+    ctx: &CmdContext<D>,
+    receiver: &Queue<ScanGitVCSReference>,
+    uploader: &Queue<UploadSourceUnits>,
+    cli: &Location,
+) -> Result<(), Error> {
+    let job = receiver.recv().await.change_context(Error::TaskReceive)?;
+    let upload = scan_git_reference(ctx, &job, cli)
+        .await
+        .change_context(Error::TaskHandle)?;
+    uploader
+        .send(&upload)
+        .await
+        .change_context(Error::TaskEnqueue)
 }
 
 #[tracing::instrument(skip(_ctx, cli), fields(scan_id, cli_version))]
@@ -384,29 +407,45 @@ async fn upload_scans<D: Database>(
     let limiter = RateLimiter::direct(quota);
 
     loop {
-        let job = receiver.recv().await.change_context(Error::TaskReceive)?;
-        let meta = ProjectMetadata::new(&job.integration, &job.reference);
-        if limiter.check().is_err() {
-            info!("Integration '{meta}': waiting for rate limit");
-            limiter.until_ready().await;
+        if let Err(err) = execute_upload_scans(ctx, receiver, &limiter).await {
+            warn!("attempt to upload scan failed: {err:#?}");
         }
-
-        info!("Uploading scan for project: '{meta}'");
-        let locator = fossa::upload_scan(ctx.config.fossa_api(), &meta, &job.cli, job.source_units)
-            .await
-            .change_context(Error::TaskHandle)?;
-
-        debug!(scan_id = %job.scan_id, locator = %locator, "Uploaded scan");
-        info!("Uploaded scan for project '{meta}' as locator: '{locator}'");
-
-        let remote = job.integration.remote().to_owned();
-        let coordinate = job.reference.as_coordinate(&remote);
-        let state = job.reference.as_state();
-
-        // Mark this reference as scanned in the local DB.
-        ctx.db
-            .set_state(&coordinate, state)
-            .await
-            .change_context(Error::TaskSetState)?;
     }
+}
+
+#[tracing::instrument(skip_all)]
+async fn execute_upload_scans<D: Database>(
+    ctx: &CmdContext<D>,
+    receiver: &Queue<UploadSourceUnits>,
+    limiter: &RateLimiter<
+        governor::state::NotKeyed,
+        governor::state::InMemoryState,
+        governor::clock::QuantaClock,
+        governor::middleware::NoOpMiddleware<governor::clock::QuantaInstant>,
+    >,
+) -> Result<(), Error> {
+    let job = receiver.recv().await.change_context(Error::TaskReceive)?;
+    let meta = ProjectMetadata::new(&job.integration, &job.reference);
+    if limiter.check().is_err() {
+        info!("Integration '{meta}': waiting for rate limit");
+        limiter.until_ready().await;
+    }
+
+    info!("Uploading scan for project: '{meta}'");
+    let locator = fossa::upload_scan(ctx.config.fossa_api(), &meta, &job.cli, job.source_units)
+        .await
+        .change_context(Error::TaskHandle)?;
+
+    debug!(scan_id = %job.scan_id, locator = %locator, "Uploaded scan");
+    info!("Uploaded scan for project '{meta}' as locator: '{locator}'");
+
+    let remote = job.integration.remote().to_owned();
+    let coordinate = job.reference.as_coordinate(&remote);
+    let state = job.reference.as_state();
+
+    // Mark this reference as scanned in the local DB.
+    ctx.db
+        .set_state(&coordinate, state)
+        .await
+        .change_context(Error::TaskSetState)
 }
