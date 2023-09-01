@@ -196,7 +196,7 @@ impl PollInterval {
 /// This is set because Broker is intended to bring eventual observability;
 /// if users want faster polling than this it's probably because they want to make sure they don't miss revisions,
 /// in such a case we recommend CI integration.
-pub const MIN_POLL_INTERVAL: Duration = Duration::from_secs(60 * 60);
+pub const MIN_POLL_INTERVAL: Duration = Duration::from_secs(15);
 
 impl TryFrom<String> for PollInterval {
     type Error = Report<ValidationError>;
