@@ -204,14 +204,33 @@ async fn poll_integration<D: Database>(
     integration: &Integration,
     sender: &Queue<ScanGitVCSReference>,
 ) -> Result<(), Error> {
+    let poll_interval = integration.poll_interval().as_duration();
     loop {
         if let Err(err) = execute_poll_integration(db, integration, sender).await {
-            warn!("attempt to poll integration failed: {err:#?}");
+            warn!("Unable to poll '{integration}': {err:#?}");
         }
+
+        // Now wait for the next poll time.
+        // The fact that we poll, _then_ wait for the poll time, means that the actual
+        // time at which the poll occurs will slowly creep forward by whatever time
+        // it takes to perform the poll.
+        //
+        // This is considered okay, because we're interpreting "poll interval" as
+        // "poll at most this often"; i.e. it's used primarily as a rate limiting feature
+        // than as a "track changes this often" feature.
+        //
+        // The alternative would be starting the clock at the top of the loop,
+        // which while doable could (in the worst case) allow for endlessly
+        // polling if the poll takes at least as long as the interval.
+        //
+        // If we decide to make polling more consistent, [`tokio::time::interval`]
+        // is most likely the correct way to implement it.
+        info!("Next poll interval for '{integration}' in {poll_interval:?}");
+        tokio::time::sleep(poll_interval).await;
     }
 }
 
-#[tracing::instrument(skip(db, sender))]
+#[tracing::instrument(skip_all)]
 async fn execute_poll_integration<D: Database>(
     db: &D,
     integration: &Integration,
@@ -219,14 +238,13 @@ async fn execute_poll_integration<D: Database>(
 ) -> Result<(), Error> {
     // We use this in a few places and may send it across threads, so just clone it locally.
     let remote = integration.remote().to_owned();
-    let poll_interval = integration.poll_interval().as_duration();
 
     // [`Retry`] needs a function that runs without any arguments to perform the retry, so turn the method into a closure.
     let get_references = || async {
         match integration.references().await {
             Ok(success) => Ok(success),
             Err(err) => {
-                warn!("attempt to poll integration at {remote} failed: {err:#}");
+                warn!("Unable to poll integration at {remote}: {err:#}");
                 Err(err)
             }
         }
@@ -298,24 +316,7 @@ async fn execute_poll_integration<D: Database>(
 
         info!("Enqueued task to scan '{integration}' at '{reference}'");
     }
-    // Now wait for the next poll time.
-    // The fact that we poll, _then_ wait for the poll time, means that the actual
-    // time at which the poll occurs will slowly creep forward by whatever time
-    // it takes to perform the poll.
-    //
-    // This is considered okay, because we're interpreting "poll interval" as
-    // "poll at most this often"; i.e. it's used primarily as a rate limiting feature
-    // than as a "track changes this often" feature.
-    //
-    // The alternative would be starting the clock at the top of the loop,
-    // which while doable could (in the worst case) allow for endlessly
-    // polling if the poll takes at least as long as the interval.
-    //
-    // If we decide to make polling more consistent, [`tokio::time::interval`]
-    // is most likely the correct way to implement it.
 
-    info!("Next poll interval for '{integration}' in {poll_interval:?}");
-    tokio::time::sleep(poll_interval).await;
     Ok(())
 }
 
@@ -336,7 +337,7 @@ async fn scan_git_references<D: Database>(
 
     loop {
         if let Err(err) = execute_scan_git_references(ctx, receiver, uploader, &cli).await {
-            warn!("attempt to scan git reference failed: {err:#?}");
+            warn!("Unable to scan git reference: {err:#?}");
         }
     }
 }
@@ -407,8 +408,22 @@ async fn upload_scans<D: Database>(
     let limiter = RateLimiter::direct(quota);
 
     loop {
-        if let Err(err) = execute_upload_scans(ctx, receiver, &limiter).await {
-            warn!("attempt to upload scan failed: {err:#?}");
+        let job = match receiver.recv().await.change_context(Error::TaskReceive) {
+            Ok(job) => job,
+            Err(err) => {
+                warn!("Unable to read enqueued upload job: {err:#?}");
+                continue;
+            }
+        };
+
+        let meta = ProjectMetadata::new(&job.integration, &job.reference);
+        if limiter.check().is_err() {
+            info!("Integration '{meta}': waiting for rate limit");
+            limiter.until_ready().await;
+        }
+
+        if let Err(err) = execute_upload_scans(ctx, &meta, job).await {
+            warn!("Unable to upload scan for '{meta}': {err:#?}");
         }
     }
 }
@@ -416,23 +431,11 @@ async fn upload_scans<D: Database>(
 #[tracing::instrument(skip_all)]
 async fn execute_upload_scans<D: Database>(
     ctx: &CmdContext<D>,
-    receiver: &Queue<UploadSourceUnits>,
-    limiter: &RateLimiter<
-        governor::state::NotKeyed,
-        governor::state::InMemoryState,
-        governor::clock::QuantaClock,
-        governor::middleware::NoOpMiddleware<governor::clock::QuantaInstant>,
-    >,
+    meta: &ProjectMetadata,
+    job: UploadSourceUnits,
 ) -> Result<(), Error> {
-    let job = receiver.recv().await.change_context(Error::TaskReceive)?;
-    let meta = ProjectMetadata::new(&job.integration, &job.reference);
-    if limiter.check().is_err() {
-        info!("Integration '{meta}': waiting for rate limit");
-        limiter.until_ready().await;
-    }
-
     info!("Uploading scan for project: '{meta}'");
-    let locator = fossa::upload_scan(ctx.config.fossa_api(), &meta, &job.cli, job.source_units)
+    let locator = fossa::upload_scan(ctx.config.fossa_api(), meta, &job.cli, job.source_units)
         .await
         .change_context(Error::TaskHandle)?;
 
