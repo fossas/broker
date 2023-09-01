@@ -1,13 +1,19 @@
 //! Implementation for the fix command
 
 use crate::{
+    api::remote::RemoteProvider,
+    cmd::run::Error::RunFossaCli,
     debug::{self, bundler, Bundle, BundleExport},
     ext::secrecy::REDACTION_LITERAL,
+    fossa_cli::{self, DesiredVersion},
+    AppContext,
 };
 use colored::Colorize;
 use core::result::Result;
 use error_stack::{Report, ResultExt};
+use futures::TryFutureExt;
 use indoc::formatdoc;
+use itertools::Itertools;
 use std::time::Duration;
 
 use crate::{
@@ -202,6 +208,50 @@ impl Error {
         Ok(format!("{shared_instructions}\n\n{specific_instructions}"))
     }
 
+    fn integration_scan_error(remote: &Remote, err: Report<fossa_cli::Error>) -> Self {
+        let path = "path/to/directory";
+        let explanation = match Self::integration_scan_explanation(path) {
+            Err(err) => return err,
+            Ok(exp) => exp,
+        };
+
+        let msg = formatdoc!(
+            "
+            Broker encountered an error while trying to scan your git remote at '{remote}'.
+
+            {explanation}
+
+            Full error message from scan:
+
+            {err}
+
+            "
+        );
+        Error::CheckIntegration {
+            remote: remote.clone(),
+            error: err.to_string(),
+            msg,
+        }
+    }
+
+    fn integration_scan_explanation(path: &str) -> Result<String, Error> {
+        let shared_instructions = "Broker failed scanning repository";
+        let base64_command = r#"echo -n "<username>:<password>" | base64"#.green();
+
+        /*
+        // Generate an example command. The basic command is `git ls-remote`, but there are other arguments and env variables added
+        // depending on the auth used.
+        // The resulting command should be an exact copy of the command used by broker, and should work when pasted into the terminal.
+        let command = repository::pastable_ls_remote_command(transport)
+            .or(Err(Error::GenerateExampleCommand))
+            .map(|c| c.green())?;
+        */
+
+        let specific_instructions = formatdoc!("Trying running: fossa analyze -o{path}");
+
+        Ok(format!("{shared_instructions}\n\n{specific_instructions}"))
+    }
+
     fn fossa_integration_error(
         status: Option<reqwest::StatusCode>,
         err: reqwest::Error,
@@ -302,12 +352,14 @@ macro_rules! log {
 /// The primary entrypoint for the fix command.
 // #[tracing::instrument(skip(config, logger), fields(subcommand = "fix"))]
 pub async fn main<L: Logger>(
+    ctx: &AppContext,
     config: &Config,
     logger: &L,
     export: debug::BundleExport,
 ) -> Result<(), Report<Error>> {
-    let integration_errors = check_integrations(logger, config).await;
+    let integration_errors = check_integrations(ctx, logger, config).await;
     let fossa_connection_errors = check_fossa_connection(logger, config).await;
+    let integration_scan_errors: Vec<Error> = check_integrations_scan(ctx, logger, config).await;
     let had_errors = !integration_errors.is_empty() || !fossa_connection_errors.is_empty();
 
     print_errors(
@@ -319,6 +371,12 @@ pub async fn main<L: Logger>(
         logger,
         "\nErrors found while checking connection to FOSSA",
         fossa_connection_errors,
+    );
+
+    print_errors(
+        logger,
+        "\nErrors found while scanning integrations",
+        integration_scan_errors,
     );
 
     log!(logger, "\n{}\n", "Collecting debug bundle".bold().blue());
@@ -366,7 +424,11 @@ fn print_errors<L: Logger>(logger: &L, msg: &str, errors: Vec<Error>) {
 /// This is currently done by running `git ls-remote <remote>` using the authentication
 /// info from the transport.
 #[tracing::instrument(skip(config, logger))]
-async fn check_integrations<L: Logger>(logger: &L, config: &Config) -> Vec<Error> {
+async fn check_integrations<L: Logger>(
+    ctx: &AppContext,
+    logger: &L,
+    config: &Config,
+) -> Vec<Error> {
     let title = "\nDiagnosing connections to configured repositories\n"
         .bold()
         .blue()
@@ -394,6 +456,82 @@ async fn check_integration(integration: &Integration) -> Result<(), Error> {
         .await
         .or_else(|err| Error::integration_error(integration.remote(), transport, err).wrap_err())?;
     Ok(())
+}
+
+#[tracing::instrument(skip(config, logger))]
+async fn check_integrations_scan<L: Logger>(
+    ctx: &AppContext,
+    logger: &L,
+    config: &Config,
+) -> Vec<Error> {
+    let title = "\nDiagnosing scans to configured repositories\n"
+        .bold()
+        .blue()
+        .to_string();
+    logger.log(title);
+    let integrations = config.integrations();
+    let mut errors = Vec::new();
+
+    let cli_result =
+        fossa_cli::find_or_download(ctx, config.debug().location(), DesiredVersion::Latest).await;
+
+    let cli = match cli_result {
+        Ok(cli) => cli,
+        Err(err) => panic!("problem"),
+    };
+
+    /*
+    let valid_integrations: Vec<Integration> = integrations
+        .iter()
+        .filter_map(|integration| {
+            Some(async move {
+                if check_integration(&integration).await.is_ok() {
+                    Some(integration)
+                } else {
+                    None
+                }
+            })
+        })
+        .try_fold(
+            Vec::new(),
+            |mut valid_integrations: Vec<Integration>, integration| async {
+                valid_integrations.push(integration);
+                Ok(valid_integrations)
+            },
+        )
+        .await;
+    */
+
+    for integration in integrations.iter() {
+        let remote = integration.remote();
+        if check_integration(integration).await.is_ok() {
+            let references = integration.references().await.unwrap_or_default();
+
+            //println!("The references: {references:#?}");
+
+            for reference in references {
+                let cloned_location_result = integration.clone_reference(&reference).await;
+                let cloned_location = match cloned_location_result {
+                    Ok(cloned_location) => cloned_location,
+                    Err(err) => panic!("problem"),
+                };
+
+                println!("The cloned location: {cloned_location:#?}");
+
+                let scan_id = "test fix 1";
+
+                let source_units = cli.analyze(scan_id, cloned_location.path()).await;
+                match source_units {
+                    Ok(_) => logger.log("✅ check scan for {integration.remote()}"),
+                    Err(err) => {
+                        logger.log("❌ check scan for {integration.remote()}");
+                        errors.push(Error::integration_scan_error(remote, err));
+                    }
+                }
+            }
+        }
+    }
+    errors
 }
 
 #[tracing::instrument(skip(config, logger))]

@@ -385,6 +385,16 @@ async fn scan_git_reference<D: Database>(
         .await
         .change_context(Error::RunFossaCli)?;
 
+    /*
+       Broker fix notes
+       1. Clone reference
+       2. have stored in temp
+       3. move it to a permanent location (location tbd)
+       4. give user path to that permanent location so that the mitigation step can point them to run fossa analyze -o on the folder
+       5. give them the path to fossa
+           5.a this was given during the installation of fossa cli
+    */
+
     info!(
         "Scanned '{}' at '{}', enqueueing for upload",
         job.integration, job.reference
