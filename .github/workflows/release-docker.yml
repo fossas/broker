@@ -18,7 +18,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: Swatinem/rust-cache@v2
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - name: cargo-version
         run: echo "::set-output name=name::$(awk -F ' = ' '$1 ~ /version/ { gsub(/["]/, "", $2); printf("%s",$2) }' Cargo.toml)"
         id: tag

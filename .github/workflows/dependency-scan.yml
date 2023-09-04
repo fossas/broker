@@ -5,7 +5,7 @@ jobs:
   analyze:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - run: curl https://raw.githubusercontent.com/fossas/fossa-cli/master/install-latest.sh | bash
 
       # Just try to run fossa up to twice, for the case of temporary network or service issues.
