@@ -3,14 +3,14 @@ source: tests/it/fix.rs
 expression: logger.output()
 ---
 
-Diagnosing connections to configured repositories
-
-❌ https://github.com/fossas/doesnotexist.git
-
 Diagnosing connection to FOSSA
 
 ✅ check fossa API connection with no auth required
 ❌ check fossa API connection with auth required
+
+Diagnosing connections to configured repositories
+
+❌ https://github.com/fossas/doesnotexist.git
 
 Errors found while checking integrations
 
