@@ -46,3 +46,26 @@ jobs:
       with:
         tool: sqlx-cli
     - run: '! make migration-status | grep -q pending'
+
+  # Ensure all deps are used
+  unused-deps:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - uses: actions-rs/toolchain@v1
+      with:
+        profile: minimal
+        toolchain: stable
+
+    - uses: Swatinem/rust-cache@v2
+    - uses: taiki-e/install-action@v2
+      with:
+        tool: cargo-machete
+
+    # If you're here because CI is flagging a dependency as unused,
+    # but it really is used, you can add an exception!
+    #
+    # https://github.com/bnjbvr/cargo-machete#false-positives
+    - run: cargo machete
