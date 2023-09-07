@@ -10,13 +10,13 @@ Diagnosing connection to FOSSA
 
 Diagnosing connections to configured repositories
 
-❌ https://github.com/fossas/empty.git
+❌ https://github.com/fossas/broker-test-example.git
 
 Errors found while checking integrations
 
 ❌ Error downloading FOSSA CLI
 
-Broker encountered an error while trying to download the Fossa CLI in order to initiate a scan on 'https://github.com/fossas/empty.git'.
+Broker encountered an error while trying to download the Fossa CLI in order to initiate a scan on 'https://github.com/fossas/broker-test-example.git'.
 
 Please try following the installation instructions provided in the following link:
 

@@ -111,7 +111,7 @@ async fn with_failing_http_no_auth_download_cli() {
 
     set_snapshot_vars!();
     let (_, conf) = load_config!(
-        "testdata/config/basic-http-no-auth-empty-repo.yml",
+        "testdata/config/basic-http-no-auth.yml",
         "testdata/database/empty.sqlite"
     )
     .await;
