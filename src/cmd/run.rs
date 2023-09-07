@@ -129,19 +129,25 @@ async fn healthcheck<D: Database>(db: &D) -> Result<(), Error> {
 
 /// Job for scanning git vcs
 #[derive(Debug, Deserialize, Serialize)]
-struct ScanGitVCSReference {
+pub struct ScanGitVCSReference {
     scan_id: String,
     integration: Integration,
     reference: Reference,
 }
 
 impl ScanGitVCSReference {
-    fn new(integration: &Integration, reference: &Reference) -> Self {
+    /// Instantiate ScanGitVCSReference instance
+    pub fn new(integration: &Integration, reference: &Reference) -> Self {
         Self {
             scan_id: Uuid::new_v4().to_string(),
             integration: integration.to_owned(),
             reference: reference.to_owned(),
         }
+    }
+
+    /// Retrieve the instance's scan_id
+    pub fn get_scan_id(&self) -> &String {
+        &self.scan_id
     }
 }
 
@@ -384,16 +390,6 @@ async fn scan_git_reference<D: Database>(
         .analyze(&job.scan_id, cloned_location.path())
         .await
         .change_context(Error::RunFossaCli)?;
-
-    /*
-       Broker fix notes
-       1. Clone reference
-       2. have stored in temp
-       3. move it to a permanent location (location tbd)
-       4. give user path to that permanent location so that the mitigation step can point them to run fossa analyze -o on the folder
-       5. give them the path to fossa
-           5.a this was given during the installation of fossa cli
-    */
 
     info!(
         "Scanned '{}' at '{}', enqueueing for upload",

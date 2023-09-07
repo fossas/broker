@@ -165,9 +165,6 @@ async fn run_git(
     Ok(output)
 }
 
-// use this in broker fix to create this command that we show users
-// might want to do this same thing for fossa analyze
-
 /// Construct a pastable string containing a git command, including the default args and the environment required for the transport's auth
 #[tracing::instrument(skip(transport))]
 fn pastable_git_command(

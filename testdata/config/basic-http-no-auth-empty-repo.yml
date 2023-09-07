@@ -10,7 +10,7 @@ debugging:
 integrations:
   - type: git
     poll_interval: 1h
-    remote: https://github.com/fossas/broker-test-example.git
+    remote: https://github.com/fossas/empty.git
     auth:
       type: none
       transport: http

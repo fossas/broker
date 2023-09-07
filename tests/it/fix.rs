@@ -57,6 +57,8 @@ fn fix_output_filters() -> Vec<(&'static str, &'static str)> {
 async fn with_successful_http_no_auth_integration() {
     guard_integration_test!();
 
+    let (_tmp, _, ctx) = temp_config!(load);
+
     set_snapshot_vars!();
     let (_, conf) = load_config!(
         "testdata/config/basic-http-no-auth.yml",
@@ -65,7 +67,57 @@ async fn with_successful_http_no_auth_integration() {
     .await;
 
     let logger = TestLogger::new();
-    broker::cmd::fix::main(&conf, &logger, BundleExport::Disable)
+    broker::cmd::fix::main(&ctx, &conf, &logger, BundleExport::Disable)
+        .await
+        .expect("should run fix");
+
+    insta::with_settings!({ filters => fix_output_filters() },
+       {
+        assert_snapshot!(logger.output());
+       }
+    );
+}
+
+#[tokio::test]
+async fn with_failing_http_no_auth_integration_scan() {
+    guard_integration_test!();
+
+    let (_tmp, _, ctx) = temp_config!(load);
+
+    set_snapshot_vars!();
+    let (_, conf) = load_config!(
+        "testdata/config/basic-http-no-auth-empty-repo.yml",
+        "testdata/database/empty.sqlite"
+    )
+    .await;
+
+    let logger = TestLogger::new();
+    broker::cmd::fix::main(&ctx, &conf, &logger, BundleExport::Disable)
+        .await
+        .expect("should run fix");
+
+    insta::with_settings!({ filters => fix_output_filters() },
+       {
+        assert_snapshot!(logger.output());
+       }
+    );
+}
+
+#[tokio::test]
+async fn with_failing_http_no_auth_download_cli() {
+    guard_integration_test!();
+
+    let (_, _, ctx) = temp_config!(load);
+
+    set_snapshot_vars!();
+    let (_, conf) = load_config!(
+        "testdata/config/basic-http-no-auth-empty-repo.yml",
+        "testdata/database/empty.sqlite"
+    )
+    .await;
+
+    let logger = TestLogger::new();
+    broker::cmd::fix::main(&ctx, &conf, &logger, BundleExport::Disable)
         .await
         .expect("should run fix");
 
@@ -80,6 +132,8 @@ async fn with_successful_http_no_auth_integration() {
 async fn with_failing_http_basic_auth_integration() {
     guard_integration_test!();
 
+    let (_, _, ctx) = temp_config!(load);
+
     set_snapshot_vars!();
     let (_, conf) = load_config!(
         "testdata/config/basic-http-basic-bad-repo-name.yml",
@@ -87,7 +141,7 @@ async fn with_failing_http_basic_auth_integration() {
     )
     .await;
     let logger = TestLogger::new();
-    broker::cmd::fix::main(&conf, &logger, BundleExport::Disable)
+    broker::cmd::fix::main(&ctx, &conf, &logger, BundleExport::Disable)
         .await
         .expect("should run fix");
 
@@ -102,6 +156,8 @@ async fn with_failing_http_basic_auth_integration() {
 async fn with_failing_http_no_auth_integration() {
     guard_integration_test!();
 
+    let (_, _, ctx) = temp_config!(load);
+
     set_snapshot_vars!();
     let (_, conf) = load_config!(
         "testdata/config/private-repo-http-no-auth.yml",
@@ -110,7 +166,7 @@ async fn with_failing_http_no_auth_integration() {
     .await;
 
     let logger = TestLogger::new();
-    broker::cmd::fix::main(&conf, &logger, BundleExport::Disable)
+    broker::cmd::fix::main(&ctx, &conf, &logger, BundleExport::Disable)
         .await
         .expect("should run fix");
 
