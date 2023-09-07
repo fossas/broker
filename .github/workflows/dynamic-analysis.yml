@@ -13,11 +13,7 @@ jobs:
         - os: macos-latest
           toolchain: stable
         - os: windows-latest
-          # Windows uses 1.68 until the napi issue fixed in napi@0.4.1
-          # percolates its way up our dependency graph.
-          # https://github.com/MSxDOS/ntapi/issues/15
-          # (will require a new `yaque` version, since that's what transitively pulls this in).
-          toolchain: '1.68'
+          toolchain: '1.72'
     
     runs-on: ${{ matrix.os }}
     steps:
@@ -58,11 +54,7 @@ jobs:
         - os: macos-latest
           toolchain: stable
         - os: windows-latest
-          # Windows uses 1.68 until the napi issue fixed in napi@0.4.1
-          # percolates its way up our dependency graph.
-          # https://github.com/MSxDOS/ntapi/issues/15
-          # (will require a new `yaque` version, since that's what transitively pulls this in).
-          toolchain: '1.68'
+          toolchain: '1.72'
 
     runs-on: ${{ matrix.os }}
     steps:
