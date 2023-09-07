@@ -68,4 +68,9 @@ jobs:
     # but it really is used, you can add an exception!
     #
     # https://github.com/bnjbvr/cargo-machete#false-positives
+    #
+    # If it is unused, you can fix it by installing and running machete:
+    #
+    # cargo binstall cargo-machete
+    # cargo machete --fix
     - run: cargo machete
