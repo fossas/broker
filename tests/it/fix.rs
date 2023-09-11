@@ -71,10 +71,9 @@ async fn with_successful_http_no_auth_integration() {
         .await
         .expect("should run fix");
 
-    insta::with_settings!({ filters => fix_output_filters() },
-       {
-        assert_snapshot!(logger.output());
-       }
+    insta::with_settings!(
+        { filters => fix_output_filters() },
+        { assert_snapshot!(logger.output()); }
     );
 }
 
@@ -96,10 +95,9 @@ async fn with_failing_http_no_auth_integration_scan() {
         .await
         .expect("should run fix");
 
-    insta::with_settings!({ filters => fix_output_filters() },
-       {
-        assert_snapshot!(logger.output());
-       }
+    insta::with_settings!(
+        { filters => fix_output_filters() },
+        { assert_snapshot!(logger.output()); }
     );
 }
 
@@ -121,10 +119,9 @@ async fn with_failing_http_no_auth_download_cli() {
         .await
         .expect("should run fix");
 
-    insta::with_settings!({ filters => fix_output_filters() },
-       {
-        assert_snapshot!(logger.output());
-       }
+    insta::with_settings!(
+        { filters => fix_output_filters() },
+        { assert_snapshot!(logger.output()); }
     );
 }
 
@@ -145,10 +142,9 @@ async fn with_failing_http_basic_auth_integration() {
         .await
         .expect("should run fix");
 
-    insta::with_settings!({ filters => fix_output_filters() },
-       {
-        assert_snapshot!(logger.output());
-       }
+    insta::with_settings!(
+        { filters => fix_output_filters() },
+        { assert_snapshot!(logger.output()); }
     );
 }
 
@@ -170,10 +166,9 @@ async fn with_failing_http_no_auth_integration() {
         .await
         .expect("should run fix");
 
-    insta::with_settings!({ filters => fix_output_filters() },
-       {
-        assert_snapshot!(logger.output());
-       }
+    insta::with_settings!(
+        { filters => fix_output_filters() },
+        { assert_snapshot!(logger.output()); }
     );
 }
 

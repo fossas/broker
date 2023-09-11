@@ -13,7 +13,7 @@ jobs:
         - os: macos-latest
           toolchain: stable
         - os: windows-latest
-          toolchain: '1.72'
+          toolchain: stable
     
     runs-on: ${{ matrix.os }}
     steps:
@@ -54,7 +54,7 @@ jobs:
         - os: macos-latest
           toolchain: stable
         - os: windows-latest
-          toolchain: '1.72'
+          toolchain: stable
 
     runs-on: ${{ matrix.os }}
     steps:

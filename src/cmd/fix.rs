@@ -2,7 +2,6 @@
 
 use crate::{
     api::remote::RemoteProvider,
-    cmd::run::ScanGitVCSReference,
     debug::{self, bundler, Bundle, BundleExport},
     ext::secrecy::REDACTION_LITERAL,
     fossa_cli::{self, DesiredVersion},
@@ -13,6 +12,7 @@ use core::result::Result;
 use error_stack::{Report, ResultExt};
 use indoc::formatdoc;
 use std::time::Duration;
+use uuid::Uuid;
 
 use crate::{
     api::{
@@ -106,8 +106,8 @@ impl Error {
                 format!("❌ {remote}\n\n{msg}")
             }
             Error::CheckFossaGet { msg } => {
-                let error_string = "Error checking connection to FOSSA:".red();
-                format!("❌ {error_string} {msg}")
+                let err = "Error checking connection to FOSSA:".red();
+                format!("❌ {err} {msg}")
             }
             Error::CreateFullFossaUrl { remote, path } => {
                 format!("❌ Creating a full URL from your remote of '{remote}' and path = '{path}'")
@@ -116,16 +116,12 @@ impl Error {
                 "❌ Generating an example command for a remote".to_string()
             }
             Error::GenerateDebugBundle => "❌ Generating the debug bundle".to_string(),
-
             Error::CloneReference => "❌ Cloning Reference".to_string(),
-
             Error::DownloadFossaCli { msg } => {
-                let error_string = "Error downloading FOSSA CLI".red();
-                format!("❌ {error_string}\n\n{msg}")
+                let err = "Error downloading FOSSA CLI".red();
+                format!("❌ {err}\n\n{msg}")
             }
-
             Error::EmptyReferences => "❌ Empty References".to_string(),
-
             Error::CheckIntegrationScan { remote, msg, .. } => {
                 let remote = remote.to_string().red();
                 format!("❌ {remote}\n\n{msg}")
@@ -151,9 +147,7 @@ impl Error {
 
             Full error message from git:
 
-            {err}
-
-            "
+            {err}"
         );
         Error::CheckIntegrationConnection {
             remote: remote.clone(),
@@ -165,7 +159,7 @@ impl Error {
     fn integration_connection_explanation(
         transport: &transport::Transport,
     ) -> Result<String, Error> {
-        let shared_instructions = "Broker was unable to connect to this repository. Please make sure that the authentication info and the remote are set correctly in your config.yml file.";
+        let shared_instructions = "Broker was unable to connect to this repository. Ensure that the authentication info and the remote are set correctly in your config.yml file.";
         let base64_command = r#"echo -n "<username>:<password>" | base64"#.green();
 
         // Generate an example command. The basic command is `git ls-remote`, but there are other arguments and env variables added
@@ -181,7 +175,7 @@ impl Error {
                 ..
             } => {
                 formatdoc!(
-                    "You are using SSH keyfile authentication for this remote. This connects to your repository by setting the `GIT_SSH_COMMAND` environment variable with the path to the ssh key that you provided in your config file. Please make sure you can run the following command to verify the connection:
+                    "You are using SSH keyfile authentication for this remote. This connects to your repository by setting the `GIT_SSH_COMMAND` environment variable with the path to the ssh key that you provided in your config file. Ensure you can run the following command to verify the connection:
 
                     {command}"
                 )
@@ -191,7 +185,7 @@ impl Error {
                 ..
             } => {
                 formatdoc!(
-                    "You are using SSH key authentication for this remote. This method of authentication writes the SSH key that you provided in your config file to a temporary file, and then connects to your repository by setting the 'GIT_SSH_COMMAND' environment variable with the path to the temporary file. To debug this, please write the ssh key to a file and then make sure you can run the following command to verify the connection.
+                    "You are using SSH key authentication for this remote. This method of authentication writes the SSH key that you provided in your config file to a temporary file, and then connects to your repository by setting the 'GIT_SSH_COMMAND' environment variable with the path to the temporary file. To debug this, write the ssh key to a file and ensure you can run the following command to verify the connection.
 
                     Note that the path to the SSH key in this example command is a path to a temporary file that will no longer exist. You will need to edit this command to change the path to point at the file you just created.
 
@@ -205,7 +199,7 @@ impl Error {
                 ..
             } => {
                 formatdoc!(
-                    r#"You are using HTTP basic authentication for this remote. This method of authentication encodes the username and password as a base64 string and then passes that to git using the "http.extraHeader" parameter. To debug this, please make sure that the following commands work.
+                    r#"You are using HTTP basic authentication for this remote. This method of authentication encodes the username and password as a base64 string and then passes that to git using the "http.extraHeader" parameter. To debug this, ensure that the following commands work.
 
                     You generate the base64 encoded username and password by joining them with a ":" and then base64 encoding them. If your username was "pat" and your password was "password123", then you would base64 encode "pat:password123". For example, you can use a command like this:
 
@@ -221,7 +215,7 @@ impl Error {
                 ..
             } => {
                 formatdoc!(
-                    r#"You are using HTTP header authentication for this remote. This method of authentication passes the header that you have provided in your config file to git using the "http.extraHeader" parameter. To debug this, please make sure the following command works, after replacing {REDACTION_LITERAL} with the header from your config file:
+                    r#"You are using HTTP header authentication for this remote. This method of authentication passes the header that you have provided in your config file to git using the "http.extraHeader" parameter. To debug this, ensure the following command works, after replacing {REDACTION_LITERAL} with the header from your config file:
 
                     {command}
 
@@ -233,13 +227,13 @@ impl Error {
 
                     {base64_command}
 
-                    The username you use depends on the git hosting platform you are authenticating to. For details on this, please see the 'config.example.yml' file in your broker config directory. You can re-generate this file at any time by running 'broker init'.
+                    The username you use depends on the git hosting platform you are authenticating to. For details on this, see the 'config.example.yml' file in your broker config directory. You can re-generate this file at any time by running 'broker init'.
                     "#
                 )
             }
             transport::Transport::Http { auth: None, .. } => {
                 formatdoc!(
-                    r#"You are using http transport with no authentication for this integration. To debug this, please make sure that the following command works:
+                    r#"You are using http transport with no authentication for this integration. To debug this, ensure that the following command works:
 
                     {command}"#
                 )
@@ -253,11 +247,9 @@ impl Error {
         let explanation = Self::integration_scan_explanation(remote, branch);
 
         let msg = formatdoc!(
-            "
-            Broker encountered an error while scanning your git remote at '{remote}' on branch '{branch}'.
+            "Broker encountered an error while scanning your git remote at '{remote}' on branch '{branch}'.
 
-            {explanation}
-            "
+            {explanation}"
         );
         Error::CheckIntegrationScan {
             remote: remote.clone(),
@@ -285,11 +277,9 @@ impl Error {
         let explanation = Self::download_cli_explanation();
 
         let msg = formatdoc!(
-            "
-            Broker encountered an error while trying to download the Fossa CLI in order to initiate a scan on '{remote}'.
+            "Broker encountered an error while trying to download the Fossa CLI in order to initiate a scan on '{remote}'.
 
-            {explanation}
-            "
+            {explanation}"
         );
         Error::DownloadFossaCli { msg }
     }
@@ -298,12 +288,11 @@ impl Error {
         let url_reference = "https://github.com/fossas/fossa-cli/#installation".green();
 
         formatdoc!(
-            "Please try following the installation instructions provided in the following link:
+            "Follow the installation instructions provided in the following link:
 
             {url_reference}
 
-            This will ensure that you have Fossa CLI correctly configured on your machine.
-            "
+            This will ensure that you have Fossa CLI correctly configured on your machine."
         )
     }
 
@@ -373,12 +362,11 @@ impl Error {
 
             {specific_error_message}
 
-            The URL Broker attempted to connect to was '{url}'. Please make sure you can make a request to that URL. For example, try this curl command:
+            The URL Broker attempted to connect to was '{url}'. Make sure you can make a request to that URL. For example, try this curl command:
 
             {example_command}
 
-            Full error message: {err}
-            "
+            Full error message: {err}"
         )
     }
 }
@@ -486,14 +474,14 @@ async fn check_integrations<L: Logger>(
     let mut errors = Vec::new();
     for integration in integrations.iter() {
         let remote = integration.remote();
-        match check_integration_connection(integration).await {
-            Ok(()) => match check_integration_scan(ctx, config, integration).await {
-                Ok(()) => log!(logger, "✅ {remote}"),
-                Err(err) => {
-                    log!(logger, "❌ {remote}");
-                    errors.push(err);
-                }
-            },
+        if let Err(err) = check_integration_connection(integration).await {
+            log!(logger, "❌ {remote}");
+            errors.push(err);
+            continue;
+        }
+
+        match check_integration_scan(ctx, config, integration).await {
+            Ok(_) => log!(logger, "✅ {remote}"),
             Err(err) => {
                 log!(logger, "❌ {remote}");
                 errors.push(err);
@@ -524,30 +512,28 @@ async fn check_integration_scan(
         .or_else(|_err| Error::download_cli_error(remote).wrap_err())?;
 
     let references = integration.references().await.unwrap_or_default();
-    if references.is_empty() {
+    let Some(reference) = references.first().cloned() else {
         return Error::EmptyReferences.wrap_err();
-    }
-    let mut reference = &references.clone()[0];
+    };
 
-    let main_reference = references
-        .into_iter()
-        .filter(|r| r.get_name().as_str() == MAIN_BRANCH || r.get_name().as_str() == MASTER_BRANCH)
-        .collect::<Vec<_>>();
-
-    if !main_reference.is_empty() {
-        reference = &main_reference[0];
-    }
+    let reference = references
+        .iter()
+        .find(|r| r.name() == MAIN_BRANCH || r.name() == MASTER_BRANCH)
+        .cloned()
+        .unwrap_or(reference);
 
     let cloned_location = integration
-        .clone_reference(reference)
+        .clone_reference(&reference)
         .await
         .or_else(|_err| Error::CloneReference.wrap_err())?;
 
-    let job = ScanGitVCSReference::new(integration, reference);
+    let scan_id = Uuid::new_v4().to_string();
 
-    cli.analyze(job.get_scan_id(), cloned_location.path())
+    cli.analyze(&scan_id, cloned_location.path())
         .await
-        .or_else(|_err| Error::integration_scan_error(remote, reference.get_name()).wrap_err())?;
+        .or_else(|_err| {
+            Error::integration_scan_error(remote, &reference.name().to_string()).wrap_err()
+        })?;
 
     Ok(())
 }

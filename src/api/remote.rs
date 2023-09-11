@@ -248,10 +248,10 @@ impl Reference {
         }
     }
 
-    /// Retrieves name of reference
-    pub fn get_name(&self) -> &String {
+    /// The name of the reference's branch or tag
+    pub fn name(&self) -> &str {
         match self {
-            Reference::Git(git) => git.name(),
+            Reference::Git(git) => git.name().as_str(),
         }
     }
 }

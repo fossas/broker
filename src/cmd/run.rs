@@ -129,7 +129,7 @@ async fn healthcheck<D: Database>(db: &D) -> Result<(), Error> {
 
 /// Job for scanning git vcs
 #[derive(Debug, Deserialize, Serialize)]
-pub struct ScanGitVCSReference {
+struct ScanGitVCSReference {
     scan_id: String,
     integration: Integration,
     reference: Reference,
@@ -137,17 +137,12 @@ pub struct ScanGitVCSReference {
 
 impl ScanGitVCSReference {
     /// Instantiate ScanGitVCSReference instance
-    pub fn new(integration: &Integration, reference: &Reference) -> Self {
+    fn new(integration: &Integration, reference: &Reference) -> Self {
         Self {
             scan_id: Uuid::new_v4().to_string(),
             integration: integration.to_owned(),
             reference: reference.to_owned(),
         }
-    }
-
-    /// Retrieve the instance's scan_id
-    pub fn get_scan_id(&self) -> &String {
-        &self.scan_id
     }
 }
 

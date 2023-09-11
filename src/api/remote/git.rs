@@ -40,7 +40,7 @@ impl Display for Reference {
 }
 
 impl Reference {
-    /// Retrieves name of reference
+    /// The name of the reference's branch or tag
     pub fn name(&self) -> &String {
         match self {
             Self::Branch { name, .. } => name,

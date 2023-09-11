@@ -18,12 +18,11 @@ Errors found while checking connection to FOSSA
 
 Broker received an "Unauthorized" status response from FOSSA. This can mean that the fossa_integration_key configured in your config.yml file is not correct. You can obtain a FOSSA API key by going to Settings => Integrations => API in the FOSSA application.
 
-The URL Broker attempted to connect to was 'https://app.fossa.com/api/cli/organization'. Please make sure you can make a request to that URL. For example, try this curl command:
+The URL Broker attempted to connect to was 'https://app.fossa.com/api/cli/organization'. Make sure you can make a request to that URL. For example, try this curl command:
 
 curl -H "Authorization: Bearer <your fossa api key>" https://app.fossa.com/api/cli/organization
 
 Full error message: HTTP status client error (401 Unauthorized) for url (https://app.fossa.com/api/cli/organization)
-
 
 Collecting debug bundle
 

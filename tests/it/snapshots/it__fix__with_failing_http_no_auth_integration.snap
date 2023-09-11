@@ -18,9 +18,9 @@ Errors found while checking integrations
 
 Broker encountered an error while trying to connect to your git remote at 'http://github.com/github/doesnotexist.git'.
 
-Broker was unable to connect to this repository. Please make sure that the authentication info and the remote are set correctly in your config.yml file.
+Broker was unable to connect to this repository. Ensure that the authentication info and the remote are set correctly in your config.yml file.
 
-You are using http transport with no authentication for this integration. To debug this, please make sure that the following command works:
+You are using http transport with no authentication for this integration. To debug this, ensure that the following command works:
 
 GIT_TERMINAL_PROMPT='0' GCM_INTERACTIVE='never' GIT_ASKPASS='' git -c credential.helper= ls-remote --quiet http://github.com/github/doesnotexist.git
 
@@ -33,20 +33,17 @@ status: 128
 stdout: ''
 stderr: '{git authentication or missing repo error}'
 
-
-
 Errors found while checking connection to FOSSA
 
 ❌ Error checking connection to FOSSA: GET to fossa endpoint 'https://app.fossa.com/api/cli/organization' with authentication required
 
 Broker received an "Unauthorized" status response from FOSSA. This can mean that the fossa_integration_key configured in your config.yml file is not correct. You can obtain a FOSSA API key by going to Settings => Integrations => API in the FOSSA application.
 
-The URL Broker attempted to connect to was 'https://app.fossa.com/api/cli/organization'. Please make sure you can make a request to that URL. For example, try this curl command:
+The URL Broker attempted to connect to was 'https://app.fossa.com/api/cli/organization'. Make sure you can make a request to that URL. For example, try this curl command:
 
 curl -H "Authorization: Bearer <your fossa api key>" https://app.fossa.com/api/cli/organization
 
 Full error message: HTTP status client error (401 Unauthorized) for url (https://app.fossa.com/api/cli/organization)
-
 
 Collecting debug bundle
 
