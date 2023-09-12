@@ -163,6 +163,10 @@ struct BrokerVersionRow {
 struct RepoStateRow {
     repo_state: Vec<u8>,
 }
+#[derive(Debug)]
+struct ImportBranchesRow {
+    import_branches: bool,
+}
 
 #[async_trait]
 impl super::Database for Database {
@@ -244,23 +248,49 @@ impl super::Database for Database {
     }
 
     #[tracing::instrument(fields(result))]
-    async fn set_state(&self, coordinate: &Coordinate, state: &[u8]) -> Result<(), super::Error> {
+    async fn set_state(
+        &self,
+        coordinate: &Coordinate,
+        state: &[u8],
+        import_branches: &bool,
+        import_tags: &bool,
+    ) -> Result<(), super::Error> {
         let integration = coordinate.namespace.to_string();
         query!(
             r#"
-            insert into repo_state values (?, ?, ?, ?)
+            insert into repo_state values (?, ?, ?, ?, ?, ?)
             on conflict do update set repo_state = excluded.repo_state
             "#,
             integration,
             coordinate.remote,
             coordinate.reference,
-            state
+            state,
+            import_branches,
+            import_tags
         )
         .execute(&self.internal)
         .await
         .map(|result| span_record!(result, debug result))
         .context(Error::Communication)
         .change_context(super::Error::Interact)
+    }
+
+    #[tracing::instrument(fields(result))]
+    async fn import_branches(&self, coordinate: &Coordinate) -> Result<Option<bool>, super::Error> {
+        let integration = coordinate.namespace.to_string();
+        query_as!(
+            ImportBranchesRow,
+            "select import_branches from repo_state where integration = ? and repository = ? and revision = ?",
+            integration,
+            coordinate.remote,
+            coordinate.reference
+        )
+        .fetch_optional(&self.internal)
+        .await
+        .tap_ok(|raw| span_record!(import_branches_field, debug raw))
+        .context(Error::Communication)
+        .change_context(super::Error::Interact)
+        .map(|result| result.map(|row| row.import_branches))
     }
 }
 

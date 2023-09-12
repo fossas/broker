@@ -17,6 +17,7 @@ use derive_more::{AsRef, Display, From};
 use derive_new::new;
 use error_stack::{ensure, report, Report, ResultExt};
 use getset::{CopyGetters, Getters};
+use glob::Pattern;
 use humantime::parse_duration;
 use serde::{Deserialize, Serialize};
 use tempfile::TempDir;
@@ -128,6 +129,18 @@ pub struct Integration {
     #[getset(get = "pub")]
     #[builder(setter(into))]
     protocol: Protocol,
+
+    /// Specifies if we want to scan specific branches
+    #[getset(get = "pub")]
+    import_branches: Option<bool>,
+
+    /// Specifies if we want to scan specific tags
+    #[getset(get = "pub")]
+    import_tags: Option<bool>,
+
+    /// The name of the branches we want to scan
+    #[getset(get = "pub")]
+    watched_branches: Option<Vec<String>>,
 }
 
 impl Display for Integration {
@@ -150,6 +163,26 @@ impl Integration {
     /// The endpoint for the integration.
     pub fn endpoint(&self) -> &Remote {
         self.protocol().endpoint()
+    }
+
+    /// Checks if the reference should be scanned by comparing it to our watched branches
+    pub fn validate_reference_scan(&self, reference: &str) -> bool {
+        if let Some(branches) = self.watched_branches() {
+            for branch in branches {
+                match Pattern::new(branch.as_str()) {
+                    Ok(p) => {
+                        //println!("the pattern: {p:#?}");
+                        //println!("the match result: {:#?}", p.matches(reference));
+                        if p.matches(reference) {
+                            return true;
+                        }
+                    }
+                    Err(_e) => continue,
+                }
+            }
+        };
+
+        false
     }
 }
 
@@ -196,7 +229,7 @@ impl PollInterval {
 /// This is set because Broker is intended to bring eventual observability;
 /// if users want faster polling than this it's probably because they want to make sure they don't miss revisions,
 /// in such a case we recommend CI integration.
-pub const MIN_POLL_INTERVAL: Duration = Duration::from_secs(60 * 60);
+pub const MIN_POLL_INTERVAL: Duration = Duration::from_secs(15);
 
 impl TryFrom<String> for PollInterval {
     type Error = Report<ValidationError>;
@@ -222,6 +255,18 @@ pub enum RemoteProviderError {
     RunCommand,
 }
 
+/// The integration's branch that you intend to scan
+#[derive(Debug, Clone, PartialEq, Eq, AsRef, Display, Deserialize, Serialize, new)]
+pub struct Branch(String);
+
+impl TryFrom<String> for Branch {
+    type Error = Report<ValidationError>;
+
+    fn try_from(value: String) -> Result<Self, Self::Error> {
+        Branch(value).wrap_ok()
+    }
+}
+
 /// Remotes can reference specific points in time on a remote unit of code.
 #[derive(Debug, Clone, Hash, Eq, PartialEq, Serialize, Deserialize)]
 pub enum Reference {
@@ -245,6 +290,20 @@ impl Reference {
     pub fn as_state(&self) -> &[u8] {
         match self {
             Reference::Git(git) => git.as_state(),
+        }
+    }
+
+    /// The name of the reference's branch or tag
+    pub fn name(&self) -> &str {
+        match self {
+            Reference::Git(git) => git.name(),
+        }
+    }
+
+    /// boop
+    pub fn reference_type(&self) -> &git::Reference {
+        match self {
+            Reference::Git(reference) => reference,
         }
     }
 }

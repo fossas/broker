@@ -76,7 +76,7 @@ fn validate(config: RawConfigV1) -> Result<super::Config, Report<Error>> {
         .collect::<Result<Vec<_>, Report<remote::ValidationError>>>()
         .change_context(Error::Validate)
         .map(remote::Integrations::new)?;
-
+    println!("These are our integrations: {integrations:#?}");
     super::Config::new(api, debugging, integrations).wrap_ok()
 }
 
@@ -135,6 +135,9 @@ pub(super) enum Integration {
         title: Option<String>,
         remote: String,
         auth: Auth,
+        import_branches: Option<bool>,
+        import_tags: Option<bool>,
+        watched_branches: Option<Vec<String>>,
     },
 }
 
@@ -149,9 +152,22 @@ impl TryFrom<Integration> for remote::Integration {
                 team,
                 title,
                 auth,
+                import_branches,
+                import_tags,
+                watched_branches,
             } => {
                 let poll_interval = remote::PollInterval::try_from(poll_interval)?;
                 let endpoint = remote::Remote::try_from(remote)?;
+                let import_branches = match import_branches {
+                    Some(val) => Some(val),
+                    None => Some(true),
+                };
+                let import_tags = match import_tags {
+                    Some(val) => Some(val),
+                    None => Some(false),
+                };
+                println!("the watched branchs: {watched_branches:?}");
+                //let watched_branches = watched_branches.into_iter().map(remote::Branch::try_from).collect<Result<Vec<_>, Report<remote::ValidationError>>>();
                 let protocol = match auth {
                     Auth::SshKeyFile { path } => {
                         let auth = ssh::Auth::KeyFile(path);
@@ -190,6 +206,9 @@ impl TryFrom<Integration> for remote::Integration {
                     .team(team)
                     .title(title)
                     .protocol(protocol)
+                    .import_branches(import_branches)
+                    .import_tags(import_tags)
+                    .watched_branches(watched_branches)
                     .build()
                     .wrap_ok()
             }

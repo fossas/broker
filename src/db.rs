@@ -89,7 +89,16 @@ pub trait Database: Debug + Clone + Send + Sync {
     async fn state(&self, coordinate: &Coordinate) -> Result<Option<Vec<u8>>, Error>;
 
     /// Set the state of a given [`Coordinate`].
-    async fn set_state(&self, coordinate: &Coordinate, state: &[u8]) -> Result<(), Error>;
+    async fn set_state(
+        &self,
+        coordinate: &Coordinate,
+        state: &[u8],
+        import_branches: &bool,
+        import_tags: &bool,
+    ) -> Result<(), Error>;
+
+    /// Get the import_branches value of a given [`Coordinate`].
+    async fn import_branches(&self, coordinate: &Coordinate) -> Result<Option<bool>, Error>;
 }
 
 /// Connect to the sqlite database implementation.

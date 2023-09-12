@@ -1,5 +1,6 @@
 //! Implementation for the `run` subcommand.
 
+use std::cell::Ref;
 use std::time::Duration;
 
 use error_stack::{Result, ResultExt};
@@ -18,7 +19,7 @@ use tracing::{debug, info};
 use uuid::Uuid;
 
 use crate::api::fossa::{self, CliMetadata, ProjectMetadata};
-use crate::api::remote::Reference;
+use crate::api::remote::{git, Reference};
 use crate::ext::tracing::span_record;
 use crate::fossa_cli::{self, DesiredVersion, Location, SourceUnits};
 use crate::queue::Queue;
@@ -272,6 +273,21 @@ async fn execute_poll_integration<D: Database>(
             // which makes binding it across an await point easier (no lifetimes to mess with).
             .filter_map(|reference| async {
                 let coordinate = reference.as_coordinate(&remote);
+                
+                if !integration.validate_reference_scan(reference.name()){
+                    println!("We are skipping: {reference:#?}");
+                    return None
+                }
+
+                println!("Testing: {:#?}", reference.reference_type());
+                println!("Reference State: {:#?}", reference.as_state());
+                match reference.reference_type() {
+                    git::Reference::Branch {..} => println!("This is a branch!"),
+                    git::Reference::Tag{..}  => println!("this is a tag!"),
+                }
+                
+
+                let coordinate = reference.as_coordinate(&remote);
                 match db.state(&coordinate).await {
                     // No previous state; this must be a new reference.
                     Ok(None) => Some(Ok(reference)),
@@ -304,6 +320,7 @@ async fn execute_poll_integration<D: Database>(
             Problems at this stage are most likely caused by a database error.
             Broker manages a local sqlite database; deleting it so it can be re-generated from scratch may resolve the issue.
             "})?;
+    println!("Filtered references: {references:#?}");
 
     // We sink the references here instead of during the stream so that
     // if an error is encountered reading the stream, we don't send partial lists.
@@ -445,10 +462,12 @@ async fn execute_upload_scans<D: Database>(
     let remote = job.integration.remote().to_owned();
     let coordinate = job.reference.as_coordinate(&remote);
     let state = job.reference.as_state();
+    let import_branches = job.integration.import_branches().unwrap_or(true);
+    let import_tags = job.integration.import_tags().unwrap_or(false);
 
     // Mark this reference as scanned in the local DB.
     ctx.db
-        .set_state(&coordinate, state)
+        .set_state(&coordinate, state, &import_branches, &import_tags)
         .await
         .change_context(Error::TaskSetState)
 }
