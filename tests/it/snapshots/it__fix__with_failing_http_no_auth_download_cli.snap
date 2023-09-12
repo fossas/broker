@@ -24,6 +24,10 @@ https://github.com/fossas/fossa-cli/#installation
 
 This will ensure that you have Fossa CLI correctly configured on your machine.
 
+Full error message from Fossa CLI:
+
+download FOSSA CLI from github
+
 Errors found while checking connection to FOSSA
 
 ❌ Error checking connection to FOSSA: GET to fossa endpoint 'https://app.fossa.com/api/cli/organization' with authentication required

@@ -40,9 +40,9 @@ pub enum Error {
     /// Check integration connection
     #[error("check integration connection for {remote}\n{error}")]
     CheckIntegrationConnection {
-        /// the remote that the integration check failed for
+        /// The remote that the integration check failed for
         remote: Remote,
-        /// the error returned by the integration check
+        /// The error returned by the integration check
         error: String,
         /// A message explaining how to fix this error
         msg: String,
@@ -51,9 +51,9 @@ pub enum Error {
     /// Check integration scan
     #[error("check integration scan for {remote} on {branch}")]
     CheckIntegrationScan {
-        /// the remote that the scan for the integration failed for
+        /// The remote that the scan for the integration failed for
         remote: Remote,
-        /// the branch that the scan for the integration failed for
+        /// The branch that the scan for the integration failed for
         branch: String,
         /// A message explaining how to fix this error
         msg: String,
@@ -538,11 +538,9 @@ async fn check_integration_scan(
 
     let references = integration.references().await.unwrap_or_default();
 
-    if let Err(references.first().cloned()) {
-        warn!("Empty references for {integration:#?}");
-    }
     let Some(reference) = references.first().cloned() else {
-        warn!("Empty references for {integration:#?}")
+        warn!("Empty references for {integration:#?}");
+        return Ok(());
     };
 
     let reference = references
@@ -558,6 +556,8 @@ async fn check_integration_scan(
 
     let scan_id = Uuid::new_v4().to_string();
 
+    // The error from analyze is overloaded with debug details
+    // Discarding the error here and pointing users to the broker fix explanation for concise error message
     cli.analyze(&scan_id, cloned_location.path())
         .await
         .or_else(|_err| {
