@@ -1,7 +1,7 @@
 //! Implementation for the fix command
 
 use crate::{
-    api::remote::RemoteProvider,
+    api::remote::{Reference, RemoteProvider, RemoteProviderError},
     debug::{self, bundler, Bundle, BundleExport},
     ext::secrecy::REDACTION_LITERAL,
     fossa_cli::{self, DesiredVersion},
@@ -12,6 +12,7 @@ use core::result::Result;
 use error_stack::{Report, ResultExt};
 use indoc::formatdoc;
 use std::time::Duration;
+use tracing::warn;
 use uuid::Uuid;
 
 use crate::{
@@ -87,15 +88,30 @@ pub enum Error {
     DownloadFossaCli {
         /// A message explaining how to fix this error
         msg: String,
+        /// The error returned from downloading the cli
+        error: String,
     },
 
     /// Cloning Reference
     #[error("clone reference")]
-    CloneReference,
+    CloneReference {
+        /// The reference that failed to be cloned
+        reference: Reference,
+        /// The error returned from cloning the reference
+        error: String,
+        /// A message explaining how to fix this error
+        msg: String,
+    },
+}
 
-    /// Empty References
-    #[error("empty reference")]
-    EmptyReferences,
+#[cfg(target_family = "windows")]
+fn cli_command() -> &'static str {
+    "PATH ; fossa.exe analyze -o"
+}
+
+#[cfg(target_family = "unix")]
+fn cli_command() -> &'static str {
+    r#"PATH="" fossa analyze -o"#
 }
 
 impl Error {
@@ -115,17 +131,19 @@ impl Error {
             Error::GenerateExampleCommand => {
                 "❌ Generating an example command for a remote".to_string()
             }
-            Error::GenerateDebugBundle => "❌ Generating the debug bundle".to_string(),
-            Error::CloneReference => "❌ Cloning Reference".to_string(),
-            Error::DownloadFossaCli { msg } => {
-                let err = "Error downloading FOSSA CLI".red();
-                format!("❌ {err}\n\n{msg}")
-            }
-            Error::EmptyReferences => "❌ Empty References".to_string(),
             Error::CheckIntegrationScan { remote, msg, .. } => {
                 let remote = remote.to_string().red();
                 format!("❌ {remote}\n\n{msg}")
             }
+            Error::CloneReference { msg, .. } => {
+                let err = "❌ Cloning Reference".to_string();
+                format!("❌ {err}\n\n{msg}")
+            }
+            Error::DownloadFossaCli { msg, .. } => {
+                let err = "Error downloading FOSSA CLI".red();
+                format!("❌ {err}\n\n{msg}")
+            }
+            Error::GenerateDebugBundle => "❌ Generating the debug bundle".to_string(),
         }
     }
 
@@ -244,12 +262,19 @@ impl Error {
     }
 
     fn integration_scan_error(remote: &Remote, branch: &String) -> Self {
-        let explanation = Self::integration_scan_explanation(remote, branch);
+        let cli_command = cli_command().green();
+        let git_command = format!("git clone -b {} {}", branch, remote).green();
 
         let msg = formatdoc!(
             "Broker encountered an error while scanning your git remote at '{remote}' on branch '{branch}'.
 
-            {explanation}"
+            To view the error, you must first download the failing integration. You can download the integration by using the following command:
+
+            {git_command} 
+             
+            Once the download is complete, you can debug the issue by running the following command in directory of your downloaded integration:
+             
+            {cli_command}"
         );
         Error::CheckIntegrationScan {
             remote: remote.clone(),
@@ -258,42 +283,42 @@ impl Error {
         }
     }
 
-    fn integration_scan_explanation(remote: &Remote, branch: &String) -> String {
-        let cli_command = r#"PATH="" fossa analyze -o"#.green();
-        let git_command = format!("git clone -b {} {}", branch, remote).green();
-
-        formatdoc!(
-            "To view the error, you must first download the failing integration. You can download the integration by using the following command:
-
-             {git_command} 
-             
-             Once the download is complete, you can debug the issue by running the following command in directory of your downloaded integration:
-             
-             {cli_command}"
-        )
-    }
-
-    fn download_cli_error(remote: &Remote) -> Self {
-        let explanation = Self::download_cli_explanation();
+    fn download_cli_error(remote: &Remote, err: Report<fossa_cli::Error>) -> Self {
+        let url_reference = "https://github.com/fossas/fossa-cli/#installation".green();
 
         let msg = formatdoc!(
             "Broker encountered an error while trying to download the Fossa CLI in order to initiate a scan on '{remote}'.
 
-            {explanation}"
-        );
-        Error::DownloadFossaCli { msg }
-    }
-
-    fn download_cli_explanation() -> String {
-        let url_reference = "https://github.com/fossas/fossa-cli/#installation".green();
-
-        formatdoc!(
-            "Follow the installation instructions provided in the following link:
+            Follow the installation instructions provided in the following link:
 
             {url_reference}
 
-            This will ensure that you have Fossa CLI correctly configured on your machine."
-        )
+            This will ensure that you have Fossa CLI correctly configured on your machine.
+            
+            Full error message from Fossa CLI:
+            
+            {err}"
+        );
+        Error::DownloadFossaCli {
+            msg,
+            error: err.to_string(),
+        }
+    }
+
+    fn clone_reference_error(reference: &Reference, err: Report<RemoteProviderError>) -> Self {
+        let msg = formatdoc!(
+            "Broker encountered an error while trying to clone reference: {reference}
+            
+            Full error message:
+
+            {err}"
+        );
+
+        Error::CloneReference {
+            reference: reference.clone(),
+            error: err.to_string(),
+            msg,
+        }
     }
 
     fn fossa_integration_error(
@@ -509,11 +534,15 @@ async fn check_integration_scan(
     let remote = integration.remote();
     let cli = fossa_cli::find_or_download(ctx, config.debug().location(), DesiredVersion::Latest)
         .await
-        .or_else(|_err| Error::download_cli_error(remote).wrap_err())?;
+        .or_else(|err| Error::download_cli_error(remote, err).wrap_err())?;
 
     let references = integration.references().await.unwrap_or_default();
+
+    if let Err(references.first().cloned()) {
+        warn!("Empty references for {integration:#?}");
+    }
     let Some(reference) = references.first().cloned() else {
-        return Error::EmptyReferences.wrap_err();
+        warn!("Empty references for {integration:#?}")
     };
 
     let reference = references
@@ -525,7 +554,7 @@ async fn check_integration_scan(
     let cloned_location = integration
         .clone_reference(&reference)
         .await
-        .or_else(|_err| Error::CloneReference.wrap_err())?;
+        .or_else(|err| Error::clone_reference_error(&reference, err).wrap_err())?;
 
     let scan_id = Uuid::new_v4().to_string();
 
