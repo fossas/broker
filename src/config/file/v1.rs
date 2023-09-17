@@ -2,13 +2,14 @@
 
 use std::path::PathBuf;
 
+use dirs::config_dir;
 use error_stack::{report, Report, ResultExt};
 use serde::Deserialize;
 
 use crate::{
     api::{
         fossa, http,
-        remote::{self, git},
+        remote::{self, git, RemoteProvider},
         ssh,
     },
     debug,
@@ -76,7 +77,7 @@ fn validate(config: RawConfigV1) -> Result<super::Config, Report<Error>> {
         .collect::<Result<Vec<_>, Report<remote::ValidationError>>>()
         .change_context(Error::Validate)
         .map(remote::Integrations::new)?;
-    println!("These are our integrations: {integrations:#?}");
+
     super::Config::new(api, debugging, integrations).wrap_ok()
 }
 
@@ -158,14 +159,23 @@ impl TryFrom<Integration> for remote::Integration {
             } => {
                 let poll_interval = remote::PollInterval::try_from(poll_interval)?;
                 let endpoint = remote::Remote::try_from(remote)?;
-                let import_branches = match import_branches {
-                    Some(val) => Some(val),
-                    None => Some(true),
-                };
-                let import_tags = match import_tags {
-                    Some(val) => Some(val),
-                    None => Some(false),
-                };
+                let import_branches = import_branches.unwrap_or(true);
+                let import_tags = import_tags.unwrap_or(false);
+                // .collect::<Vec<remote::WatchedBranch>>()
+                let watched_branches = watched_branches
+                    .unwrap_or_default()
+                    .into_iter()
+                    .map(remote::WatchedBranch::new)
+                    .collect::<Vec<remote::WatchedBranch>>();
+                //.map(|watched_branch| remote::WatchedBranches::new);
+
+                if !import_branches && !watched_branches.is_empty() {
+                    report!(remote::ValidationError::ImportBranchesWatchedBranches)
+                        .wrap_err()
+                        .help("import branches must be 'true' if watched branches are provided")
+                        .describe_lazy(|| "import branches: 'false'".to_string())?
+                }
+
                 println!("the watched branchs: {watched_branches:?}");
                 //let watched_branches = watched_branches.into_iter().map(remote::Branch::try_from).collect<Result<Vec<_>, Report<remote::ValidationError>>>();
                 let protocol = match auth {

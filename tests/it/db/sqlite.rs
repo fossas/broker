@@ -137,10 +137,11 @@ async fn roundtrip_state() {
     );
 
     let state = db.state(&coordinate).await.expect("must get state");
+    let is_branch = true;
     assert!(state.is_none(), "db state was unset, so must be none");
 
     let state = b"some state";
-    db.set_state(&coordinate, state)
+    db.set_state(&coordinate, state, &is_branch)
         .await
         .expect("must set state");
 
@@ -149,5 +150,126 @@ async fn roundtrip_state() {
         .await
         .expect("must get state")
         .expect("state must have been set");
+    println!("state: {state:#?}   and new state: {new_state:#?}");
     assert_eq!(new_state, state);
+}
+
+#[tokio::test]
+async fn remove_all_branch_states() {
+    let (_tmp, db, _path) = temp_db!();
+
+    let coordinate = Coordinate::new(
+        broker::db::Namespace::Git,
+        String::from("some repo"),
+        String::from("some reference"),
+    );
+    let coordinate2 = Coordinate::new(
+        broker::db::Namespace::Git,
+        String::from("some repo 2"),
+        String::from("some reference 2"),
+    );
+
+    let state = db.state(&coordinate).await.expect("must get state");
+    let state2 = db.state(&coordinate2).await.expect("must get state");
+
+    let is_branch = true;
+    assert!(state.is_none(), "db state was unset, so must be none");
+    assert!(state2.is_none(), "db state was unset, so must be none");
+
+    let state = b"some state";
+    let state2 = b"some state 2";
+    db.set_state(&coordinate, state, &is_branch)
+        .await
+        .expect("must set state");
+    db.set_state(&coordinate2, state2, &is_branch)
+        .await
+        .expect("must set state");
+
+    let new_state = db
+        .state(&coordinate)
+        .await
+        .expect("must get state")
+        .expect("state must have been set");
+    let new_state2 = db
+        .state(&coordinate2)
+        .await
+        .expect("must get state")
+        .expect("state must have been set");
+    assert_eq!(new_state, state);
+    assert_eq!(new_state2, state2);
+
+    let remote = "some repo";
+    let remote2 = "some repo 2";
+    db.delete_states(remote, is_branch)
+        .await
+        .expect("state must be deleted");
+    db.delete_states(remote2, is_branch)
+        .await
+        .expect("state must be deleted");
+
+    let state_after_delete = db.state(&coordinate).await.expect("must get state");
+    let state2_after_delete = db.state(&coordinate2).await.expect("must get state");
+    assert!(state_after_delete.is_none(), "db state was removed");
+    assert!(state2_after_delete.is_none(), "db state2 was removed");
+}
+
+#[tokio::test]
+async fn remove_all_tag_states() {
+    let (_tmp, db, _path) = temp_db!();
+
+    let coordinate = Coordinate::new(
+        broker::db::Namespace::Git,
+        String::from("some repo"),
+        String::from("some reference"),
+    );
+    let coordinate2 = Coordinate::new(
+        broker::db::Namespace::Git,
+        String::from("some repo 2"),
+        String::from("some reference 2"),
+    );
+
+    let state = db.state(&coordinate).await.expect("must get state");
+    let state2 = db.state(&coordinate2).await.expect("must get state");
+
+    let is_branch = true;
+    let tag_identifier = false;
+    assert!(state.is_none(), "db state was unset, so must be none");
+    assert!(state2.is_none(), "db state was unset, so must be none");
+
+    let state = b"some state";
+    let state2 = b"some state 2";
+    db.set_state(&coordinate, state, &is_branch)
+        .await
+        .expect("must set state");
+    db.set_state(&coordinate2, state2, &tag_identifier)
+        .await
+        .expect("must set state");
+
+    let new_state = db
+        .state(&coordinate)
+        .await
+        .expect("must get state")
+        .expect("state must have been set");
+    let new_state2 = db
+        .state(&coordinate2)
+        .await
+        .expect("must get state")
+        .expect("state must have been set");
+    assert_eq!(new_state, state);
+    assert_eq!(new_state2, state2);
+
+    let remote2 = "some repo 2";
+    db.delete_states(remote2, tag_identifier)
+        .await
+        .expect("state must be deleted");
+
+    let state_after_delete = db
+        .state(&coordinate)
+        .await
+        .expect("must get state")
+        .expect("state must have been set");
+    let state2_after_delete = db.state(&coordinate2).await.expect("must get state");
+
+    assert_eq!(state_after_delete, state);
+    assert!(state2_after_delete.is_none(), "db state2 was removed");
 }

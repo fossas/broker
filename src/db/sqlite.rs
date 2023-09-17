@@ -38,6 +38,7 @@ use sqlx::{
 };
 use tap::TapFallible;
 use thiserror::Error;
+use tracing::warn;
 
 use crate::{
     doc::{crate_name, crate_version},
@@ -163,10 +164,6 @@ struct BrokerVersionRow {
 struct RepoStateRow {
     repo_state: Vec<u8>,
 }
-#[derive(Debug)]
-struct ImportBranchesRow {
-    import_branches: bool,
-}
 
 #[async_trait]
 impl super::Database for Database {
@@ -205,7 +202,9 @@ impl super::Database for Database {
             current_version => debug current_version;
             db_version => debug db_version;
         };
-
+        /*
+           If the version is 0.3 and check if the db is in the previous version
+        */
         match db_version {
             None => self
                 .update_db_version(&current_version)
@@ -221,10 +220,12 @@ impl super::Database for Database {
                         "})
                     .help("try again with the latest version of Broker")
             }
-            Some(db_version) if current_version > db_version => self
-                .update_db_version(&current_version)
-                .await
-                .change_context(super::Error::Interact),
+            Some(db_version) if current_version > db_version => {
+                warn!("Broker currently runnning on {db_version:?}. Updating Broker to run on {current_version:?}");
+                self.update_db_version(&current_version)
+                    .await
+                    .change_context(super::Error::Interact)
+            }
             Some(_) => Ok(()),
         }
     }
@@ -252,21 +253,19 @@ impl super::Database for Database {
         &self,
         coordinate: &Coordinate,
         state: &[u8],
-        import_branches: &bool,
-        import_tags: &bool,
+        is_branch: &bool,
     ) -> Result<(), super::Error> {
         let integration = coordinate.namespace.to_string();
         query!(
             r#"
-            insert into repo_state values (?, ?, ?, ?, ?, ?)
+            insert into repo_state values (?, ?, ?, ?, ?)
             on conflict do update set repo_state = excluded.repo_state
             "#,
             integration,
             coordinate.remote,
             coordinate.reference,
             state,
-            import_branches,
-            import_tags
+            is_branch,
         )
         .execute(&self.internal)
         .await
@@ -276,21 +275,17 @@ impl super::Database for Database {
     }
 
     #[tracing::instrument(fields(result))]
-    async fn import_branches(&self, coordinate: &Coordinate) -> Result<Option<bool>, super::Error> {
-        let integration = coordinate.namespace.to_string();
-        query_as!(
-            ImportBranchesRow,
-            "select import_branches from repo_state where integration = ? and repository = ? and revision = ?",
-            integration,
-            coordinate.remote,
-            coordinate.reference
+    async fn delete_states(&self, repository: &str, is_branch: bool) -> Result<(), super::Error> {
+        query!(
+            "delete from repo_state where repository = ? and is_branch = ? ",
+            repository,
+            is_branch,
         )
-        .fetch_optional(&self.internal)
+        .execute(&self.internal)
         .await
-        .tap_ok(|raw| span_record!(import_branches_field, debug raw))
+        .map(|result| span_record!(result, debug result))
         .context(Error::Communication)
         .change_context(super::Error::Interact)
-        .map(|result| result.map(|row| row.import_branches))
     }
 }
 

@@ -21,6 +21,7 @@ use glob::Pattern;
 use humantime::parse_duration;
 use serde::{Deserialize, Serialize};
 use tempfile::TempDir;
+use tracing::warn;
 use typed_builder::TypedBuilder;
 
 use crate::{
@@ -30,6 +31,9 @@ use crate::{
         result::{WrapErr, WrapOk},
     },
 };
+
+const MAIN_BRANCH: &str = "main";
+const MASTER_BRANCH: &str = "master";
 
 /// Integrations for git repositories
 pub mod git;
@@ -52,6 +56,14 @@ pub enum ValidationError {
     /// The provided value is empty.
     #[error("value is empty")]
     ValueEmpty,
+
+    /// Invalid combination of import branches and watched branches
+    #[error("validate import branches and watched branches")]
+    ImportBranchesWatchedBranches,
+
+    /// Unable to decipher primary branch
+    #[error("primary branch could not be deciphered")]
+    PrimaryBranch,
 }
 
 /// Validated config values for external code host integrations.
@@ -132,15 +144,15 @@ pub struct Integration {
 
     /// Specifies if we want to scan specific branches
     #[getset(get = "pub")]
-    import_branches: Option<bool>,
+    import_branches: bool,
 
     /// Specifies if we want to scan specific tags
     #[getset(get = "pub")]
-    import_tags: Option<bool>,
+    import_tags: bool,
 
     /// The name of the branches we want to scan
     #[getset(get = "pub")]
-    watched_branches: Option<Vec<String>>,
+    watched_branches: Vec<WatchedBranch>,
 }
 
 impl Display for Integration {
@@ -165,24 +177,76 @@ impl Integration {
         self.protocol().endpoint()
     }
 
-    /// Checks if the reference should be scanned by comparing it to our watched branches
-    pub fn validate_reference_scan(&self, reference: &str) -> bool {
-        if let Some(branches) = self.watched_branches() {
-            for branch in branches {
-                match Pattern::new(branch.as_str()) {
-                    Ok(p) => {
-                        //println!("the pattern: {p:#?}");
-                        //println!("the match result: {:#?}", p.matches(reference));
-                        if p.matches(reference) {
-                            return true;
-                        }
+    /// Best effort approach to find primary branch
+    pub async fn fix_me(&self) -> Result<Integration, Report<ValidationError>> {
+        match self {
+            Integration {
+                poll_interval,
+                team,
+                title,
+                protocol,
+                import_branches: true,
+                import_tags,
+                watched_branches,
+            } => {
+                if !watched_branches.is_empty() {
+                    return Ok(self.clone());
+                }
+                let references = self.references().await.unwrap_or_default();
+                let primary_branch = references
+                    .iter()
+                    .find(|r| r.name() == MAIN_BRANCH || r.name() == MASTER_BRANCH)
+                    .cloned();
+                match primary_branch {
+                    None => {
+                        report!(ValidationError::PrimaryBranch)
+                        .wrap_err()
+                        .help("watched_branches was empty and failed to inject main/master branch into watched_branches")
+                        .describe_lazy(||"provide valid watched_branches")?
                     }
-                    Err(_e) => continue,
+                    Some(branch) => {
+                        let primary_branch_name = branch.name();
+                        warn!("Watched_branches was set to empty, added branch: '{primary_branch_name}' as a best effort approach");
+                        let watched_branch = WatchedBranch::new(branch.name().to_string());
+                        let watched_branches = vec![watched_branch];
+
+                        Integration {
+                            poll_interval: *poll_interval,
+                            team: team.clone(),
+                            title: title.clone(),
+                            protocol: protocol.clone(),
+                            import_branches: true,
+                            import_tags: *import_tags,
+                            watched_branches,
+                        }.wrap_ok()
+                    }
                 }
             }
-        };
+            _ => Ok(self.clone()),
+        }
+    }
 
+    /// Checks if the reference should be scanned by comparing it to our watched branches
+    pub fn validate_reference_scan(&self, reference: &str) -> bool {
+        let branches = self.watched_branches();
+        for branch in branches {
+            match Pattern::new(branch.name().as_str()) {
+                Ok(p) => {
+                    //println!("the pattern: {p:#?}");
+                    //println!("the match result: {:#?}", p.matches(reference));
+                    if p.matches(reference) {
+                        return true;
+                    }
+                }
+                Err(_e) => continue,
+            }
+        }
         false
+    }
+
+    /// Mutable reference for watched branches
+    pub fn add_watched_branch(&mut self, watched_branch: WatchedBranch) {
+        self.watched_branches.push(watched_branch)
     }
 }
 
@@ -247,24 +311,36 @@ impl TryFrom<String> for PollInterval {
     }
 }
 
+/// Validated config values for external code host integrations.
+#[derive(Debug, Default, Clone, PartialEq, Eq, AsRef, From, new)]
+pub struct WatchedBranches(Vec<WatchedBranch>);
+
+impl WatchedBranches {
+    delegate! {
+        to self.0 {
+            /// Iterate over configured integrations.
+            pub fn iter(&self) -> impl Iterator<Item = &WatchedBranch>;
+        }
+    }
+}
+
+/// The integration's branch that you intend to scan
+#[derive(Debug, Clone, PartialEq, Eq, AsRef, Display, Deserialize, Serialize, new)]
+pub struct WatchedBranch(String);
+
+impl WatchedBranch {
+    /// The name of the watched branch
+    pub fn name(&self) -> String {
+        self.0.clone()
+    }
+}
+
 /// Errors encountered while working with remotes
 #[derive(Debug, thiserror::Error)]
 pub enum RemoteProviderError {
     /// We encountered an error while shelling out to an external command
     #[error("run external command")]
     RunCommand,
-}
-
-/// The integration's branch that you intend to scan
-#[derive(Debug, Clone, PartialEq, Eq, AsRef, Display, Deserialize, Serialize, new)]
-pub struct Branch(String);
-
-impl TryFrom<String> for Branch {
-    type Error = Report<ValidationError>;
-
-    fn try_from(value: String) -> Result<Self, Self::Error> {
-        Branch(value).wrap_ok()
-    }
 }
 
 /// Remotes can reference specific points in time on a remote unit of code.

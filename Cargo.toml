@@ -1,6 +1,6 @@
 [package]
 name = "broker"
-version = "0.2.4-pre"
+version = "0.3.0-pre"
 edition = "2021"
 description = "The bridge between FOSSA and internal DevOps services"
 readme = "README.md"

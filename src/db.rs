@@ -93,12 +93,11 @@ pub trait Database: Debug + Clone + Send + Sync {
         &self,
         coordinate: &Coordinate,
         state: &[u8],
-        import_branches: &bool,
-        import_tags: &bool,
+        is_branch: &bool,
     ) -> Result<(), Error>;
 
-    /// Get the import_branches value of a given [`Coordinate`].
-    async fn import_branches(&self, coordinate: &Coordinate) -> Result<Option<bool>, Error>;
+    /// Deletes all states with the given repository and is_branch values
+    async fn delete_states(&self, repository: &str, is_branch: bool) -> Result<(), Error>;
 }
 
 /// Connect to the sqlite database implementation.

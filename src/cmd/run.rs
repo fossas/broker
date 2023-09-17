@@ -1,6 +1,5 @@
 //! Implementation for the `run` subcommand.
 
-use std::cell::Ref;
 use std::time::Duration;
 
 use error_stack::{Result, ResultExt};
@@ -81,6 +80,10 @@ pub enum Error {
     /// If we fail to run FOSSA CLI, this error is raised.
     #[error("run FOSSA CLI")]
     RunFossaCli,
+
+    /// If we fail to delete tasks' state in the sqlite DB, this error is raised
+    #[error("delete tasks' state")]
+    TaskDeleteState
 }
 
 /// Similar to [`AppContext`], but scoped for this subcommand.
@@ -105,9 +108,38 @@ pub async fn main<D: Database>(ctx: &AppContext, config: Config, db: D) -> Resul
         db,
     };
 
+    for integration in ctx.config.integrations().iter() {
+        if let Err(err) = validate_integration_configuration(&ctx.db, integration).await {
+            warn!("Unable to validate '{integration}': {err:#?}");
+        }
+    }
+
     let healthcheck_worker = healthcheck(&ctx.db);
     let integration_worker = integrations(&ctx);
     try_join!(healthcheck_worker, integration_worker).discard_ok()
+}
+
+#[tracing::instrument(skip_all)]
+async fn validate_integration_configuration<D: Database>(
+    db: &D,
+    integration: &Integration,
+) -> Result<(), Error> {
+    let repository = integration.remote().for_coordinate();
+    let import_branches = integration.import_branches();
+    let import_tags = integration.import_tags();
+    
+    if !*import_branches {
+        println!("Remove all branches for this integration");
+        let is_branch = true;
+        db.delete_states(&repository, is_branch).await.change_context(Error::TaskDeleteState)?;
+    }
+    if !*import_tags {
+        println!("Remove all branches for this integration");
+        let is_branch = false;
+        db.delete_states(&repository, is_branch).await.change_context(Error::TaskDeleteState)?
+    }
+    
+    Ok(())
 }
 
 /// Conduct internal diagnostics to ensure Broker is still in a good state.
@@ -252,7 +284,7 @@ async fn execute_poll_integration<D: Database>(
     };
 
     info!("Polling '{integration}'");
-
+    println!("Integration name for db query: {:?}", remote.for_coordinate());
     // Given that this operation is not latency sensitive, and temporary network issues can interfere,
     // retry several times before permanently failing since a permanent failure means Broker shuts down
     // entirely.
@@ -272,18 +304,28 @@ async fn execute_poll_integration<D: Database>(
             // Using `filter_map` instead of `filter` so that this closure gets ownership of `reference`,
             // which makes binding it across an await point easier (no lifetimes to mess with).
             .filter_map(|reference| async {
-                let coordinate = reference.as_coordinate(&remote);
-                
-                if !integration.validate_reference_scan(reference.name()){
-                    println!("We are skipping: {reference:#?}");
-                    return None
-                }
-
                 println!("Testing: {:#?}", reference.reference_type());
-                println!("Reference State: {:#?}", reference.as_state());
                 match reference.reference_type() {
-                    git::Reference::Branch {..} => println!("This is a branch!"),
-                    git::Reference::Tag{..}  => println!("this is a tag!"),
+                    git::Reference::Branch {..} => {
+                        // Skipping because integration is not configured to scan branches or branch was not in the integration's watched branches
+                        let import_branches = integration.import_branches();
+                        //if let Some(import_branches) = integration.import_branches() {
+                        if !*import_branches || !integration.validate_reference_scan(reference.name()){
+                            println!("The value of import branches {import_branches}");
+                            println!("skipping branch due to import branches being turned off: {reference:#?}");
+                            return None
+                        }
+                        //}
+                    },
+                    git::Reference::Tag{..}  => {
+                        // We are skipping because integration is not configured to scan tags
+                        let import_tags = integration.import_tags();
+                        if !*import_tags{
+                            println!("skipping tag: {reference:#?}");
+                            return None
+                        }
+                    
+                    },
                 }
                 
 
@@ -462,12 +504,14 @@ async fn execute_upload_scans<D: Database>(
     let remote = job.integration.remote().to_owned();
     let coordinate = job.reference.as_coordinate(&remote);
     let state = job.reference.as_state();
-    let import_branches = job.integration.import_branches().unwrap_or(true);
-    let import_tags = job.integration.import_tags().unwrap_or(false);
+    let is_branch = match job.reference.reference_type() {
+        git::Reference::Branch {..} => true,
+        git::Reference::Tag{..}  => false,
+    };
 
     // Mark this reference as scanned in the local DB.
     ctx.db
-        .set_state(&coordinate, state, &import_branches, &import_tags)
+        .set_state(&coordinate, state,&is_branch)
         .await
         .change_context(Error::TaskSetState)
 }

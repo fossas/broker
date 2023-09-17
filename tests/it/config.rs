@@ -233,3 +233,28 @@ async fn test_integration_short_poll_interval() {
     .await;
     assert_error_stack_snapshot!(&config_file_path, err);
 }
+
+#[tokio::test]
+async fn test_integration_smart_imports_default() {
+    let (_, conf) = load_config!(
+        "testdata/config/basic.yml",
+        "testdata/database/empty.sqlite"
+    )
+    .await;
+
+    let Some(integration) = conf.integrations().as_ref().iter().next() else {
+        panic!("must have parsed at least one integration")
+    };
+    assert_eq!(integration.import_branches(), &true);
+    assert_eq!(integration.import_tags(), &false);
+}
+
+#[tokio::test]
+async fn test_integration_smart_imports_malformed() {
+    let (config_file_path, err) = load_config_err!(
+        "testdata/config/smart_imports_malformed.yml",
+        "testdata/database/empty.sqlite"
+    )
+    .await;
+    assert_error_stack_snapshot!(&config_file_path, err);
+}
