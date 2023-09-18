@@ -202,9 +202,7 @@ impl super::Database for Database {
             current_version => debug current_version;
             db_version => debug db_version;
         };
-        /*
-           If the version is 0.3 and check if the db is in the previous version
-        */
+
         match db_version {
             None => self
                 .update_db_version(&current_version)

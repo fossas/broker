@@ -59,7 +59,7 @@ pub enum ValidationError {
 
     /// Invalid combination of import branches and watched branches
     #[error("validate import branches and watched branches")]
-    ImportBranchesWatchedBranches,
+    ImportBranches,
 
     /// Unable to decipher primary branch
     #[error("primary branch could not be deciphered")]
@@ -232,8 +232,6 @@ impl Integration {
         for branch in branches {
             match Pattern::new(branch.name().as_str()) {
                 Ok(p) => {
-                    //println!("the pattern: {p:#?}");
-                    //println!("the match result: {:#?}", p.matches(reference));
                     if p.matches(reference) {
                         return true;
                     }
@@ -293,7 +291,7 @@ impl PollInterval {
 /// This is set because Broker is intended to bring eventual observability;
 /// if users want faster polling than this it's probably because they want to make sure they don't miss revisions,
 /// in such a case we recommend CI integration.
-pub const MIN_POLL_INTERVAL: Duration = Duration::from_secs(15);
+pub const MIN_POLL_INTERVAL: Duration = Duration::from_secs(60 * 60);
 
 impl TryFrom<String> for PollInterval {
     type Error = Report<ValidationError>;

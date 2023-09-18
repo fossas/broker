@@ -129,12 +129,10 @@ async fn validate_integration_configuration<D: Database>(
     let import_tags = integration.import_tags();
     
     if !*import_branches {
-        println!("Remove all branches for this integration");
         let is_branch = true;
         db.delete_states(&repository, is_branch).await.change_context(Error::TaskDeleteState)?;
     }
     if !*import_tags {
-        println!("Remove all branches for this integration");
         let is_branch = false;
         db.delete_states(&repository, is_branch).await.change_context(Error::TaskDeleteState)?
     }
@@ -304,21 +302,16 @@ async fn execute_poll_integration<D: Database>(
             // Using `filter_map` instead of `filter` so that this closure gets ownership of `reference`,
             // which makes binding it across an await point easier (no lifetimes to mess with).
             .filter_map(|reference| async {
-                println!("Testing: {:#?}", reference.reference_type());
                 match reference.reference_type() {
                     git::Reference::Branch {..} => {
                         // Skipping because integration is not configured to scan branches or branch was not in the integration's watched branches
                         let import_branches = integration.import_branches();
-                        //if let Some(import_branches) = integration.import_branches() {
                         if !*import_branches || !integration.validate_reference_scan(reference.name()){
-                            println!("The value of import branches {import_branches}");
-                            println!("skipping branch due to import branches being turned off: {reference:#?}");
                             return None
                         }
-                        //}
                     },
                     git::Reference::Tag{..}  => {
-                        // We are skipping because integration is not configured to scan tags
+                        // Skipping because integration was not configured to scan tags
                         let import_tags = integration.import_tags();
                         if !*import_tags{
                             println!("skipping tag: {reference:#?}");
