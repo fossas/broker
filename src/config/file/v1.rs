@@ -3,6 +3,7 @@
 use std::path::PathBuf;
 
 use error_stack::{report, Report, ResultExt};
+use futures::future::join_all;
 use serde::Deserialize;
 
 use crate::{
@@ -30,8 +31,13 @@ pub enum Error {
 }
 
 /// Load the config at v1 for the application.
-pub fn load(content: String) -> Result<super::Config, Report<Error>> {
-    RawConfigV1::parse(content).and_then(validate)
+pub async fn load(content: String) -> Result<super::Config, Report<Error>> {
+    // RawConfigV1::parse(content).and_then(|val| async {
+    // let validated_result = validate(val).await?;
+    // })
+
+    let parsed = RawConfigV1::parse(content)?;
+    validate(parsed).await
 }
 
 /// Config values as parsed from disk.
@@ -64,7 +70,7 @@ impl RawConfigV1 {
     }
 }
 
-fn validate(config: RawConfigV1) -> Result<super::Config, Report<Error>> {
+async fn validate(config: RawConfigV1) -> Result<super::Config, Report<Error>> {
     let endpoint = fossa::Endpoint::try_from(config.endpoint).change_context(Error::Validate)?;
     let key = fossa::Key::try_from(config.integration_key).change_context(Error::Validate)?;
     let api = fossa::Config::new(endpoint, key);
@@ -73,11 +79,25 @@ fn validate(config: RawConfigV1) -> Result<super::Config, Report<Error>> {
         .integrations
         .into_iter()
         .map(remote::Integration::try_from)
+        .map(|res| async {
+            match res {
+                Ok(integration) => Ok(remote::Integration::fix_me(&integration).await),
+                Err(report) => Err(report),
+            }
+        });
+    //.collect::<Result<Vec<_>, Report<remote::ValidationError>>>()
+    //.change_context(Error::Validate)
+    //.map(remote::Integrations::new);
+
+    let res = join_all(integrations).await;
+    let new_integrations = res
+        .into_iter()
+        .map(|res| res.expect("test"))
         .collect::<Result<Vec<_>, Report<remote::ValidationError>>>()
         .change_context(Error::Validate)
         .map(remote::Integrations::new)?;
 
-    super::Config::new(api, debugging, integrations).wrap_ok()
+    super::Config::new(api, debugging, new_integrations).wrap_ok()
 }
 
 #[derive(Debug, Deserialize)]

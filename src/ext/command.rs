@@ -641,6 +641,8 @@ impl Description {
         format!("[{}]", joined)
     }
 
+    // USE This
+
     /// Provides a representation of the command that can be pasted into the terminal
     pub fn pastable(&self) -> String {
         let envs = self
