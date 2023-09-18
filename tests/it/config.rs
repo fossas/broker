@@ -216,7 +216,7 @@ async fn test_integration_git_http_no_auth() {
     };
     assert_eq!(
         endpoint,
-        &gen::code_remote("https://github.com/fossas/broker.git")
+        &gen::code_remote("https://github.com/fossas/broker-test-example.git")
     );
 
     let None = auth else {

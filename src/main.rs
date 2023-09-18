@@ -143,9 +143,14 @@ async fn main_fix(args: config::RawFixArgs) -> Result<(), Error> {
         .run_tracing_sink()
         .change_context(Error::InternalSetup)?;
 
-    broker::cmd::fix::main(&conf, &broker::cmd::fix::StdoutLogger, args.export_bundle())
-        .await
-        .change_context(Error::Runtime)
+    broker::cmd::fix::main(
+        args.runtime().context(),
+        &conf,
+        &broker::cmd::fix::StdoutLogger,
+        args.export_bundle(),
+    )
+    .await
+    .change_context(Error::Runtime)
 }
 
 /// Run Broker with the current config.

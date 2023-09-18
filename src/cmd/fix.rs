@@ -1,14 +1,19 @@
 //! Implementation for the fix command
 
 use crate::{
+    api::remote::{Reference, RemoteProvider, RemoteProviderError},
     debug::{self, bundler, Bundle, BundleExport},
     ext::secrecy::REDACTION_LITERAL,
+    fossa_cli::{self, DesiredVersion},
+    AppContext,
 };
 use colored::Colorize;
 use core::result::Result;
 use error_stack::{Report, ResultExt};
 use indoc::formatdoc;
 use std::time::Duration;
+use tracing::warn;
+use uuid::Uuid;
 
 use crate::{
     api::{
@@ -26,16 +31,30 @@ use crate::{
     ext::result::WrapErr,
 };
 
+const MAIN_BRANCH: &str = "main";
+const MASTER_BRANCH: &str = "master";
+
 /// Errors encountered when running the fix command.
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
-    /// Check an integration
-    #[error("check integration for {remote}\n{error}")]
-    CheckIntegration {
-        /// the remote that the integration check failed for
+    /// Check integration connection
+    #[error("check integration connection for {remote}\n{error}")]
+    CheckIntegrationConnection {
+        /// The remote that the integration check failed for
         remote: Remote,
-        /// the error returned by the integration check
+        /// The error returned by the integration check
         error: String,
+        /// A message explaining how to fix this error
+        msg: String,
+    },
+
+    /// Check integration scan
+    #[error("check integration scan for {remote} on {branch}")]
+    CheckIntegrationScan {
+        /// The remote that the scan for the integration failed for
+        remote: Remote,
+        /// The branch that the scan for the integration failed for
+        branch: String,
         /// A message explaining how to fix this error
         msg: String,
     },
@@ -63,18 +82,48 @@ pub enum Error {
     /// Generating the debug bundle.
     #[error("generate debug bundle")]
     GenerateDebugBundle,
+
+    /// Downloading cli
+    #[error("download fossa cli")]
+    DownloadFossaCli {
+        /// A message explaining how to fix this error
+        msg: String,
+        /// The error returned from downloading the cli
+        error: String,
+    },
+
+    /// Cloning Reference
+    #[error("clone reference")]
+    CloneReference {
+        /// The reference that failed to be cloned
+        reference: Reference,
+        /// The error returned from cloning the reference
+        error: String,
+        /// A message explaining how to fix this error
+        msg: String,
+    },
+}
+
+#[cfg(target_family = "windows")]
+fn cli_command() -> &'static str {
+    "PATH ; fossa.exe analyze -o"
+}
+
+#[cfg(target_family = "unix")]
+fn cli_command() -> &'static str {
+    r#"PATH="" fossa analyze -o"#
 }
 
 impl Error {
     fn fix_explanation(&self) -> String {
         match self {
-            Error::CheckIntegration { remote, msg, .. } => {
+            Error::CheckIntegrationConnection { remote, msg, .. } => {
                 let remote = remote.to_string().red();
                 format!("❌ {remote}\n\n{msg}")
             }
             Error::CheckFossaGet { msg } => {
-                let error_string = "Error checking connection to FOSSA:".red();
-                format!("❌ {error_string} {msg}")
+                let err = "Error checking connection to FOSSA:".red();
+                format!("❌ {err} {msg}")
             }
             Error::CreateFullFossaUrl { remote, path } => {
                 format!("❌ Creating a full URL from your remote of '{remote}' and path = '{path}'")
@@ -82,11 +131,23 @@ impl Error {
             Error::GenerateExampleCommand => {
                 "❌ Generating an example command for a remote".to_string()
             }
+            Error::CheckIntegrationScan { remote, msg, .. } => {
+                let remote = remote.to_string().red();
+                format!("❌ {remote}\n\n{msg}")
+            }
+            Error::CloneReference { msg, .. } => {
+                let err = "❌ Cloning Reference".to_string();
+                format!("❌ {err}\n\n{msg}")
+            }
+            Error::DownloadFossaCli { msg, .. } => {
+                let err = "Error downloading FOSSA CLI".red();
+                format!("❌ {err}\n\n{msg}")
+            }
             Error::GenerateDebugBundle => "❌ Generating the debug bundle".to_string(),
         }
     }
 
-    fn integration_error(
+    fn integration_connection_error(
         remote: &Remote,
         transport: &Transport,
         err: Report<repository::Error>,
@@ -104,11 +165,9 @@ impl Error {
 
             Full error message from git:
 
-            {err}
-
-            "
+            {err}"
         );
-        Error::CheckIntegration {
+        Error::CheckIntegrationConnection {
             remote: remote.clone(),
             error: err.to_string(),
             msg,
@@ -118,7 +177,7 @@ impl Error {
     fn integration_connection_explanation(
         transport: &transport::Transport,
     ) -> Result<String, Error> {
-        let shared_instructions = "Broker was unable to connect to this repository. Please make sure that the authentication info and the remote are set correctly in your config.yml file.";
+        let shared_instructions = "Broker was unable to connect to this repository. Ensure that the authentication info and the remote are set correctly in your config.yml file.";
         let base64_command = r#"echo -n "<username>:<password>" | base64"#.green();
 
         // Generate an example command. The basic command is `git ls-remote`, but there are other arguments and env variables added
@@ -134,7 +193,7 @@ impl Error {
                 ..
             } => {
                 formatdoc!(
-                    "You are using SSH keyfile authentication for this remote. This connects to your repository by setting the `GIT_SSH_COMMAND` environment variable with the path to the ssh key that you provided in your config file. Please make sure you can run the following command to verify the connection:
+                    "You are using SSH keyfile authentication for this remote. This connects to your repository by setting the `GIT_SSH_COMMAND` environment variable with the path to the ssh key that you provided in your config file. Ensure you can run the following command to verify the connection:
 
                     {command}"
                 )
@@ -144,7 +203,7 @@ impl Error {
                 ..
             } => {
                 formatdoc!(
-                    "You are using SSH key authentication for this remote. This method of authentication writes the SSH key that you provided in your config file to a temporary file, and then connects to your repository by setting the 'GIT_SSH_COMMAND' environment variable with the path to the temporary file. To debug this, please write the ssh key to a file and then make sure you can run the following command to verify the connection.
+                    "You are using SSH key authentication for this remote. This method of authentication writes the SSH key that you provided in your config file to a temporary file, and then connects to your repository by setting the 'GIT_SSH_COMMAND' environment variable with the path to the temporary file. To debug this, write the ssh key to a file and ensure you can run the following command to verify the connection.
 
                     Note that the path to the SSH key in this example command is a path to a temporary file that will no longer exist. You will need to edit this command to change the path to point at the file you just created.
 
@@ -158,7 +217,7 @@ impl Error {
                 ..
             } => {
                 formatdoc!(
-                    r#"You are using HTTP basic authentication for this remote. This method of authentication encodes the username and password as a base64 string and then passes that to git using the "http.extraHeader" parameter. To debug this, please make sure that the following commands work.
+                    r#"You are using HTTP basic authentication for this remote. This method of authentication encodes the username and password as a base64 string and then passes that to git using the "http.extraHeader" parameter. To debug this, ensure that the following commands work.
 
                     You generate the base64 encoded username and password by joining them with a ":" and then base64 encoding them. If your username was "pat" and your password was "password123", then you would base64 encode "pat:password123". For example, you can use a command like this:
 
@@ -174,7 +233,7 @@ impl Error {
                 ..
             } => {
                 formatdoc!(
-                    r#"You are using HTTP header authentication for this remote. This method of authentication passes the header that you have provided in your config file to git using the "http.extraHeader" parameter. To debug this, please make sure the following command works, after replacing {REDACTION_LITERAL} with the header from your config file:
+                    r#"You are using HTTP header authentication for this remote. This method of authentication passes the header that you have provided in your config file to git using the "http.extraHeader" parameter. To debug this, ensure the following command works, after replacing {REDACTION_LITERAL} with the header from your config file:
 
                     {command}
 
@@ -186,13 +245,13 @@ impl Error {
 
                     {base64_command}
 
-                    The username you use depends on the git hosting platform you are authenticating to. For details on this, please see the 'config.example.yml' file in your broker config directory. You can re-generate this file at any time by running 'broker init'.
+                    The username you use depends on the git hosting platform you are authenticating to. For details on this, see the 'config.example.yml' file in your broker config directory. You can re-generate this file at any time by running 'broker init'.
                     "#
                 )
             }
             transport::Transport::Http { auth: None, .. } => {
                 formatdoc!(
-                    r#"You are using http transport with no authentication for this integration. To debug this, please make sure that the following command works:
+                    r#"You are using http transport with no authentication for this integration. To debug this, ensure that the following command works:
 
                     {command}"#
                 )
@@ -200,6 +259,66 @@ impl Error {
         };
 
         Ok(format!("{shared_instructions}\n\n{specific_instructions}"))
+    }
+
+    fn integration_scan_error(remote: &Remote, branch: &String) -> Self {
+        let cli_command = cli_command().green();
+        let git_command = format!("git clone -b {} {}", branch, remote).green();
+
+        let msg = formatdoc!(
+            "Broker encountered an error while scanning your git remote at '{remote}' on branch '{branch}'.
+
+            To view the error, you must first download the failing integration. You can download the integration by using the following command:
+
+            {git_command} 
+             
+            Once the download is complete, you can debug the issue by running the following command in directory of your downloaded integration:
+             
+            {cli_command}"
+        );
+        Error::CheckIntegrationScan {
+            remote: remote.clone(),
+            branch: branch.clone(),
+            msg,
+        }
+    }
+
+    fn download_cli_error(remote: &Remote, err: Report<fossa_cli::Error>) -> Self {
+        let url_reference = "https://github.com/fossas/fossa-cli/#installation".green();
+
+        let msg = formatdoc!(
+            "Broker encountered an error while trying to download the Fossa CLI in order to initiate a scan on '{remote}'.
+
+            Follow the installation instructions provided in the following link:
+
+            {url_reference}
+
+            This will ensure that you have Fossa CLI correctly configured on your machine.
+            
+            Full error message from Fossa CLI:
+            
+            {err}"
+        );
+        Error::DownloadFossaCli {
+            msg,
+            error: err.to_string(),
+        }
+    }
+
+    fn clone_reference_error(reference: &Reference, err: Report<RemoteProviderError>) -> Self {
+        let msg = formatdoc!(
+            "Broker encountered an error while trying to clone reference: {reference}
+            
+            Full error message:
+
+            {err}"
+        );
+
+        Error::CloneReference {
+            reference: reference.clone(),
+            error: err.to_string(),
+            msg,
+        }
     }
 
     fn fossa_integration_error(
@@ -268,12 +387,11 @@ impl Error {
 
             {specific_error_message}
 
-            The URL Broker attempted to connect to was '{url}'. Please make sure you can make a request to that URL. For example, try this curl command:
+            The URL Broker attempted to connect to was '{url}'. Make sure you can make a request to that URL. For example, try this curl command:
 
             {example_command}
 
-            Full error message: {err}
-            "
+            Full error message: {err}"
         )
     }
 }
@@ -302,12 +420,13 @@ macro_rules! log {
 /// The primary entrypoint for the fix command.
 // #[tracing::instrument(skip(config, logger), fields(subcommand = "fix"))]
 pub async fn main<L: Logger>(
+    ctx: &AppContext,
     config: &Config,
     logger: &L,
     export: debug::BundleExport,
 ) -> Result<(), Report<Error>> {
-    let integration_errors = check_integrations(logger, config).await;
     let fossa_connection_errors = check_fossa_connection(logger, config).await;
+    let integration_errors = check_integrations(ctx, logger, config).await;
     let had_errors = !integration_errors.is_empty() || !fossa_connection_errors.is_empty();
 
     print_errors(
@@ -366,7 +485,11 @@ fn print_errors<L: Logger>(logger: &L, msg: &str, errors: Vec<Error>) {
 /// This is currently done by running `git ls-remote <remote>` using the authentication
 /// info from the transport.
 #[tracing::instrument(skip(config, logger))]
-async fn check_integrations<L: Logger>(logger: &L, config: &Config) -> Vec<Error> {
+async fn check_integrations<L: Logger>(
+    ctx: &AppContext,
+    logger: &L,
+    config: &Config,
+) -> Vec<Error> {
     let title = "\nDiagnosing connections to configured repositories\n"
         .bold()
         .blue()
@@ -376,8 +499,14 @@ async fn check_integrations<L: Logger>(logger: &L, config: &Config) -> Vec<Error
     let mut errors = Vec::new();
     for integration in integrations.iter() {
         let remote = integration.remote();
-        match check_integration(integration).await {
-            Ok(()) => log!(logger, "✅ {remote}"),
+        if let Err(err) = check_integration_connection(integration).await {
+            log!(logger, "❌ {remote}");
+            errors.push(err);
+            continue;
+        }
+
+        match check_integration_scan(ctx, config, integration).await {
+            Ok(_) => log!(logger, "✅ {remote}"),
             Err(err) => {
                 log!(logger, "❌ {remote}");
                 errors.push(err);
@@ -388,11 +517,53 @@ async fn check_integrations<L: Logger>(logger: &L, config: &Config) -> Vec<Error
 }
 
 #[tracing::instrument]
-async fn check_integration(integration: &Integration) -> Result<(), Error> {
+async fn check_integration_connection(integration: &Integration) -> Result<(), Error> {
     let Protocol::Git(transport) = integration.protocol();
-    repository::ls_remote(transport)
+    repository::ls_remote(transport).await.or_else(|err| {
+        Error::integration_connection_error(integration.remote(), transport, err).wrap_err()
+    })?;
+    Ok(())
+}
+
+#[tracing::instrument]
+async fn check_integration_scan(
+    ctx: &AppContext,
+    config: &Config,
+    integration: &Integration,
+) -> Result<(), Error> {
+    let remote = integration.remote();
+    let cli = fossa_cli::find_or_download(ctx, config.debug().location(), DesiredVersion::Latest)
         .await
-        .or_else(|err| Error::integration_error(integration.remote(), transport, err).wrap_err())?;
+        .or_else(|err| Error::download_cli_error(remote, err).wrap_err())?;
+
+    let references = integration.references().await.unwrap_or_default();
+
+    let Some(reference) = references.first().cloned() else {
+        warn!("Empty references for {integration:#?}");
+        return Ok(());
+    };
+
+    let reference = references
+        .iter()
+        .find(|r| r.name() == MAIN_BRANCH || r.name() == MASTER_BRANCH)
+        .cloned()
+        .unwrap_or(reference);
+
+    let cloned_location = integration
+        .clone_reference(&reference)
+        .await
+        .or_else(|err| Error::clone_reference_error(&reference, err).wrap_err())?;
+
+    let scan_id = Uuid::new_v4().to_string();
+
+    // The error from analyze is overloaded with debug details
+    // Discarding the error here and pointing users to the broker fix explanation for concise error message
+    cli.analyze(&scan_id, cloned_location.path())
+        .await
+        .or_else(|_err| {
+            Error::integration_scan_error(remote, &reference.name().to_string()).wrap_err()
+        })?;
+
     Ok(())
 }
 

@@ -247,6 +247,13 @@ impl Reference {
             Reference::Git(git) => git.as_state(),
         }
     }
+
+    /// The name of the reference's branch or tag
+    pub fn name(&self) -> &str {
+        match self {
+            Reference::Git(git) => git.name().as_str(),
+        }
+    }
 }
 
 impl Display for Reference {
