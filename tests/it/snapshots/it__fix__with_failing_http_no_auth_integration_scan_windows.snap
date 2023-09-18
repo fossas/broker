@@ -24,7 +24,7 @@ git clone -b master https://github.com/fossas/empty.git
  
 Once the download is complete, you can debug the issue by running the following command in directory of your downloaded integration:
  
-PATH ; fossa.exe analyze -o
+Env:Path = "" fossa.exe analyze -o
 
 Errors found while checking connection to FOSSA
 

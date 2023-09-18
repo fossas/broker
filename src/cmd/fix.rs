@@ -106,7 +106,7 @@ pub enum Error {
 
 #[cfg(target_family = "windows")]
 fn cli_command() -> &'static str {
-    "PATH ; fossa.exe analyze -o"
+    r#"Env:Path = "" fossa.exe analyze -o"#
 }
 
 #[cfg(target_family = "unix")]

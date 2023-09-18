@@ -136,7 +136,6 @@ struct ScanGitVCSReference {
 }
 
 impl ScanGitVCSReference {
-    /// Instantiate ScanGitVCSReference instance
     fn new(integration: &Integration, reference: &Reference) -> Self {
         Self {
             scan_id: Uuid::new_v4().to_string(),
