@@ -22,9 +22,13 @@ To view the error, you must first download the failing integration. You can down
 
 git clone -b master https://github.com/fossas/empty.git 
  
-Once the download is complete, you can debug the issue by running the following command in directory of your downloaded integration:
+Next, use the following command to locate the path of the fossa-cli:
+
+where.exe fossa
+
+Once the download is complete, you can debug the issue by running the following command in the directory of your downloaded integration:
  
-Env:Path = "" fossa.exe analyze -o
+$env:PATH="" ; <INSERT YOUR FOSSA PATH> analyze -o
 
 Errors found while checking connection to FOSSA
 
