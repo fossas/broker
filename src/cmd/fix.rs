@@ -105,13 +105,23 @@ pub enum Error {
 }
 
 #[cfg(target_family = "windows")]
+fn fossa_path_command() -> &'static str {
+    "where.exe fossa"
+}
+
+#[cfg(target_family = "unix")]
+fn fossa_path_command() -> &'static str {
+    "which fossa"
+}
+
+#[cfg(target_family = "windows")]
 fn cli_command() -> &'static str {
-    "PATH ; fossa.exe analyze -o"
+    r#"$env:PATH="" ; <INSERT YOUR FOSSA PATH> analyze -o"#
 }
 
 #[cfg(target_family = "unix")]
 fn cli_command() -> &'static str {
-    r#"PATH="" fossa analyze -o"#
+    r#"PATH="" <NSERT YOUR FOSSA PATH> analyze -o"#
 }
 
 impl Error {
@@ -263,6 +273,7 @@ impl Error {
 
     fn integration_scan_error(remote: &Remote, branch: &String) -> Self {
         let cli_command = cli_command().green();
+        let fossa_path_command = fossa_path_command().green();
         let git_command = format!("git clone -b {} {}", branch, remote).green();
 
         let msg = formatdoc!(
@@ -271,8 +282,12 @@ impl Error {
             To view the error, you must first download the failing integration. You can download the integration by using the following command:
 
             {git_command} 
-             
-            Once the download is complete, you can debug the issue by running the following command in directory of your downloaded integration:
+            
+            Next, use the following command to locate the path of the fossa-cli:
+
+            {fossa_path_command}
+
+            Once the download is complete, you can debug the issue by running the following command in the directory of your downloaded integration:
              
             {cli_command}"
         );
