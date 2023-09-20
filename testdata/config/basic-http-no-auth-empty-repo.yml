@@ -9,14 +9,11 @@ debugging:
 
 integrations:
   - type: git
+    poll_interval: 1h
+    remote: https://github.com/fossas/empty.git
     import_branches: true
     watched_branches:
       - main
-    poll_interval: 1h
-    remote: https://github.com/fossas/broker.git
     auth:
-      type: http_basic
-      username: jssblck
-      password: efgh5678
-      team: team
-      title: title
+      type: none
+      transport: http

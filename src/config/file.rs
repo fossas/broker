@@ -41,7 +41,7 @@ use getset::Getters;
 use serde::Deserialize;
 
 use crate::{
-    api::{self, remote::RemoteProvider},
+    api::{self},
     debug,
     ext::{
         error_stack::{DescribeContext, ErrorHelper, IntoContext},

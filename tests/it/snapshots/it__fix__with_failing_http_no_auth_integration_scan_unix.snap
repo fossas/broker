@@ -10,7 +10,25 @@ Diagnosing connection to FOSSA
 
 Diagnosing connections to configured repositories
 
-✅ https://github.com/fossas/broker-test-example.git
+❌ https://github.com/fossas/empty.git
+
+Errors found while checking integrations
+
+❌ https://github.com/fossas/empty.git
+
+Broker encountered an error while scanning your git remote at 'https://github.com/fossas/empty.git' on branch 'master'.
+
+To view the error, you must first download the failing integration. You can download the integration by using the following command:
+
+git clone -b master https://github.com/fossas/empty.git 
+
+Next, use the following command to locate the path of the fossa-cli:
+
+which fossa
+
+Once the download is complete, you can debug the issue by running the following command in the directory of your downloaded integration:
+ 
+PATH="" <NSERT YOUR FOSSA PATH> analyze -o
 
 Errors found while checking connection to FOSSA
 

@@ -32,10 +32,6 @@ pub enum Error {
 
 /// Load the config at v1 for the application.
 pub async fn load(content: String) -> Result<super::Config, Report<Error>> {
-    // RawConfigV1::parse(content).and_then(|val| async {
-    // let validated_result = validate(val).await?;
-    // })
-
     let parsed = RawConfigV1::parse(content)?;
     validate(parsed).await
 }
@@ -76,30 +72,35 @@ async fn validate(config: RawConfigV1) -> Result<super::Config, Report<Error>> {
     let api = fossa::Config::new(endpoint, key);
     let debugging = debug::Config::try_from(config.debugging).change_context(Error::Validate)?;
 
+    // Converts and validates the parsed integrations
+    // The first map tries to convert each integration into an integration object after validation
+    // The second map does a best effort approach to inject main/master branch into watched_branches if watched_branches is empty and import_branches is set to true
     let integrations = config
         .integrations
         .into_iter()
         .map(remote::Integration::try_from)
         .map(|res| async {
             match res {
-                Ok(integration) => Ok(remote::Integration::fix_me(&integration).await),
+                Ok(integration) => {
+                    Ok(remote::Integration::set_watched_branches(&integration).await)
+                }
                 Err(report) => Err(report),
             }
         });
-    println!("The integartions before {integrations:#?}");
-    //.collect::<Result<Vec<_>, Report<remote::ValidationError>>>()
-    //.change_context(Error::Validate)
-    //.map(remote::Integrations::new);
 
-    let res = join_all(integrations).await;
-    let new_integrations = res
+    // Evaluate the reults of the mapping
+    let transformed_integrations = join_all(integrations)
+        .await
         .into_iter()
-        .map(|res| res.expect("test"))
+        .map(|res| match res {
+            Ok(integration) => integration,
+            Err(err) => Err(err),
+        })
         .collect::<Result<Vec<_>, Report<remote::ValidationError>>>()
         .change_context(Error::Validate)
         .map(remote::Integrations::new)?;
-    println!("the new integrations {new_integrations:#?}");
-    super::Config::new(api, debugging, new_integrations).wrap_ok()
+    println!("the new integrations {transformed_integrations:#?}");
+    super::Config::new(api, debugging, transformed_integrations).wrap_ok()
 }
 
 #[derive(Debug, Deserialize)]
@@ -182,13 +183,11 @@ impl TryFrom<Integration> for remote::Integration {
                 let endpoint = remote::Remote::try_from(remote)?;
                 let import_branches = import_branches.unwrap_or(true);
                 let import_tags = import_tags.unwrap_or(false);
-                // .collect::<Vec<remote::WatchedBranch>>()
                 let watched_branches = watched_branches
                     .unwrap_or_default()
                     .into_iter()
                     .map(remote::WatchedBranch::new)
                     .collect::<Vec<remote::WatchedBranch>>();
-                //.map(|watched_branch| remote::WatchedBranches::new);
 
                 if !import_branches && !watched_branches.is_empty() {
                     report!(remote::ValidationError::ImportBranches)
@@ -197,8 +196,6 @@ impl TryFrom<Integration> for remote::Integration {
                         .describe_lazy(|| "import branches: 'false'".to_string())?
                 }
 
-                println!("the watched branches: {watched_branches:?}");
-                //let watched_branches = watched_branches.into_iter().map(remote::Branch::try_from).collect<Result<Vec<_>, Report<remote::ValidationError>>>();
                 let protocol = match auth {
                     Auth::SshKeyFile { path } => {
                         let auth = ssh::Auth::KeyFile(path);

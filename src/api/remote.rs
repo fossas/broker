@@ -32,8 +32,10 @@ use crate::{
     },
 };
 
-const MAIN_BRANCH: &str = "main";
-const MASTER_BRANCH: &str = "master";
+/// Used to filter for main branch in an integration
+pub const MAIN_BRANCH: &str = "main";
+/// Used to filter for master branch in an integration
+pub const MASTER_BRANCH: &str = "master";
 
 /// Integrations for git repositories
 pub mod git;
@@ -177,8 +179,8 @@ impl Integration {
         self.protocol().endpoint()
     }
 
-    /// Best effort approach to find primary branch
-    pub async fn fix_me(&self) -> Result<Integration, Report<ValidationError>> {
+    /// Best effort approach to set primary branch by searching for main/master branch
+    pub async fn set_watched_branches(&self) -> Result<Integration, Report<ValidationError>> {
         match self {
             Integration {
                 poll_interval,
@@ -227,7 +229,7 @@ impl Integration {
         }
     }
 
-    /// Checks if the reference should be scanned by comparing it to our watched branches
+    /// Checks if the reference branch should be scanned by comparing it to our watched branches
     pub fn validate_reference_scan(&self, reference: &str) -> bool {
         let branches = self.watched_branches();
         for branch in branches {
@@ -237,6 +239,7 @@ impl Integration {
                         return true;
                     }
                 }
+                // In the case of error continue on and have the function return false if there are no matches
                 Err(_e) => continue,
             }
         }
@@ -292,7 +295,7 @@ impl PollInterval {
 /// This is set because Broker is intended to bring eventual observability;
 /// if users want faster polling than this it's probably because they want to make sure they don't miss revisions,
 /// in such a case we recommend CI integration.
-pub const MIN_POLL_INTERVAL: Duration = Duration::from_secs(15);
+pub const MIN_POLL_INTERVAL: Duration = Duration::from_secs(60 * 60);
 
 impl TryFrom<String> for PollInterval {
     type Error = Report<ValidationError>;
@@ -358,11 +361,11 @@ impl Reference {
     /// The name of the reference's branch or tag
     pub fn name(&self) -> &str {
         match self {
-            Reference::Git(git) => git.name(),
+            Reference::Git(git) => git.name().as_str(),
         }
     }
 
-    /// boop
+    /// The reference's type (branch/tag)
     pub fn reference_type(&self) -> &git::Reference {
         match self {
             Reference::Git(reference) => reference,
