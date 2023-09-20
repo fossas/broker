@@ -192,6 +192,7 @@ impl Integration {
                 if !watched_branches.is_empty() {
                     return Ok(self.clone());
                 }
+
                 let references = self.references().await.unwrap_or_default();
                 let primary_branch = references
                     .iter()
@@ -206,7 +207,7 @@ impl Integration {
                     }
                     Some(branch) => {
                         let primary_branch_name = branch.name();
-                        warn!("Watched_branches was set to empty, added branch: '{primary_branch_name}' as a best effort approach");
+                        warn!("Watched_branches was set to empty, added branch '{primary_branch_name}' as a best effort approach");
                         let watched_branch = WatchedBranch::new(branch.name().to_string());
                         let watched_branches = vec![watched_branch];
 
@@ -291,7 +292,7 @@ impl PollInterval {
 /// This is set because Broker is intended to bring eventual observability;
 /// if users want faster polling than this it's probably because they want to make sure they don't miss revisions,
 /// in such a case we recommend CI integration.
-pub const MIN_POLL_INTERVAL: Duration = Duration::from_secs(60 * 60);
+pub const MIN_POLL_INTERVAL: Duration = Duration::from_secs(15);
 
 impl TryFrom<String> for PollInterval {
     type Error = Report<ValidationError>;
@@ -306,19 +307,6 @@ impl TryFrom<String> for PollInterval {
             ValidationError::MinPollInterval
         );
         PollInterval(parsed).wrap_ok()
-    }
-}
-
-/// Validated config values for external code host integrations.
-#[derive(Debug, Default, Clone, PartialEq, Eq, AsRef, From, new)]
-pub struct WatchedBranches(Vec<WatchedBranch>);
-
-impl WatchedBranches {
-    delegate! {
-        to self.0 {
-            /// Iterate over configured integrations.
-            pub fn iter(&self) -> impl Iterator<Item = &WatchedBranch>;
-        }
     }
 }
 

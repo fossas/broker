@@ -75,6 +75,7 @@ async fn validate(config: RawConfigV1) -> Result<super::Config, Report<Error>> {
     let key = fossa::Key::try_from(config.integration_key).change_context(Error::Validate)?;
     let api = fossa::Config::new(endpoint, key);
     let debugging = debug::Config::try_from(config.debugging).change_context(Error::Validate)?;
+
     let integrations = config
         .integrations
         .into_iter()
@@ -85,6 +86,7 @@ async fn validate(config: RawConfigV1) -> Result<super::Config, Report<Error>> {
                 Err(report) => Err(report),
             }
         });
+    println!("The integartions before {integrations:#?}");
     //.collect::<Result<Vec<_>, Report<remote::ValidationError>>>()
     //.change_context(Error::Validate)
     //.map(remote::Integrations::new);
@@ -96,7 +98,7 @@ async fn validate(config: RawConfigV1) -> Result<super::Config, Report<Error>> {
         .collect::<Result<Vec<_>, Report<remote::ValidationError>>>()
         .change_context(Error::Validate)
         .map(remote::Integrations::new)?;
-
+    println!("the new integrations {new_integrations:#?}");
     super::Config::new(api, debugging, new_integrations).wrap_ok()
 }
 

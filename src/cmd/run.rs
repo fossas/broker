@@ -83,7 +83,7 @@ pub enum Error {
 
     /// If we fail to delete tasks' state in the sqlite DB, this error is raised
     #[error("delete tasks' state")]
-    TaskDeleteState
+    TaskDeleteState,
 }
 
 /// Similar to [`AppContext`], but scoped for this subcommand.
@@ -127,16 +127,20 @@ async fn validate_integration_configuration<D: Database>(
     let repository = integration.remote().for_coordinate();
     let import_branches = integration.import_branches();
     let import_tags = integration.import_tags();
-    
+
     if !*import_branches {
         let is_branch = true;
-        db.delete_states(&repository, is_branch).await.change_context(Error::TaskDeleteState)?;
+        db.delete_states(&repository, is_branch)
+            .await
+            .change_context(Error::TaskDeleteState)?;
     }
     if !*import_tags {
         let is_branch = false;
-        db.delete_states(&repository, is_branch).await.change_context(Error::TaskDeleteState)?
+        db.delete_states(&repository, is_branch)
+            .await
+            .change_context(Error::TaskDeleteState)?
     }
-    
+
     Ok(())
 }
 
@@ -282,7 +286,10 @@ async fn execute_poll_integration<D: Database>(
     };
 
     info!("Polling '{integration}'");
-    println!("Integration name for db query: {:?}", remote.for_coordinate());
+    println!(
+        "Integration name for db query: {:?}",
+        remote.for_coordinate()
+    );
     // Given that this operation is not latency sensitive, and temporary network issues can interfere,
     // retry several times before permanently failing since a permanent failure means Broker shuts down
     // entirely.
@@ -305,23 +312,17 @@ async fn execute_poll_integration<D: Database>(
                 match reference.reference_type() {
                     git::Reference::Branch {..} => {
                         // Skipping because integration is not configured to scan branches or branch was not in the integration's watched branches
-                        let import_branches = integration.import_branches();
-                        if !*import_branches || !integration.validate_reference_scan(reference.name()){
+                        if !*integration.import_branches() || !integration.validate_reference_scan(reference.name()){
                             return None
                         }
                     },
                     git::Reference::Tag{..}  => {
                         // Skipping because integration was not configured to scan tags
-                        let import_tags = integration.import_tags();
-                        if !*import_tags{
-                            println!("skipping tag: {reference:#?}");
+                        if !*integration.import_tags(){
                             return None
                         }
-                    
                     },
                 }
-                
-
                 let coordinate = reference.as_coordinate(&remote);
                 match db.state(&coordinate).await {
                     // No previous state; this must be a new reference.
@@ -498,13 +499,13 @@ async fn execute_upload_scans<D: Database>(
     let coordinate = job.reference.as_coordinate(&remote);
     let state = job.reference.as_state();
     let is_branch = match job.reference.reference_type() {
-        git::Reference::Branch {..} => true,
-        git::Reference::Tag{..}  => false,
+        git::Reference::Branch { .. } => true,
+        git::Reference::Tag { .. } => false,
     };
 
     // Mark this reference as scanned in the local DB.
     ctx.db
-        .set_state(&coordinate, state,&is_branch)
+        .set_state(&coordinate, state, &is_branch)
         .await
         .change_context(Error::TaskSetState)
 }
