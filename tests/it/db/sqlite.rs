@@ -150,7 +150,6 @@ async fn roundtrip_state() {
         .await
         .expect("must get state")
         .expect("state must have been set");
-    println!("state: {state:#?}   and new state: {new_state:#?}");
     assert_eq!(new_state, state);
 }
 
