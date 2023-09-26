@@ -260,9 +260,9 @@ impl TryFrom<String> for PollInterval {
 /// Specificies if we want to scan branches
 #[derive(Debug, Clone, PartialEq, Eq, Display, Deserialize, Serialize, new)]
 pub enum BranchImportStrategy {
-    /// Do not scan integration branches
+    /// Scanning branches is not allowed
     Disabled,
-    /// Scan integration branches
+    /// Scanning branches is allowed
     Enabled,
 }
 
@@ -279,9 +279,9 @@ impl From<Option<bool>> for BranchImportStrategy {
 /// Specifies if the we want to scan tags
 #[derive(Debug, Clone, PartialEq, Eq, Display, Deserialize, Serialize, new)]
 pub enum TagImportStrategy {
-    /// Do not scan integration tags
+    /// Scanning tags is not allowed
     Disabled,
-    /// Scan integration tags
+    /// Scanning tags is allowed
     Enabled,
 }
 

@@ -71,7 +71,6 @@ deadqueue = "0.2.4"
 governor = "0.6.0"
 nonzero_ext = "0.3.0"
 glob = "0.3.1"
-async-convert = "1.0.0"
 
 [dev-dependencies]
 insta = { version = "1.31.0", features = ["filters", "json", "yaml"] }
