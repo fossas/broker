@@ -69,11 +69,14 @@ This block specifies how to configure Broker to communicate with a git server fo
 
 | Value           | Required? | Description                                                                                   | Suggested default | Minimum value |
 |-----------------|-----------|-----------------------------------------------------------------------------------------------|-------------------|---------------|
-| `poll_interval` | Required  | How often Broker checks with the remote repository to see whether it has changed.<sup>1</sup> | `1 hour`          | `1 hour`      |
-| `remote`        | Required  | The remote git repository address.                                                            | N/A               | N/A           |
-| `auth`          | Required  | Required authentication to clone this repository.                                             | N/A               | N/A           |
-| `team`          | Optional  | The team in FOSSA to which this project should be assigned.<sup>2</sup>                       | N/A               | N/A           |
-| `title`         | Optional  | Specify a custom title for the project instead of using the default.<sup>3</sup>              | N/A               | N/A           |
+| `poll_interval`   | Required  | How often Broker checks with the remote repository to see whether it has changed.<sup>1</sup> | `1 hour`          | `1 hour`      |
+| `remote`          | Required  | The remote git repository address.                                                            | N/A               | N/A           |
+| `auth`            | Required  | Required authentication to clone this repository.                                             | N/A               | N/A           |
+| `team`            | Optional  | The team in FOSSA to which this project should be assigned.<sup>2</sup>                       | N/A               | N/A           |
+| `title`           | Optional  | Specify a custom title for the project instead of using the default.<sup>3</sup>              | N/A               | N/A           |
+|`import_branches`  | Optional  | Initialize to scan specific branches for the remote repository                                | N/A               | N/A           |
+| `import_tags`     | Optional  | Initialize to scan tags for the remote repository                                             | N/A               | N/A           |
+| `watched_branches`| Optional  | The name of the branches that you intend to scan                                              | N/A               | N/A           |
 
 **[1]**: The poll interval defines the interval at which Broker _checks for updates_, not the interval at which Broker actually analyzes the repository.
 For more details on authentication, see [integration authentication](#integration-authentication).
@@ -117,6 +120,44 @@ Examples for valid durations:
 | `55s 500ms`          | 55 seconds and 500 milliseconds          |
 | `300ms 20s 5day`     | 5 days, 20 seconds, and 300 milliseconds |
 | `5day 4hours 10days` | 15 days and 4 hours                      |
+
+## Smart Imports
+
+Broker provides configurable branch/tag scanning for every integration. You can customize your scans 
+through these fields listed in the integrations section of your config.yml:
+
+```
+integrations:    
+  - type: git
+    import_branches: true  # Defaults to true
+    watched_branches:      # If unspecified, Broker will try to set to main or master if present
+      - main  
+      - release*             
+    import_tags: false     # Defaults to false
+```
+
+### default values
+
+If these fields are not set, `import_branches` will be set to `true`, `import_tags` will be set to `false`, and Broker 
+will make a best effort approach to set `watched_branches` to `main` or `master` if it is present in the remote.
+
+### branch scanning
+
+In order to scan specific branches, `import_branches` must be set to `true` and the list of branches you intend to scan should be provided under `watched_branches`. Having `watched_branches` set while having `import_branches` set to `false` is an invalid 
+combination and will cause Broker to throw errors. 
+
+[Glob matching](https://en.wikipedia.org/wiki/Glob_(programming)) is also provided with your branches. If one of your watched_branches is `release*` and your remote contains branches `release1`, `release2`, and `release-3`. Then all three 
+of those branches will be scanned due to glob matching.
+
+### tag scanning
+
+In order to allow Broker to scan tags in your remote, `import_tags` must be set to `true`
+
+### toggling fields
+
+Toggling `import_branches` from `true` to `false` will remove all existing uploaded scans for ALL branches of that particular remote in your database. If toggled from `false` to `true`, Broker will perform as if it is scanning the listed `watched_branches` for the first time.
+
+Toggling `import_tags` from `true` to `false` will remove all existing uploaded scans for ALL tags of that particular remote in your database. If toggled from `false` to `true`, Broker will perform as if it is scanning all the remote's tags for the first time. This would mean that all tags for that remote would be scanned.
 
 ## Integration authentication
 

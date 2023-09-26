@@ -245,8 +245,14 @@ async fn test_integration_smart_imports_default() {
     let Some(integration) = conf.integrations().as_ref().iter().next() else {
         panic!("must have parsed at least one integration")
     };
-    assert_eq!(integration.import_branches(), &true);
-    assert_eq!(integration.import_tags(), &false);
+    assert_eq!(
+        integration.import_branches(),
+        &remote::BranchImportStrategy::Enabled
+    );
+    assert_eq!(
+        integration.import_tags(),
+        &remote::TagImportStrategy::Disabled
+    );
 }
 
 #[tokio::test]

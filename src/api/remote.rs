@@ -21,7 +21,6 @@ use glob::Pattern;
 use humantime::parse_duration;
 use serde::{Deserialize, Serialize};
 use tempfile::TempDir;
-use tracing::warn;
 use typed_builder::TypedBuilder;
 
 use crate::{
@@ -31,11 +30,6 @@ use crate::{
         result::{WrapErr, WrapOk},
     },
 };
-
-/// Used to filter for main branch in an integration
-pub const MAIN_BRANCH: &str = "main";
-/// Used to filter for master branch in an integration
-pub const MASTER_BRANCH: &str = "master";
 
 /// Integrations for git repositories
 pub mod git;
@@ -63,8 +57,8 @@ pub enum ValidationError {
     #[error("validate import branches and watched branches")]
     ImportBranches,
 
-    /// Unable to decipher primary branch
-    #[error("primary branch could not be deciphered")]
+    /// Unable to infer primary branch
+    #[error("primary branch could not be inferred")]
     PrimaryBranch,
 }
 
@@ -146,11 +140,11 @@ pub struct Integration {
 
     /// Specifies if we want to scan specific branches
     #[getset(get = "pub")]
-    import_branches: bool,
+    import_branches: BranchImportStrategy,
 
-    /// Specifies if we want to scan specific tags
+    /// Specifies if we want to scan tags
     #[getset(get = "pub")]
-    import_tags: bool,
+    import_tags: TagImportStrategy,
 
     /// The name of the branches we want to scan
     #[getset(get = "pub")]
@@ -179,61 +173,11 @@ impl Integration {
         self.protocol().endpoint()
     }
 
-    /// Best effort approach to set primary branch by searching for main/master branch
-    pub async fn set_watched_branches(&self) -> Result<Integration, Report<ValidationError>> {
-        match self {
-            Integration {
-                poll_interval,
-                team,
-                title,
-                protocol,
-                import_branches: true,
-                import_tags,
-                watched_branches,
-            } => {
-                if !watched_branches.is_empty() {
-                    return Ok(self.clone());
-                }
-
-                let references = self.references().await.unwrap_or_default();
-                let primary_branch = references
-                    .iter()
-                    .find(|r| r.name() == MAIN_BRANCH || r.name() == MASTER_BRANCH)
-                    .cloned();
-                match primary_branch {
-                    None => {
-                        report!(ValidationError::PrimaryBranch)
-                        .wrap_err()
-                        .help("watched_branches was empty and failed to inject main/master branch into watched_branches")
-                        .describe_lazy(||"provide valid watched_branches")?
-                    }
-                    Some(branch) => {
-                        let primary_branch_name = branch.name();
-                        warn!("Watched_branches was set to empty, added branch '{primary_branch_name}' as a best effort approach");
-                        let watched_branch = WatchedBranch::new(branch.name().to_string());
-                        let watched_branches = vec![watched_branch];
-
-                        Integration {
-                            poll_interval: *poll_interval,
-                            team: team.clone(),
-                            title: title.clone(),
-                            protocol: protocol.clone(),
-                            import_branches: true,
-                            import_tags: *import_tags,
-                            watched_branches,
-                        }.wrap_ok()
-                    }
-                }
-            }
-            _ => Ok(self.clone()),
-        }
-    }
-
     /// Checks if the reference branch should be scanned by comparing it to our watched branches
-    pub fn validate_reference_scan(&self, reference: &str) -> bool {
+    pub fn should_scan_reference(&self, reference: &str) -> bool {
         let branches = self.watched_branches();
         for branch in branches {
-            match Pattern::new(branch.name().as_str()) {
+            match Pattern::new(branch.name()) {
                 Ok(p) => {
                     if p.matches(reference) {
                         return true;
@@ -313,14 +257,52 @@ impl TryFrom<String> for PollInterval {
     }
 }
 
+/// Specificies if we want to scan branches
+#[derive(Debug, Clone, PartialEq, Eq, Display, Deserialize, Serialize, new)]
+pub enum BranchImportStrategy {
+    /// Do not scan integration branches
+    Disabled,
+    /// Scan integration branches
+    Enabled,
+}
+
+impl From<Option<bool>> for BranchImportStrategy {
+    fn from(val: Option<bool>) -> BranchImportStrategy {
+        match val {
+            Some(false) => BranchImportStrategy::Disabled,
+            // True case maps to enabled and if it is None we default to enabled
+            _ => BranchImportStrategy::Enabled,
+        }
+    }
+}
+
+/// Specifies if the we want to scan tags
+#[derive(Debug, Clone, PartialEq, Eq, Display, Deserialize, Serialize, new)]
+pub enum TagImportStrategy {
+    /// Do not scan integration tags
+    Disabled,
+    /// Scan integration tags
+    Enabled,
+}
+
+impl From<Option<bool>> for TagImportStrategy {
+    fn from(val: Option<bool>) -> TagImportStrategy {
+        match val {
+            Some(true) => TagImportStrategy::Enabled,
+            // False case maps to disabled, and if it is None we default to disabled
+            _ => TagImportStrategy::Disabled,
+        }
+    }
+}
+
 /// The integration's branch that you intend to scan
 #[derive(Debug, Clone, PartialEq, Eq, AsRef, Display, Deserialize, Serialize, new)]
 pub struct WatchedBranch(String);
 
 impl WatchedBranch {
     /// The name of the watched branch
-    pub fn name(&self) -> String {
-        self.0.clone()
+    pub fn name(&self) -> &str {
+        &self.0
     }
 }
 
@@ -362,13 +344,6 @@ impl Reference {
     pub fn name(&self) -> &str {
         match self {
             Reference::Git(git) => git.name().as_str(),
-        }
-    }
-
-    /// The reference's type (branch/tag)
-    pub fn reference_type(&self) -> &git::Reference {
-        match self {
-            Reference::Git(reference) => reference,
         }
     }
 }

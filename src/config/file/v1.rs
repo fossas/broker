@@ -1,20 +1,25 @@
 //! Types and functions for parsing v1 config files.
 
-use std::path::PathBuf;
-
 use error_stack::{report, Report, ResultExt};
 use futures::future::join_all;
 use serde::Deserialize;
+use std::path::PathBuf;
+use tokio::task;
+use tracing::warn;
 
 use crate::{
     api::{
         fossa, http,
-        remote::{self, git},
+        remote::{
+            self,
+            git::{self, MAIN_BRANCH, MASTER_BRANCH},
+            RemoteProvider,
+        },
         ssh,
     },
-    debug,
+    debug, doc,
     ext::{
-        error_stack::{DescribeContext, ErrorHelper, IntoContext},
+        error_stack::{DescribeContext, ErrorDocReference, ErrorHelper, IntoContext},
         result::{WrapErr, WrapOk},
         secrecy::ComparableSecretString,
     },
@@ -72,35 +77,20 @@ async fn validate(config: RawConfigV1) -> Result<super::Config, Report<Error>> {
     let api = fossa::Config::new(endpoint, key);
     let debugging = debug::Config::try_from(config.debugging).change_context(Error::Validate)?;
 
-    // Converts and validates the parsed integrations
-    // The first map tries to convert each integration into an integration object after validation
-    // The second map does a best effort approach to inject main/master branch into watched_branches if watched_branches is empty and import_branches is set to true
-    let integrations = config
-        .integrations
-        .into_iter()
-        .map(remote::Integration::try_from)
-        .map(|res| async {
-            match res {
-                Ok(integration) => {
-                    Ok(remote::Integration::set_watched_branches(&integration).await)
-                }
-                Err(report) => Err(report),
-            }
-        });
-
-    // Evaluate the reults of the mapping
-    let transformed_integrations = join_all(integrations)
+    // Spawn_blocking is used to allow try_from to operate as a blocking function.
+    // Try_from is a trait and cannot operate as an async function, but spawn_blocking allows you to bypass this.
+    let integrations = config.integrations.into_iter().map(|val| async {
+        task::spawn_blocking(move || remote::Integration::try_from(val)).await
+    });
+    let integrations = join_all(integrations)
         .await
         .into_iter()
-        .map(|res| match res {
-            Ok(integration) => integration,
-            Err(err) => Err(err),
-        })
+        .flatten()
         .collect::<Result<Vec<_>, Report<remote::ValidationError>>>()
         .change_context(Error::Validate)
         .map(remote::Integrations::new)?;
-    println!("the new integrations {transformed_integrations:#?}");
-    super::Config::new(api, debugging, transformed_integrations).wrap_ok()
+
+    super::Config::new(api, debugging, integrations).wrap_ok()
 }
 
 #[derive(Debug, Deserialize)]
@@ -168,7 +158,7 @@ impl TryFrom<Integration> for remote::Integration {
     type Error = Report<remote::ValidationError>;
 
     fn try_from(value: Integration) -> Result<Self, Self::Error> {
-        match value {
+        let mut integration = match value {
             Integration::Git {
                 poll_interval,
                 remote,
@@ -181,15 +171,17 @@ impl TryFrom<Integration> for remote::Integration {
             } => {
                 let poll_interval = remote::PollInterval::try_from(poll_interval)?;
                 let endpoint = remote::Remote::try_from(remote)?;
-                let import_branches = import_branches.unwrap_or(true);
-                let import_tags = import_tags.unwrap_or(false);
+                let import_branches = remote::BranchImportStrategy::from(import_branches);
+                let import_tags = remote::TagImportStrategy::from(import_tags);
                 let watched_branches = watched_branches
                     .unwrap_or_default()
                     .into_iter()
                     .map(remote::WatchedBranch::new)
-                    .collect::<Vec<remote::WatchedBranch>>();
+                    .collect::<Vec<_>>();
 
-                if !import_branches && !watched_branches.is_empty() {
+                if import_branches == remote::BranchImportStrategy::Disabled
+                    && !watched_branches.is_empty()
+                {
                     report!(remote::ValidationError::ImportBranches)
                         .wrap_err()
                         .help("import branches must be 'true' if watched branches are provided")
@@ -238,9 +230,37 @@ impl TryFrom<Integration> for remote::Integration {
                     .import_tags(import_tags)
                     .watched_branches(watched_branches)
                     .build()
-                    .wrap_ok()
+            }
+        };
+
+        if integration.watched_branches().is_empty()
+            && integration.import_branches() == &remote::BranchImportStrategy::Enabled
+        {
+            let references =
+                futures::executor::block_on(integration.references()).unwrap_or_default();
+            let primary_branch = references
+                .iter()
+                .find(|r| r.name() == MAIN_BRANCH || r.name() == MASTER_BRANCH)
+                .cloned();
+
+            match primary_branch {
+                None => {
+                    // Watched branches was not set and failed to infer a primary branch
+                    return report!(remote::ValidationError::PrimaryBranch)
+                        .wrap_err()
+                        .help("Consider providing explicit values for watched branches in the integration config")
+                        .describe_lazy(|| "infer watched branches")
+                        .documentation_lazy(doc::link::config_file_reference)?;
+                }
+                Some(branch) => {
+                    let primary_branch_name = branch.name();
+                    warn!("Inferred '{primary_branch_name}' as the primary branch for '{integration:#?}'. Broker imports only the primary branch when inferred; if desired this can be customized with the integration configuration.");
+                    let watched_branch = remote::WatchedBranch::new(branch.name().to_string());
+                    integration.add_watched_branch(watched_branch);
+                }
             }
         }
+        integration.wrap_ok()
     }
 }
 
