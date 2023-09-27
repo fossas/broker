@@ -2,7 +2,7 @@
 
 use std::time::Duration;
 
-use error_stack::{Result, ResultExt};
+use error_stack::{report, Result, ResultExt};
 use futures::TryStreamExt;
 use futures::{future::try_join_all, try_join, StreamExt};
 use governor::{Quota, RateLimiter};
@@ -18,7 +18,9 @@ use tracing::{debug, info};
 use uuid::Uuid;
 
 use crate::api::fossa::{self, CliMetadata, ProjectMetadata};
-use crate::api::remote::Reference;
+use crate::api::remote::git::repository;
+use crate::api::remote::{Integrations, Protocol, Reference};
+use crate::ext::result::{WrapErr, WrapOk};
 use crate::ext::tracing::span_record;
 use crate::fossa_cli::{self, DesiredVersion, Location, SourceUnits};
 use crate::queue::Queue;
@@ -80,6 +82,14 @@ pub enum Error {
     /// If we fail to run FOSSA CLI, this error is raised.
     #[error("run FOSSA CLI")]
     RunFossaCli,
+
+    /// Failed to connect to at least one integration
+    #[error("validate integration connections")]
+    IntegrationConnection,
+
+    /// Failed to connect to FOSSA  
+    #[error("validate FOSSA connection")]
+    FossaConnection,
 }
 
 /// Similar to [`AppContext`], but scoped for this subcommand.
@@ -104,9 +114,66 @@ pub async fn main<D: Database>(ctx: &AppContext, config: Config, db: D) -> Resul
         db,
     };
 
+    let preflight_checks = preflight_checks(&ctx);
     let healthcheck_worker = healthcheck(&ctx.db);
     let integration_worker = integrations(&ctx);
-    try_join!(healthcheck_worker, integration_worker).discard_ok()
+    try_join!(preflight_checks, healthcheck_worker, integration_worker).discard_ok()
+}
+async fn preflight_checks<D: Database>(ctx: &CmdContext<D>) -> Result<(), Error> {
+    println!("In preflight checks-----");
+    let validate_integration_connections = integration_connections(ctx.config.integrations());
+    let validate_fossa_connection = fossa_connection(&ctx.config);
+    try_join!(validate_integration_connections, validate_fossa_connection).discard_ok()
+}
+
+#[tracing::instrument(skip_all)]
+/// Validate that Broker can connect to at least one integration
+async fn integration_connections(integrations: &Integrations) -> Result<(), Error> {
+    if integrations.as_ref().is_empty() {
+        return Ok(());
+    }
+
+    for integration in integrations.iter() {
+        let Protocol::Git(transport) = integration.protocol();
+        if let Ok(_) = repository::ls_remote(transport).await {
+            return Ok(());
+        }
+    }
+
+    report!(Error::IntegrationConnection).wrap_err()
+}
+
+#[tracing::instrument(skip_all)]
+/// Validate that Broker can connect to FOSSA
+async fn fossa_connection(config: &Config) -> Result<(), Error> {
+    let endpoint = config.fossa_api().endpoint().as_ref();
+    let path = "/api/cli/organization";
+    let timeout_duration: u64 = 30;
+    let client = reqwest::Client::builder()
+        .redirect(reqwest::redirect::Policy::none())
+        .connect_timeout(Duration::from_secs(timeout_duration))
+        .build()
+        .map_err(|_| Error::FossaConnection)?;
+
+    let url = endpoint.join(path).map_err(|_| Error::FossaConnection)?;
+
+    let fossa_response = client
+        .get(url.as_str())
+        .header(reqwest::header::ACCEPT, "application/json")
+        .bearer_auth(config.fossa_api().key().expose_secret())
+        .send()
+        .await;
+
+    match fossa_response {
+        Ok(res) => {
+            if let Err(status_err) = res.error_for_status() {
+                return report!(Error::FossaConnection).wrap_err();
+            } else {
+                return Ok(());
+            }
+        }
+        Err(err) => return report!(Error::FossaConnection).wrap_err(),
+    }
 }
 
 /// Conduct internal diagnostics to ensure Broker is still in a good state.
