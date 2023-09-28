@@ -20,7 +20,7 @@ use uuid::Uuid;
 use crate::api::fossa::{self, CliMetadata, ProjectMetadata};
 use crate::api::remote::git::repository;
 use crate::api::remote::{Integrations, Protocol, Reference};
-use crate::ext::result::{WrapErr, WrapOk};
+use crate::ext::result::WrapErr;
 use crate::ext::tracing::span_record;
 use crate::fossa_cli::{self, DesiredVersion, Location, SourceUnits};
 use crate::queue::Queue;
@@ -84,11 +84,11 @@ pub enum Error {
     RunFossaCli,
 
     /// Failed to connect to at least one integration
-    #[error("validate integration connections")]
+    #[error("integration connections")]
     IntegrationConnection,
 
     /// Failed to connect to FOSSA  
-    #[error("validate FOSSA connection")]
+    #[error("FOSSA connection")]
     FossaConnection,
 }
 
@@ -119,8 +119,9 @@ pub async fn main<D: Database>(ctx: &AppContext, config: Config, db: D) -> Resul
     let integration_worker = integrations(&ctx);
     try_join!(preflight_checks, healthcheck_worker, integration_worker).discard_ok()
 }
+
+/// Checks and catches network misconfigurations before Broker attempts its operations
 async fn preflight_checks<D: Database>(ctx: &CmdContext<D>) -> Result<(), Error> {
-    println!("In preflight checks-----");
     let validate_integration_connections = integration_connections(ctx.config.integrations());
     let validate_fossa_connection = fossa_connection(&ctx.config);
     try_join!(validate_integration_connections, validate_fossa_connection).discard_ok()
@@ -140,40 +141,24 @@ async fn integration_connections(integrations: &Integrations) -> Result<(), Erro
         }
     }
 
-    report!(Error::IntegrationConnection).wrap_err()
+    report!(Error::IntegrationConnection)
+        .wrap_err()
+        .help("run broker fix for detailed explanation on failing integration connections")
+        .describe("integration connections")
 }
 
 #[tracing::instrument(skip_all)]
 /// Validate that Broker can connect to FOSSA
 async fn fossa_connection(config: &Config) -> Result<(), Error> {
-    let endpoint = config.fossa_api().endpoint().as_ref();
-    let path = "/api/cli/organization";
-    let timeout_duration: u64 = 30;
-    let client = reqwest::Client::builder()
-        .redirect(reqwest::redirect::Policy::none())
-        .connect_timeout(Duration::from_secs(timeout_duration))
-        .build()
-        .map_err(|_| Error::FossaConnection)?;
-
-    let url = endpoint.join(path).map_err(|_| Error::FossaConnection)?;
-
-    let fossa_response = client
-        .get(url.as_str())
-        .header(reqwest::header::ACCEPT, "application/json")
-        .bearer_auth(config.fossa_api().key().expose_secret())
-        .send()
-        .await;
-
-    match fossa_response {
-        Ok(res) => {
-            if let Err(status_err) = res.error_for_status() {
-                return report!(Error::FossaConnection).wrap_err();
-            } else {
-                return Ok(());
-            }
-        }
-        Err(err) => return report!(Error::FossaConnection).wrap_err(),
-    }
+    let org_lookup = match fossa::OrgConfig::lookup(config.fossa_api()).await {
+        Ok(_) => Ok(()),
+        Err(err) => err
+            .change_context(Error::FossaConnection)
+            .wrap_err()
+            .help("ensure that your fossa key is configured correctly")
+            .describe("fossa key"),
+    };
+    org_lookup
 }
 
 /// Conduct internal diagnostics to ensure Broker is still in a good state.
