@@ -32,6 +32,8 @@ jobs:
     - run: cargo nextest run
       env:
         RUN_INTEGRATION_TESTS: "1"
+        # This key is used for integration tests
+        FOSSA_API_KEY: ${{ secrets.FOSSA_API_KEY }}
     # nextest doesn't run doctests, but does test everything else: https://github.com/nextest-rs/nextest/issues/16
     # run doctests after; this won't result in any extra rebuilds and is very quick.
     # doctest overview: https://doc.rust-lang.org/rustdoc/write-documentation/documentation-tests.html

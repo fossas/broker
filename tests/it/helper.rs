@@ -40,16 +40,18 @@ macro_rules! temp_config {
     () => {{
         let tmp = tempfile::tempdir().expect("must create tempdir");
         let dir = tmp.path().join("debug");
+        let fossa_key = std::env::var("FOSSA_API_KEY").expect("test");
+
         let content = indoc::formatdoc! {r#"
         fossa_endpoint: https://app.fossa.com
-        fossa_integration_key: abcd1234
+        fossa_integration_key: {}
         version: 1
         debugging:
           location: {dir:?}
           retention:
             days: 1
         integrations:
-        "#};
+        "#, fossa_key };
 
         let path = tmp.path().join("config.yml");
         std::fs::write(&path, content).expect("must write config file");
