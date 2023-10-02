@@ -136,7 +136,7 @@ async fn integration_connections(integrations: &Integrations) -> Result<(), Erro
 
     for integration in integrations.iter() {
         let Protocol::Git(transport) = integration.protocol();
-        if let Ok(_) = repository::ls_remote(transport).await {
+        if repository::ls_remote(transport).await.is_ok() {
             return Ok(());
         }
     }
@@ -150,15 +150,14 @@ async fn integration_connections(integrations: &Integrations) -> Result<(), Erro
 #[tracing::instrument(skip_all)]
 /// Validate that Broker can connect to FOSSA
 async fn fossa_connection(config: &Config) -> Result<(), Error> {
-    let org_lookup = match fossa::OrgConfig::lookup(config.fossa_api()).await {
+    match fossa::OrgConfig::lookup(config.fossa_api()).await {
         Ok(_) => Ok(()),
         Err(err) => err
             .change_context(Error::FossaConnection)
             .wrap_err()
             .help("ensure that your fossa key is configured correctly")
             .describe("fossa key"),
-    };
-    org_lookup
+    }
 }
 
 /// Conduct internal diagnostics to ensure Broker is still in a good state.

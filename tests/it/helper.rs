@@ -293,6 +293,10 @@ macro_rules! guard_integration_test {
         if std::env::var("RUN_INTEGRATION_TESTS").is_err() {
             return;
         }
+
+        if std::env::var("FOSSA_API_KEY").is_err() {
+            return;
+        }
     };
 }
 
