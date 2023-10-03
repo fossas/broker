@@ -83,6 +83,10 @@ pub enum Error {
     #[error("run FOSSA CLI")]
     RunFossaCli,
 
+    /// Preflight checks failed
+    #[error("preflight checks")]
+    PreflightChecks,
+
     /// Failed to connect to at least one integration
     #[error("integration connections")]
     IntegrationConnection,
@@ -122,14 +126,16 @@ pub async fn main<D: Database>(ctx: &AppContext, config: Config, db: D) -> Resul
 
 /// Checks and catches network misconfigurations before Broker attempts its operations
 async fn preflight_checks<D: Database>(ctx: &CmdContext<D>) -> Result<(), Error> {
-    let validate_integration_connections = integration_connections(ctx.config.integrations());
-    let validate_fossa_connection = fossa_connection(&ctx.config);
-    try_join!(validate_integration_connections, validate_fossa_connection).discard_ok()
+    let check_integration_connections = check_integration_connections(ctx.config.integrations());
+    let check_fossa_connection = check_fossa_connection(&ctx.config);
+    try_join!(check_integration_connections, check_fossa_connection)
+        .discard_ok()
+        .change_context(Error::PreflightChecks)
 }
 
 #[tracing::instrument(skip_all)]
-/// Validate that Broker can connect to at least one integration
-async fn integration_connections(integrations: &Integrations) -> Result<(), Error> {
+/// Check that Broker can connect to at least one integration
+async fn check_integration_connections(integrations: &Integrations) -> Result<(), Error> {
     if integrations.as_ref().is_empty() {
         return Ok(());
     }
@@ -148,15 +154,15 @@ async fn integration_connections(integrations: &Integrations) -> Result<(), Erro
 }
 
 #[tracing::instrument(skip_all)]
-/// Validate that Broker can connect to FOSSA
-async fn fossa_connection(config: &Config) -> Result<(), Error> {
+/// Check that Broker can connect to FOSSA
+async fn check_fossa_connection(config: &Config) -> Result<(), Error> {
     match fossa::OrgConfig::lookup(config.fossa_api()).await {
         Ok(_) => Ok(()),
         Err(err) => err
             .change_context(Error::FossaConnection)
             .wrap_err()
-            .help("ensure that your fossa key is configured correctly")
-            .describe("fossa key"),
+            .help("run broker fix for detailed explanation on the failing fossa connection")
+            .describe("fossa connection"),
     }
 }
 
