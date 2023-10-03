@@ -5,6 +5,11 @@ use std::fmt::Display;
 use derive_new::new;
 use serde::{Deserialize, Serialize};
 
+/// Used to filter for main branch in an integration
+pub const MAIN_BRANCH: &str = "main";
+/// Used to filter for master branch in an integration
+pub const MASTER_BRANCH: &str = "master";
+
 /// A git reference's type (branch or tag)
 #[derive(Debug, Clone, Hash, Eq, PartialEq, Serialize, Deserialize, new)]
 pub enum Reference {

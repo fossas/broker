@@ -1,19 +1,25 @@
 //! Types and functions for parsing v1 config files.
 
-use std::path::PathBuf;
-
 use error_stack::{report, Report, ResultExt};
+use futures::future::join_all;
 use serde::Deserialize;
+use std::path::PathBuf;
+use tap::Pipe;
+use tracing::warn;
 
 use crate::{
     api::{
         fossa, http,
-        remote::{self, git},
+        remote::{
+            self,
+            git::{self, MAIN_BRANCH, MASTER_BRANCH},
+            RemoteProvider,
+        },
         ssh,
     },
-    debug,
+    debug, doc,
     ext::{
-        error_stack::{DescribeContext, ErrorHelper, IntoContext},
+        error_stack::{DescribeContext, ErrorDocReference, ErrorHelper, IntoContext},
         result::{WrapErr, WrapOk},
         secrecy::ComparableSecretString,
     },
@@ -30,8 +36,9 @@ pub enum Error {
 }
 
 /// Load the config at v1 for the application.
-pub fn load(content: String) -> Result<super::Config, Report<Error>> {
-    RawConfigV1::parse(content).and_then(validate)
+pub async fn load(content: String) -> Result<super::Config, Report<Error>> {
+    let parsed = RawConfigV1::parse(content)?;
+    validate(parsed).await
 }
 
 /// Config values as parsed from disk.
@@ -64,7 +71,7 @@ impl RawConfigV1 {
     }
 }
 
-fn validate(config: RawConfigV1) -> Result<super::Config, Report<Error>> {
+async fn validate(config: RawConfigV1) -> Result<super::Config, Report<Error>> {
     let endpoint = fossa::Endpoint::try_from(config.endpoint).change_context(Error::Validate)?;
     let key = fossa::Key::try_from(config.integration_key).change_context(Error::Validate)?;
     let api = fossa::Config::new(endpoint, key);
@@ -72,7 +79,10 @@ fn validate(config: RawConfigV1) -> Result<super::Config, Report<Error>> {
     let integrations = config
         .integrations
         .into_iter()
-        .map(remote::Integration::try_from)
+        .map(|integration| async { remote::Integration::validate(integration).await })
+        .pipe(join_all)
+        .await
+        .into_iter()
         .collect::<Result<Vec<_>, Report<remote::ValidationError>>>()
         .change_context(Error::Validate)
         .map(remote::Integrations::new)?;
@@ -135,23 +145,45 @@ pub(super) enum Integration {
         title: Option<String>,
         remote: String,
         auth: Auth,
+        import_branches: Option<bool>,
+        import_tags: Option<bool>,
+        // Option<Vec<T>> is generally not meaningful, because None is generally equivalent to an empty vector.
+        // However, this needs to be an option due to serde deny_unknown_fields.
+        // An empty vector will throw errors, which is not the intended action for users on these new changes
+        watched_branches: Option<Vec<String>>,
     },
 }
 
-impl TryFrom<Integration> for remote::Integration {
-    type Error = Report<remote::ValidationError>;
-
-    fn try_from(value: Integration) -> Result<Self, Self::Error> {
-        match value {
+impl remote::Integration {
+    async fn validate(value: Integration) -> Result<Self, Report<remote::ValidationError>> {
+        let mut integration = match value {
             Integration::Git {
                 poll_interval,
                 remote,
                 team,
                 title,
                 auth,
+                import_branches,
+                import_tags,
+                watched_branches,
             } => {
                 let poll_interval = remote::PollInterval::try_from(poll_interval)?;
                 let endpoint = remote::Remote::try_from(remote)?;
+                let import_branches = remote::BranchImportStrategy::from(import_branches);
+                let import_tags = remote::TagImportStrategy::from(import_tags);
+                let watched_branches = watched_branches
+                    .unwrap_or_default()
+                    .into_iter()
+                    .map(remote::WatchedBranch::new)
+                    .collect::<Vec<_>>();
+
+                if !import_branches.is_valid(&watched_branches) {
+                    return report!(remote::ValidationError::ImportBranches)
+                        .wrap_err()
+                        .help("import branches must be 'true' if watched branches are provided")
+                        .describe_lazy(|| "import branches: 'false'".to_string());
+                }
+
                 let protocol = match auth {
                     Auth::SshKeyFile { path } => {
                         let auth = ssh::Auth::KeyFile(path);
@@ -190,10 +222,41 @@ impl TryFrom<Integration> for remote::Integration {
                     .team(team)
                     .title(title)
                     .protocol(protocol)
+                    .import_branches(import_branches)
+                    .import_tags(import_tags)
+                    .watched_branches(watched_branches)
                     .build()
-                    .wrap_ok()
+            }
+        };
+
+        if integration
+            .import_branches()
+            .infer_watched_branches(integration.watched_branches())
+        {
+            let references = integration.references().await.unwrap_or_default();
+            let primary_branch = references
+                .iter()
+                .find(|r| r.name() == MAIN_BRANCH || r.name() == MASTER_BRANCH)
+                .cloned();
+
+            match primary_branch {
+                None => {
+                    // Watched branches was not set and failed to infer a primary branch
+                    return report!(remote::ValidationError::PrimaryBranch)
+                        .wrap_err()
+                        .help("Consider providing explicit values for watched branches in the integration config")
+                        .describe_lazy(|| "infer watched branches")
+                        .documentation_lazy(doc::link::config_file_reference)?;
+                }
+                Some(branch) => {
+                    let primary_branch_name = branch.name();
+                    warn!("Inferred '{primary_branch_name}' as the primary branch for '{integration}'. Broker imports only the primary branch when inferred; if desired this can be customized with the integration configuration.");
+                    let watched_branch = remote::WatchedBranch::new(branch.name().to_string());
+                    integration.add_watched_branch(watched_branch);
+                }
             }
         }
+        integration.wrap_ok()
     }
 }
 

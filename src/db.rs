@@ -89,7 +89,15 @@ pub trait Database: Debug + Clone + Send + Sync {
     async fn state(&self, coordinate: &Coordinate) -> Result<Option<Vec<u8>>, Error>;
 
     /// Set the state of a given [`Coordinate`].
-    async fn set_state(&self, coordinate: &Coordinate, state: &[u8]) -> Result<(), Error>;
+    async fn set_state(
+        &self,
+        coordinate: &Coordinate,
+        state: &[u8],
+        is_branch: &bool,
+    ) -> Result<(), Error>;
+
+    /// Deletes all states with the given repository and is_branch values
+    async fn delete_states(&self, repository: &str, is_branch: bool) -> Result<(), Error>;
 }
 
 /// Connect to the sqlite database implementation.

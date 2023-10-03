@@ -11,6 +11,9 @@ integrations:
   - type: git
     poll_interval: 1h
     remote: git@github.com:fossas/broker.git
+    import_branches: true
+    watched_branches: 
+      - main
     auth:
       type: ssh_key
       key: efgh5678

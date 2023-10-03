@@ -244,17 +244,37 @@ impl super::Database for Database {
     }
 
     #[tracing::instrument(fields(result))]
-    async fn set_state(&self, coordinate: &Coordinate, state: &[u8]) -> Result<(), super::Error> {
+    async fn set_state(
+        &self,
+        coordinate: &Coordinate,
+        state: &[u8],
+        is_branch: &bool,
+    ) -> Result<(), super::Error> {
         let integration = coordinate.namespace.to_string();
         query!(
             r#"
-            insert into repo_state values (?, ?, ?, ?)
+            insert into repo_state values (?, ?, ?, ?, ?)
             on conflict do update set repo_state = excluded.repo_state
             "#,
             integration,
             coordinate.remote,
             coordinate.reference,
-            state
+            state,
+            is_branch,
+        )
+        .execute(&self.internal)
+        .await
+        .map(|result| span_record!(result, debug result))
+        .context(Error::Communication)
+        .change_context(super::Error::Interact)
+    }
+
+    #[tracing::instrument(fields(result))]
+    async fn delete_states(&self, repository: &str, is_branch: bool) -> Result<(), super::Error> {
+        query!(
+            "delete from repo_state where repository = ? and is_branch = ? ",
+            repository,
+            is_branch,
         )
         .execute(&self.internal)
         .await

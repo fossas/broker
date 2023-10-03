@@ -11,6 +11,9 @@ integrations:
   - type: git
     poll_interval: 1h
     remote: http://github.com/github/doesnotexist.git
+    import_branches: true
+    watched_branches:
+      - main
     auth:
       type: none
       transport: http

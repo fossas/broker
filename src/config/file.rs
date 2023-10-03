@@ -41,7 +41,8 @@ use getset::Getters;
 use serde::Deserialize;
 
 use crate::{
-    api, debug,
+    api::{self},
+    debug,
     ext::{
         error_stack::{DescribeContext, ErrorHelper, IntoContext},
         result::WrapErr,
@@ -101,7 +102,7 @@ impl Config {
             .describe("prior to parsing the config file, Broker checks just the 'version' field to select the correct parser")?;
 
         match version {
-            1 => v1::load(content).change_context(Error::ParseV1),
+            1 => v1::load(content).await.change_context(Error::ParseV1),
             0 => fail(Error::Incompatible, 0).help("update the config file to a newer format"),
             v => fail(Error::Unsupported, v).help("ensure that Broker is at the latest version"),
         }

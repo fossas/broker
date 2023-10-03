@@ -17,6 +17,7 @@ use derive_more::{AsRef, Display, From};
 use derive_new::new;
 use error_stack::{ensure, report, Report, ResultExt};
 use getset::{CopyGetters, Getters};
+use glob::Pattern;
 use humantime::parse_duration;
 use serde::{Deserialize, Serialize};
 use tempfile::TempDir;
@@ -51,6 +52,14 @@ pub enum ValidationError {
     /// The provided value is empty.
     #[error("value is empty")]
     ValueEmpty,
+
+    /// Invalid combination of import branches and watched branches
+    #[error("validate import branches and watched branches")]
+    ImportBranches,
+
+    /// Unable to infer primary branch
+    #[error("primary branch could not be inferred")]
+    PrimaryBranch,
 }
 
 /// Validated config values for external code host integrations.
@@ -128,6 +137,18 @@ pub struct Integration {
     #[getset(get = "pub")]
     #[builder(setter(into))]
     protocol: Protocol,
+
+    /// Specifies if we want to scan specific branches
+    #[getset(get = "pub")]
+    import_branches: BranchImportStrategy,
+
+    /// Specifies if we want to scan tags
+    #[getset(get = "pub")]
+    import_tags: TagImportStrategy,
+
+    /// The name of the branches we want to scan
+    #[getset(get = "pub")]
+    watched_branches: Vec<WatchedBranch>,
 }
 
 impl Display for Integration {
@@ -150,6 +171,28 @@ impl Integration {
     /// The endpoint for the integration.
     pub fn endpoint(&self) -> &Remote {
         self.protocol().endpoint()
+    }
+
+    /// Checks if the reference branch should be scanned by comparing it to our watched branches
+    pub fn should_scan_reference(&self, reference: &str) -> bool {
+        let branches = self.watched_branches();
+        for branch in branches {
+            match Pattern::new(branch.name()) {
+                Ok(p) => {
+                    if p.matches(reference) {
+                        return true;
+                    }
+                }
+                // In the case of error continue on and have the function return false if there are no matches
+                Err(_e) => continue,
+            }
+        }
+        false
+    }
+
+    /// Mutable reference for watched branches
+    pub fn add_watched_branch(&mut self, watched_branch: WatchedBranch) {
+        self.watched_branches.push(watched_branch)
     }
 }
 
@@ -211,6 +254,93 @@ impl TryFrom<String> for PollInterval {
             ValidationError::MinPollInterval
         );
         PollInterval(parsed).wrap_ok()
+    }
+}
+
+/// Specificies if we want to scan branches
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Display, Deserialize, Serialize, new)]
+pub enum BranchImportStrategy {
+    /// Scanning branches is not allowed
+    Disabled,
+    /// Scanning branches is allowed
+    Enabled,
+}
+
+impl From<Option<bool>> for BranchImportStrategy {
+    fn from(val: Option<bool>) -> BranchImportStrategy {
+        match val {
+            Some(false) => BranchImportStrategy::Disabled,
+            // True case maps to enabled and if it is None we default to enabled
+            _ => BranchImportStrategy::Enabled,
+        }
+    }
+}
+
+impl BranchImportStrategy {
+    /// Validates branch import configurations
+    pub fn is_valid(&self, watched_branches: &[WatchedBranch]) -> bool {
+        match self {
+            BranchImportStrategy::Disabled => watched_branches.is_empty(),
+            // On the Enabled variant, we can't check if watched branches is not empty here because Broker will try to infer watched branches
+            // Therefore just have the Enabled case map to true, and the validation on the enabled case will be checked later
+            BranchImportStrategy::Enabled => true,
+        }
+    }
+
+    /// Checks if we need to infer watched branches based on configuration
+    pub fn infer_watched_branches(&self, watched_branches: &[WatchedBranch]) -> bool {
+        match self {
+            BranchImportStrategy::Disabled => false,
+            BranchImportStrategy::Enabled => watched_branches.is_empty(),
+        }
+    }
+
+    /// Checks if scanning on branches should be skipped based on the enum variant
+    pub fn should_skip_branches(&self) -> bool {
+        match self {
+            BranchImportStrategy::Disabled => true,
+            BranchImportStrategy::Enabled => false,
+        }
+    }
+}
+
+/// Specifies if the we want to scan tags
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Display, Deserialize, Serialize, new)]
+pub enum TagImportStrategy {
+    /// Scanning tags is not allowed
+    Disabled,
+    /// Scanning tags is allowed
+    Enabled,
+}
+
+impl From<Option<bool>> for TagImportStrategy {
+    fn from(val: Option<bool>) -> TagImportStrategy {
+        match val {
+            Some(true) => TagImportStrategy::Enabled,
+            // False case maps to disabled, and if it is None we default to disabled
+            _ => TagImportStrategy::Disabled,
+        }
+    }
+}
+
+impl TagImportStrategy {
+    /// Checks if scanning tags should be skipped based on the enum variant
+    pub fn should_skip_tags(&self) -> bool {
+        match self {
+            TagImportStrategy::Disabled => true,
+            TagImportStrategy::Enabled => false,
+        }
+    }
+}
+
+/// The integration's branch that you intend to scan
+#[derive(Debug, Clone, PartialEq, Eq, AsRef, Display, Deserialize, Serialize, new)]
+pub struct WatchedBranch(String);
+
+impl WatchedBranch {
+    /// The name of the watched branch
+    pub fn name(&self) -> &str {
+        &self.0
     }
 }
 
