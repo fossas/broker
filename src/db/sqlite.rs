@@ -38,7 +38,6 @@ use sqlx::{
 };
 use tap::TapFallible;
 use thiserror::Error;
-use tracing::warn;
 
 use crate::{
     doc::{crate_name, crate_version},
@@ -218,12 +217,10 @@ impl super::Database for Database {
                         "})
                     .help("try again with the latest version of Broker")
             }
-            Some(db_version) if current_version > db_version => {
-                warn!("Broker currently runnning on {db_version:?}. Updating Broker to run on {current_version:?}");
-                self.update_db_version(&current_version)
-                    .await
-                    .change_context(super::Error::Interact)
-            }
+            Some(db_version) if current_version > db_version => self
+                .update_db_version(&current_version)
+                .await
+                .change_context(super::Error::Interact),
             Some(_) => Ok(()),
         }
     }

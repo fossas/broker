@@ -4,7 +4,7 @@ use error_stack::{report, Report, ResultExt};
 use futures::future::join_all;
 use serde::Deserialize;
 use std::path::PathBuf;
-use tokio::task;
+use tap::Pipe;
 use tracing::warn;
 
 use crate::{
@@ -76,16 +76,13 @@ async fn validate(config: RawConfigV1) -> Result<super::Config, Report<Error>> {
     let key = fossa::Key::try_from(config.integration_key).change_context(Error::Validate)?;
     let api = fossa::Config::new(endpoint, key);
     let debugging = debug::Config::try_from(config.debugging).change_context(Error::Validate)?;
-
-    // Spawn_blocking is used to allow try_from to operate as a blocking function.
-    // Try_from is a trait and cannot operate as an async function, but spawn_blocking allows you to bypass this.
-    let integrations = config.integrations.into_iter().map(|val| async {
-        task::spawn_blocking(move || remote::Integration::try_from(val)).await
-    });
-    let integrations = join_all(integrations)
+    let integrations = config
+        .integrations
+        .into_iter()
+        .map(|integration| async { remote::Integration::validate(integration).await })
+        .pipe(join_all)
         .await
         .into_iter()
-        .flatten()
         .collect::<Result<Vec<_>, Report<remote::ValidationError>>>()
         .change_context(Error::Validate)
         .map(remote::Integrations::new)?;
@@ -150,14 +147,15 @@ pub(super) enum Integration {
         auth: Auth,
         import_branches: Option<bool>,
         import_tags: Option<bool>,
+        // Option<Vec<T>> is generally not meaningful, because None is generally equivalent to an empty vector.
+        // However, this needs to be an option due to serde deny_unknown_fields.
+        // An empty vector will throw errors, which is not the intended action for users on these new changes
         watched_branches: Option<Vec<String>>,
     },
 }
 
-impl TryFrom<Integration> for remote::Integration {
-    type Error = Report<remote::ValidationError>;
-
-    fn try_from(value: Integration) -> Result<Self, Self::Error> {
+impl remote::Integration {
+    async fn validate(value: Integration) -> Result<Self, Report<remote::ValidationError>> {
         let mut integration = match value {
             Integration::Git {
                 poll_interval,
@@ -179,13 +177,11 @@ impl TryFrom<Integration> for remote::Integration {
                     .map(remote::WatchedBranch::new)
                     .collect::<Vec<_>>();
 
-                if import_branches == remote::BranchImportStrategy::Disabled
-                    && !watched_branches.is_empty()
-                {
-                    report!(remote::ValidationError::ImportBranches)
+                if !import_branches.is_valid(&watched_branches) {
+                    return report!(remote::ValidationError::ImportBranches)
                         .wrap_err()
                         .help("import branches must be 'true' if watched branches are provided")
-                        .describe_lazy(|| "import branches: 'false'".to_string())?
+                        .describe_lazy(|| "import branches: 'false'".to_string());
                 }
 
                 let protocol = match auth {
@@ -233,11 +229,11 @@ impl TryFrom<Integration> for remote::Integration {
             }
         };
 
-        if integration.watched_branches().is_empty()
-            && integration.import_branches() == &remote::BranchImportStrategy::Enabled
+        if integration
+            .import_branches()
+            .infer_watched_branches(integration.watched_branches())
         {
-            let references =
-                futures::executor::block_on(integration.references()).unwrap_or_default();
+            let references = integration.references().await.unwrap_or_default();
             let primary_branch = references
                 .iter()
                 .find(|r| r.name() == MAIN_BRANCH || r.name() == MASTER_BRANCH)
@@ -254,7 +250,7 @@ impl TryFrom<Integration> for remote::Integration {
                 }
                 Some(branch) => {
                     let primary_branch_name = branch.name();
-                    warn!("Inferred '{primary_branch_name}' as the primary branch for '{integration:#?}'. Broker imports only the primary branch when inferred; if desired this can be customized with the integration configuration.");
+                    warn!("Inferred '{primary_branch_name}' as the primary branch for '{integration}'. Broker imports only the primary branch when inferred; if desired this can be customized with the integration configuration.");
                     let watched_branch = remote::WatchedBranch::new(branch.name().to_string());
                     integration.add_watched_branch(watched_branch);
                 }

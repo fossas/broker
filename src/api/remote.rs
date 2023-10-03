@@ -258,7 +258,7 @@ impl TryFrom<String> for PollInterval {
 }
 
 /// Specificies if we want to scan branches
-#[derive(Debug, Clone, PartialEq, Eq, Display, Deserialize, Serialize, new)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Display, Deserialize, Serialize, new)]
 pub enum BranchImportStrategy {
     /// Scanning branches is not allowed
     Disabled,
@@ -276,8 +276,36 @@ impl From<Option<bool>> for BranchImportStrategy {
     }
 }
 
+impl BranchImportStrategy {
+    /// Validates branch import configurations
+    pub fn is_valid(&self, watched_branches: &[WatchedBranch]) -> bool {
+        match self {
+            BranchImportStrategy::Disabled => watched_branches.is_empty(),
+            // On the Enabled variant, we can't check if watched branches is not empty here because Broker will try to infer watched branches
+            // Therefore just have the Enabled case map to true, and the validation on the enabled case will be checked later
+            BranchImportStrategy::Enabled => true,
+        }
+    }
+
+    /// Checks if we need to infer watched branches based on configuration
+    pub fn infer_watched_branches(&self, watched_branches: &[WatchedBranch]) -> bool {
+        match self {
+            BranchImportStrategy::Disabled => false,
+            BranchImportStrategy::Enabled => watched_branches.is_empty(),
+        }
+    }
+
+    /// Checks if scanning on branches should be skipped based on the enum variant
+    pub fn should_skip_branches(&self) -> bool {
+        match self {
+            BranchImportStrategy::Disabled => true,
+            BranchImportStrategy::Enabled => false,
+        }
+    }
+}
+
 /// Specifies if the we want to scan tags
-#[derive(Debug, Clone, PartialEq, Eq, Display, Deserialize, Serialize, new)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Display, Deserialize, Serialize, new)]
 pub enum TagImportStrategy {
     /// Scanning tags is not allowed
     Disabled,
@@ -291,6 +319,16 @@ impl From<Option<bool>> for TagImportStrategy {
             Some(true) => TagImportStrategy::Enabled,
             // False case maps to disabled, and if it is None we default to disabled
             _ => TagImportStrategy::Disabled,
+        }
+    }
+}
+
+impl TagImportStrategy {
+    /// Checks if scanning tags should be skipped based on the enum variant
+    pub fn should_skip_tags(&self) -> bool {
+        match self {
+            TagImportStrategy::Disabled => true,
+            TagImportStrategy::Enabled => false,
         }
     }
 }

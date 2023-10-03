@@ -200,6 +200,6 @@ In order to allow Broker to scan tags in your remote, `import_tags` must be set 
 
 ### toggling fields
 
-Toggling `import_branches` from `true` to `false` will remove all existing uploaded scans for ALL branches of that particular remote in your database. If toggled from `false` to `true`, Broker will perform as if it is scanning the listed `watched_branches` for the first time.
+Toggling `import_branches` from `true` to `false` will remove all existing uploaded scans for ALL branches of that particular remote in your local database (this does NOT delete your scans in the FOSSA UI). If toggled from `false` to `true`, Broker will perform as if it is scanning the listed `watched_branches` for the first time. On subsequent poll cycles, Broker will import the latest changes from your configured branches since the last revision (skipping any intermediate commits).
 
-Toggling `import_tags` from `true` to `false` will remove all existing uploaded scans for ALL tags of that particular remote in your database. If toggled from `false` to `true`, Broker will perform as if it is scanning all the remote's tags for the first time. This would mean that all tags for that remote would be scanned.
+Toggling `import_tags` from `true` to `false` will remove all existing uploaded scans for ALL tags of that particular remote in your local database (this does NOT delete your scans in the FOSSA UI). If toggled from `false` to `true`, Broker will perform as if it is scanning all the remote's tags for the first time. This would mean that all tags for that remote would be scanned. On subsequent poll cycles, Broker will import all created or changed tags since the last poll cycle.

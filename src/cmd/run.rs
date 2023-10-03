@@ -308,13 +308,13 @@ async fn execute_poll_integration<D: Database>(
                     Reference::Git(git_reference) => match git_reference {
                         git::Reference::Branch {..} => {
                             // Skipping because integration is not configured to scan branches or branch was not in the integration's watched branches
-                            if integration.import_branches() == &BranchImportStrategy::Disabled || !integration.should_scan_reference(reference.name()){
+                            if integration.import_branches().should_skip_branches() || !integration.should_scan_reference(reference.name()){
                                 return None
                             }
                         },
                         git::Reference::Tag{..}  => {
                             // Skipping because integration was not configured to scan tags
-                            if let TagImportStrategy::Disabled = integration.import_tags()  {
+                            if integration.import_tags().should_skip_tags() {
                                 return None
                             }
                         },
