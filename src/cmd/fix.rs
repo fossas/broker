@@ -1,7 +1,10 @@
 //! Implementation for the fix command
 
 use crate::{
-    api::remote::{Reference, RemoteProvider, RemoteProviderError},
+    api::remote::{
+        git::{MAIN_BRANCH, MASTER_BRANCH},
+        Reference, RemoteProvider, RemoteProviderError,
+    },
     debug::{self, bundler, Bundle, BundleExport},
     ext::secrecy::REDACTION_LITERAL,
     fossa_cli::{self, DesiredVersion},
@@ -30,9 +33,6 @@ use crate::{
     config::Config,
     ext::result::WrapErr,
 };
-
-const MAIN_BRANCH: &str = "main";
-const MASTER_BRANCH: &str = "master";
 
 /// Errors encountered when running the fix command.
 #[derive(Debug, thiserror::Error)]

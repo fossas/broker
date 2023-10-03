@@ -1,0 +1,18 @@
+---
+source: tests/it/config.rs
+expression: err
+info: testdata/config/smart_imports_malformed.yml
+---
+load config file
+├╴at {source location}
+│
+├─▶ parse config file in v1 format
+│   ╰╴at {source location}
+│
+├─▶ validate parsed config file values
+│   ╰╴at {source location}
+│
+╰─▶ validate import branches and watched branches
+    ├╴at {source location}
+    ├╴help: import branches must be 'true' if watched branches are provided
+    ╰╴context: import branches: 'false'

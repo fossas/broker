@@ -18,7 +18,7 @@ use tracing::{debug, info};
 use uuid::Uuid;
 
 use crate::api::fossa::{self, CliMetadata, ProjectMetadata};
-use crate::api::remote::Reference;
+use crate::api::remote::{git, BranchImportStrategy, Reference, TagImportStrategy};
 use crate::ext::tracing::span_record;
 use crate::fossa_cli::{self, DesiredVersion, Location, SourceUnits};
 use crate::queue::Queue;
@@ -80,6 +80,10 @@ pub enum Error {
     /// If we fail to run FOSSA CLI, this error is raised.
     #[error("run FOSSA CLI")]
     RunFossaCli,
+
+    /// If we fail to delete tasks' state in the sqlite DB, this error is raised
+    #[error("delete tasks' state")]
+    TaskDeleteState,
 }
 
 /// Similar to [`AppContext`], but scoped for this subcommand.
@@ -104,9 +108,38 @@ pub async fn main<D: Database>(ctx: &AppContext, config: Config, db: D) -> Resul
         db,
     };
 
+    for integration in ctx.config.integrations().iter() {
+        if let Err(err) = remove_repository_scan_targets(&ctx.db, integration).await {
+            warn!("Unable to remove scan targets for '{integration}': {err:#?}. Contact Support for further guidance.");
+        }
+    }
+
     let healthcheck_worker = healthcheck(&ctx.db);
     let integration_worker = integrations(&ctx);
     try_join!(healthcheck_worker, integration_worker).discard_ok()
+}
+
+#[tracing::instrument(skip_all)]
+async fn remove_repository_scan_targets<D: Database>(
+    db: &D,
+    integration: &Integration,
+) -> Result<(), Error> {
+    let repository = integration.remote().for_coordinate();
+    let import_branches = integration.import_branches();
+    let import_tags = integration.import_tags();
+
+    if let BranchImportStrategy::Disabled = import_branches {
+        db.delete_states(&repository, true)
+            .await
+            .change_context(Error::TaskDeleteState)?;
+    }
+    if let TagImportStrategy::Disabled = import_tags {
+        db.delete_states(&repository, false)
+            .await
+            .change_context(Error::TaskDeleteState)?
+    }
+
+    Ok(())
 }
 
 /// Conduct internal diagnostics to ensure Broker is still in a good state.
@@ -271,6 +304,23 @@ async fn execute_poll_integration<D: Database>(
             // Using `filter_map` instead of `filter` so that this closure gets ownership of `reference`,
             // which makes binding it across an await point easier (no lifetimes to mess with).
             .filter_map(|reference| async {
+                match &reference {
+                    Reference::Git(git_reference) => match git_reference {
+                        git::Reference::Branch {..} => {
+                            // Skipping because integration is not configured to scan branches or branch was not in the integration's watched branches
+                            if integration.import_branches().should_skip_branches() || !integration.should_scan_reference(reference.name()){
+                                return None
+                            }
+                        },
+                        git::Reference::Tag{..}  => {
+                            // Skipping because integration was not configured to scan tags
+                            if integration.import_tags().should_skip_tags() {
+                                return None
+                            }
+                        },
+                    }
+                }
+
                 let coordinate = reference.as_coordinate(&remote);
                 match db.state(&coordinate).await {
                     // No previous state; this must be a new reference.
@@ -445,10 +495,16 @@ async fn execute_upload_scans<D: Database>(
     let remote = job.integration.remote().to_owned();
     let coordinate = job.reference.as_coordinate(&remote);
     let state = job.reference.as_state();
+    let is_branch = match &job.reference {
+        Reference::Git(git_reference) => match git_reference {
+            git::Reference::Branch { .. } => true,
+            git::Reference::Tag { .. } => false,
+        },
+    };
 
     // Mark this reference as scanned in the local DB.
     ctx.db
-        .set_state(&coordinate, state)
+        .set_state(&coordinate, state, &is_branch)
         .await
         .change_context(Error::TaskSetState)
 }
