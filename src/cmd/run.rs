@@ -173,7 +173,7 @@ async fn check_fossa_connection(config: &Config) -> Result<(), Error> {
         Err(err) => err
             .change_context(Error::FossaConnection)
             .wrap_err()
-            .help("run broker fix for detailed explanation on the failing fossa connection")
+            .help("run broker fix for detailed explanation on failing fossa connection")
             .describe("fossa connection"),
     }
 }
