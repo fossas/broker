@@ -149,7 +149,7 @@ matching the `version` field, with a `v` prefix.
 
 In the future, the plan is to automate the release process with `make release`.
 
-**It is recommended** to instead use `cargo release`, which automates much of this process and has
+**It is recommended** to instead use `cargo release` (`cargo install cargo-release` for installation), which automates much of this process and has
 some safety checks (for example it ensures you're tagging on `main`):
 
 ```
