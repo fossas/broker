@@ -2,10 +2,10 @@
 
 Features:
 - Broker is able to toggle if users want to scan branches, as well as being able to target specific branches to scan. Broker is also 
-  able to  toggle scanning tags.
+  able to toggle scanning tags.
 - Broker checks for early network misconfigurations with preflight checks
 - Broker fix surfaces failing integration scans
-- Broker now does not fail fatally and has just has those errors surfaced
+- Broker now does not fail fatally if `fossa analyze` returns an error, and instead just reports the errors as a warning
 - Broker now detects unknown fields in config and returns errors
 
 ## v0.2.3
