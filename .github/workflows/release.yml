@@ -51,7 +51,7 @@ jobs:
             toolchain: stable
           - os: windows-latest
             os-name: windows
-            toolchain: '1.68'
+            toolchain: stable
 
     needs: [metadata]
     if: ${{ needs.metadata.result == 'success' }}
@@ -106,7 +106,7 @@ jobs:
         if: ${{ matrix.os-name == 'windows' }}
         run: |
           mkdir release
-          rustup run 1.68 cargo build --release
+          rustup run stable cargo build --release
           mv target/release/broker.exe release/broker-$env:RELEASE_VERSION-x86_64-windows.exe
           gh release upload ${{ github.ref_name }} release/broker-$env:RELEASE_VERSION-x86_64-windows.exe --clobber
 
