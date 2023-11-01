@@ -2,7 +2,7 @@
 
 use bytes::Bytes;
 use cached::proc_macro::cached;
-use error_stack::{bail, report, IntoReport};
+use error_stack::{bail, report};
 use error_stack::{Result, ResultExt};
 use futures::future::try_join3;
 use indoc::formatdoc;
@@ -546,8 +546,7 @@ async fn download_from_github(version: &str) -> Result<Cursor<Bytes>, Error> {
         .get(&download_url)
         .send()
         .await
-        .into_report()
-        .change_context(Error::Download)
+        .context(Error::Download)
         .help_lazy(|| formatdoc!{"
             Try downloading FOSSA CLI from '{download_url}' to determine if this is an issue with the local network.
             You also may be able to work around this issue by using the installation script for FOSSA CLI,
@@ -558,8 +557,7 @@ async fn download_from_github(version: &str) -> Result<Cursor<Bytes>, Error> {
     let content = response
         .bytes()
         .await
-        .into_report()
-        .change_context(Error::Download)
+        .context(Error::Download)
         .help_lazy(|| formatdoc!{"
             Try downloading FOSSA CLI from '{download_url}' to determine if this is an issue with the local network.
             You also may be able to work around this issue by using the installation script for FOSSA CLI,
@@ -604,8 +602,7 @@ where
         .write(true)
         .mode(0o770)
         .open(final_path)
-        .into_report()
-        .change_context_lazy(|| Error::FinalCopy(final_path_string.clone()))?;
+        .context_lazy(|| Error::FinalCopy(final_path_string.clone()))?;
 
     std::io::copy(&mut zip_file, &mut final_file)
         .context_lazy(|| Error::FinalCopy(final_path_string.clone()))
@@ -623,8 +620,7 @@ where
         .create(true)
         .write(true)
         .open(final_path)
-        .into_report()
-        .change_context_lazy(|| Error::FinalCopy(final_path_string.clone()))?;
+        .context_lazy(|| Error::FinalCopy(final_path_string.clone()))?;
 
     std::io::copy(&mut zip_file, &mut final_file)
         .context_lazy(|| Error::FinalCopy(final_path_string.clone()))

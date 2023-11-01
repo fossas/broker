@@ -25,7 +25,7 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use error_stack::{report, IntoReport, Report, ResultExt};
+use error_stack::{report, Report, ResultExt};
 use tokio::{fs::File, task};
 
 use crate::{
@@ -195,7 +195,7 @@ where
     Report<E>: From<E>,
     F: FnOnce() -> Result<T, E> + Send + 'static,
 {
-    spawn_blocking(|| work().into_report()).await
+    spawn_blocking(|| work().map_err(Report::from)).await
 }
 
 /// Run the provided blocking closure in the background.

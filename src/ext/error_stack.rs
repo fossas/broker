@@ -1,7 +1,7 @@
 //! Extensions to `error_stack`.
 
 use colored::Colorize;
-use error_stack::{Context, IntoReport, Report, ResultExt};
+use error_stack::{Context, Report, ResultExt};
 
 use crate::doc;
 
@@ -40,7 +40,7 @@ pub trait ErrorHelper {
     fn help_lazy<S: AsRef<str>, F: FnOnce() -> S>(self, helper: F) -> Self;
 }
 
-impl<T, C> ErrorHelper for error_stack::Result<T, C> {
+impl<T, C: Context> ErrorHelper for error_stack::Result<T, C> {
     fn help<S: AsRef<str>>(self, help_text: S) -> Self {
         let help = help_literal();
         let help_text = help_text.as_ref();
@@ -84,7 +84,7 @@ pub trait ErrorDocReference {
     fn documentation_lazy<S: AsRef<str>, F: FnOnce() -> S>(self, url_generator: F) -> Self;
 }
 
-impl<T, C> ErrorDocReference for error_stack::Result<T, C> {
+impl<T, C: Context> ErrorDocReference for error_stack::Result<T, C> {
     fn documentation<S: AsRef<str>>(self, url: S) -> Self {
         let doc = documentation_literal();
         let doc_url = url.as_ref();
@@ -125,7 +125,7 @@ pub trait DescribeContext {
     fn describe_lazy<S: AsRef<str>, F: FnOnce() -> S>(self, describer: F) -> Self;
 }
 
-impl<T, C> DescribeContext for error_stack::Result<T, C> {
+impl<T, C: Context> DescribeContext for error_stack::Result<T, C> {
     fn describe<S: AsRef<str>>(self, description: S) -> Self {
         let context = describe_literal();
         let description = description.as_ref();
@@ -160,7 +160,7 @@ pub trait FatalErrorReport {
     fn request_support(self) -> Self;
 }
 
-impl<T, C> FatalErrorReport for error_stack::Result<T, C> {
+impl<T, C: Context> FatalErrorReport for error_stack::Result<T, C> {
     fn request_support(self) -> Self {
         let support = support_literal();
         let support_url = doc::link::fossa_support();
@@ -201,11 +201,13 @@ where
 
     #[track_caller]
     fn context(self, context: C) -> Result<T, Report<C>> {
-        self.into_report().change_context(context)
+        self.map_err(Report::from)
+            .map_err(|err| err.change_context(context))
     }
 
     #[track_caller]
     fn context_lazy<F: Fn() -> C>(self, context: F) -> Result<T, Report<C>> {
-        self.into_report().change_context_lazy(context)
+        self.map_err(Report::from)
+            .map_err(|err| err.change_context(context()))
     }
 }

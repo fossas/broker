@@ -1,5 +1,5 @@
 use error_stack::fmt::HookContext;
-use error_stack::{IntoReport, Report, Result, ResultExt};
+use error_stack::{Report, Result, ResultExt};
 use std::env;
 use std::fs;
 use std::path::Path;
@@ -49,7 +49,7 @@ fn main() -> Result<(), Error> {
 
 fn env_var(var: &str) -> Result<String, Error> {
     env::var(var)
-        .into_report()
+        .map_err(Report::from)
         .change_context_lazy(|| Error::CargoEnv(var.to_owned()))
         .attach(Help("ensure that this program is running in a Cargo build"))
 }
@@ -57,7 +57,7 @@ fn env_var(var: &str) -> Result<String, Error> {
 fn write_file<F: FnOnce() -> String>(root: &Path, name: &str, generator: F) -> Result<(), Error> {
     let target = root.join(name);
     fs::write(&target, generator())
-        .into_report()
+        .map_err(Report::from)
         .change_context_lazy(|| Error::WriteFile(target))
         .attach(Help(
             "ensure that the build is not running on a read-only file system",
@@ -97,11 +97,11 @@ fn generate_cargo_build_vars() -> Result<(), Error> {
     let output = Command::new("git")
         .args(["rev-parse", "HEAD"])
         .output()
-        .into_report()
+        .map_err(Report::from)
         .change_context(Error::CargoBuildVars)?;
 
     let git_hash = String::from_utf8(output.stdout)
-        .into_report()
+        .map_err(Report::from)
         .change_context(Error::CargoBuildVars)?;
 
     println!("cargo:rustc-env=GIT_HASH={}", git_hash);
