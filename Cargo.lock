@@ -263,7 +263,7 @@ dependencies = [
 
 [[package]]
 name = "broker"
-version = "0.3.0-pre"
+version = "0.3.0"
 dependencies = [
  "aho-corasick 0.7.20",
  "async-trait",

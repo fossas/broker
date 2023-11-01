@@ -2,7 +2,7 @@
 
 use std::time::Duration;
 
-use error_stack::{Result, ResultExt};
+use error_stack::{report, Result, ResultExt};
 use futures::TryStreamExt;
 use futures::{future::try_join_all, try_join, StreamExt};
 use governor::{Quota, RateLimiter};
@@ -18,7 +18,11 @@ use tracing::{debug, info};
 use uuid::Uuid;
 
 use crate::api::fossa::{self, CliMetadata, ProjectMetadata};
-use crate::api::remote::{git, BranchImportStrategy, Reference, TagImportStrategy};
+use crate::api::remote::git::repository;
+use crate::api::remote::{
+    git, BranchImportStrategy, Integrations, Protocol, Reference, TagImportStrategy,
+};
+use crate::ext::result::WrapErr;
 use crate::ext::tracing::span_record;
 use crate::fossa_cli::{self, DesiredVersion, Location, SourceUnits};
 use crate::queue::Queue;
@@ -84,6 +88,18 @@ pub enum Error {
     /// If we fail to delete tasks' state in the sqlite DB, this error is raised
     #[error("delete tasks' state")]
     TaskDeleteState,
+
+    /// Preflight checks failed
+    #[error("preflight checks")]
+    PreflightChecks,
+
+    /// Failed to connect to at least one integration
+    #[error("integration connections")]
+    IntegrationConnection,
+
+    /// Failed to connect to FOSSA  
+    #[error("FOSSA connection")]
+    FossaConnection,
 }
 
 /// Similar to [`AppContext`], but scoped for this subcommand.
@@ -114,9 +130,52 @@ pub async fn main<D: Database>(ctx: &AppContext, config: Config, db: D) -> Resul
         }
     }
 
+    let preflight_checks = preflight_checks(&ctx);
     let healthcheck_worker = healthcheck(&ctx.db);
     let integration_worker = integrations(&ctx);
-    try_join!(healthcheck_worker, integration_worker).discard_ok()
+    try_join!(preflight_checks, healthcheck_worker, integration_worker).discard_ok()
+}
+
+/// Checks and catches network misconfigurations before Broker attempts its operations
+async fn preflight_checks<D: Database>(ctx: &CmdContext<D>) -> Result<(), Error> {
+    let check_integration_connections = check_integration_connections(ctx.config.integrations());
+    let check_fossa_connection = check_fossa_connection(&ctx.config);
+    try_join!(check_integration_connections, check_fossa_connection)
+        .discard_ok()
+        .change_context(Error::PreflightChecks)
+}
+
+#[tracing::instrument(skip_all)]
+/// Check that Broker can connect to at least one integration
+async fn check_integration_connections(integrations: &Integrations) -> Result<(), Error> {
+    if integrations.as_ref().is_empty() {
+        return Ok(());
+    }
+
+    for integration in integrations.iter() {
+        let Protocol::Git(transport) = integration.protocol();
+        if repository::ls_remote(transport).await.is_ok() {
+            return Ok(());
+        }
+    }
+
+    report!(Error::IntegrationConnection)
+        .wrap_err()
+        .help("run broker fix for detailed explanation on failing integration connections")
+        .describe("integration connections")
+}
+
+#[tracing::instrument(skip_all)]
+/// Check that Broker can connect to FOSSA
+async fn check_fossa_connection(config: &Config) -> Result<(), Error> {
+    match fossa::OrgConfig::lookup(config.fossa_api()).await {
+        Ok(_) => Ok(()),
+        Err(err) => err
+            .change_context(Error::FossaConnection)
+            .wrap_err()
+            .help("run broker fix for detailed explanation on failing fossa connection")
+            .describe("fossa connection"),
+    }
 }
 
 #[tracing::instrument(skip_all)]

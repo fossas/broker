@@ -7,6 +7,7 @@ use std::path::Path;
 
 use tempfile::TempDir;
 
+use crate::guard_integration_test;
 use crate::temp_config;
 
 macro_rules! run {
@@ -47,6 +48,8 @@ fn interrupt(pid: u32) {
 #[track_caller]
 #[cfg(target_family = "unix")]
 fn run_and_interrupt_broker(tmp: &TempDir, config_path: &Path) {
+    guard_integration_test!();
+
     let config_path = config_path.to_string_lossy().to_string();
     let data_root = tmp.path().to_string_lossy().to_string();
     let child = run!(broker => "run -c {config_path} -r {data_root}");
