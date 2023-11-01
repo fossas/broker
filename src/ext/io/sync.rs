@@ -27,7 +27,7 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use error_stack::{IntoReport, Report, ResultExt};
+use error_stack::{Report, ResultExt};
 use itertools::Itertools;
 use libflate::gzip;
 use once_cell::sync::OnceCell;
@@ -208,7 +208,7 @@ pub fn validate_file(path: PathBuf) -> Result<PathBuf, Report<Error>> {
     } else {
         Error::NotRegularFile
             .wrap_err()
-            .into_report()
+            .map_err(Report::from)
             .attach_printable_lazy(|| format!("validate file: '{}'", path.display()))
     }
 }
@@ -243,7 +243,7 @@ pub fn home_dir() -> Result<&'static PathBuf, Report<Error>> {
     static LAZY: OnceCell<PathBuf> = OnceCell::new();
     LAZY.get_or_try_init(|| {
         debug!("Performing uncached lookup of home directory");
-        dirs::home_dir().ok_or(Error::LocateUserHome).into_report()
+        dirs::home_dir().ok_or(Error::LocateUserHome).map_err(Report::from)
             .describe("on macOS and Linux, this uses the $HOME environment variable or the system call 'getpwuid_r'")
             .describe("on Windows, this uses the Windows API call 'SHGetKnownFolderPath'")
             .describe("this is a very rare condition, and it's not likely that Broker will be able to resolve this issue")
