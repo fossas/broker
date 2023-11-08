@@ -181,8 +181,8 @@ pub fn pastable_ls_remote_command(transport: &Transport) -> Result<String, Repor
     pastable_git_command(transport, &ls_remote_args(transport), None)
 }
 
-// Days until a commit is considered stale and will not be scanned
-const DAYS_UNTIL_STALE: i64 = 30;
+// Days until a commit is considered stale and will not be scanned (was 30, now 180 by customer request)
+const DAYS_UNTIL_STALE: i64 = 180;
 
 /// Get a list of all branches and tags for the given integration
 /// This is done by doing this:
