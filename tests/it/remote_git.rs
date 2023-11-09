@@ -23,8 +23,7 @@ async fn references_on_public_repo_with_no_auth() {
         .references()
         .await
         .expect("no results returned from get_references_that_need_scanning on a public repo!");
-    let expected_empty_vec: Vec<Reference> = Vec::new();
-    assert_eq!(expected_empty_vec, references);
+    assert!(!references.is_empty());
 }
 
 #[tokio::test]
