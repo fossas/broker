@@ -3,7 +3,6 @@
 use std::{
     ffi::{OsStr, OsString},
     fmt::Display,
-    ops::Deref,
     path::PathBuf,
     process::{ExitStatus, Stdio},
 };
@@ -729,7 +728,7 @@ where
     T: CommandDescriber,
 {
     fn describe(&self) -> Description {
-        self.deref().deref().describe()
+        (*self).describe()
     }
 }
 
@@ -814,15 +813,15 @@ where
     T: OutputProvider,
 {
     fn stdout(&self) -> Vec<u8> {
-        self.deref().deref().stdout()
+        (*self).stdout()
     }
 
     fn stderr(&self) -> Vec<u8> {
-        self.deref().deref().stderr()
+        (*self).stderr()
     }
 
     fn status(&self) -> ExitStatus {
-        self.deref().deref().status()
+        (*self).status()
     }
 }
 
