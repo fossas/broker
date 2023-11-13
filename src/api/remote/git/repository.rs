@@ -1,7 +1,6 @@
 //! Wrapper for Git
 use base64::{engine::general_purpose, Engine as _};
 use error_stack::{bail, report, Report};
-use futures::StreamExt;
 use itertools::Itertools;
 use std::env;
 use std::fs::File;
@@ -9,8 +8,6 @@ use std::io::Write;
 use std::path::{Path, PathBuf};
 use tempfile::{tempdir, NamedTempFile, TempDir};
 use thiserror::Error;
-use time::{ext::NumericalDuration, format_description::well_known::Iso8601, OffsetDateTime};
-use tracing::debug;
 
 use super::Reference;
 use crate::ext::command::{Command, CommandDescriber, Output, OutputProvider, Value};
@@ -72,11 +69,10 @@ impl Error {
     }
 }
 
-/// List references that have been updated in the last 30 days.
+/// List all references
 #[tracing::instrument]
 pub async fn list_references(transport: &Transport) -> Result<Vec<Reference>, Report<Error>> {
-    let references = get_all_references(transport).await?;
-    references_that_need_scanning(transport, references).await
+    get_all_references(transport).await
 }
 
 /// Clone a [`Reference`] into a temporary directory.
@@ -179,118 +175,6 @@ fn pastable_git_command(
 /// Construct a pastable string containing a `git ls-remote` command, including the default args and the environment required for the transport's auth
 pub fn pastable_ls_remote_command(transport: &Transport) -> Result<String, Report<Error>> {
     pastable_git_command(transport, &ls_remote_args(transport), None)
-}
-
-// Days until a commit is considered stale and will not be scanned
-const DAYS_UNTIL_STALE: i64 = 30;
-
-/// Get a list of all branches and tags for the given integration
-/// This is done by doing this:
-///
-/// git init
-/// git remote add origin <URL to git repo>
-/// git ls-remote --quiet
-///
-/// and then parsing the results of git ls-remote
-
-/// Filter references by looking at the date of their head commit and only including repos
-/// that have been updated in the last 30 days
-/// To do this we need a cloned repository so that we can run
-/// `git log <some format string that includes that date of the commit> <branch_or_tag_name>`
-/// in the cloned repo for each branch or tag
-#[tracing::instrument(skip_all)]
-async fn references_that_need_scanning(
-    transport: &Transport,
-    references: Vec<Reference>,
-) -> Result<Vec<Reference>, Report<Error>> {
-    let tmpdir = blobless_clone(transport, None).await?;
-
-    // Filtering over the references async is a little harder than a sync filter,
-    // since the item being filtered may cross threads.
-    // Using `filter_map` simplifies this for the most part.
-    //
-    // Despite the fact that this is an async stream, it is currently still operating
-    // serially; to make it parallel use `buffer` or `buffer_unordered`.
-    let filtered_references = futures::stream::iter(references)
-        .filter_map(|reference| async {
-            reference_needs_scanning(transport, &reference, PathBuf::from(tmpdir.path()))
-                .await
-                .ok()
-                .and_then(|needs_scanning| match needs_scanning {
-                    true => Some(reference),
-                    false => None,
-                })
-        })
-        .collect()
-        .await;
-
-    debug!(
-        "references that have been updated in the last {} days: {:?}",
-        DAYS_UNTIL_STALE, filtered_references
-    );
-
-    Ok(filtered_references)
-}
-
-/// A reference needs scanning if its head commit is less than 30 days old
-#[tracing::instrument(skip(transport))]
-async fn reference_needs_scanning(
-    transport: &Transport,
-    reference: &Reference,
-    cloned_repo_dir: PathBuf,
-) -> Result<bool, Report<Error>> {
-    let reference_string = match reference {
-        Reference::Branch { name, .. } => format!("origin/{name}"),
-        Reference::Tag { name, .. } => name.clone(),
-    };
-
-    let args = vec![
-        "log",
-        "-n",
-        "1",
-        "--format=%aI:::%cI",
-        reference_string.as_str(),
-    ]
-    .into_iter()
-    .map(Value::new_plain)
-    .collect_vec();
-
-    // git log -n 1 --format="%aI:::%cI" <name of tag or branch>
-    // This will return one line containing the author date and committer date separated by ":::". E.g.:
-    // The "I" in "aI" and "cI" forces the date to be in strict ISO-8601 format
-    //
-    // git log -n 1 --format="%ai:::%ci" parse-config-file
-    // 2023-02-17 17:14:52 -0800:::2023-02-17 17:14:52 -0800
-    //
-    // The author and committer dates are almost always the same, but we'll parse both and take the most
-    // recent, just to be super safe
-
-    let output = run_git(transport, &args, Some(&cloned_repo_dir)).await?;
-    let date_strings = output.stdout_string_lossy();
-    let mut dates = date_strings.split(":::");
-    let earliest_commit_date_that_needs_to_be_scanned =
-        OffsetDateTime::checked_sub(OffsetDateTime::now_utc(), DAYS_UNTIL_STALE.days())
-            .ok_or_else(|| report!(Error::ParseGitOutput))?;
-
-    let author_date = dates
-        .next()
-        .map(|d| OffsetDateTime::parse(d, &Iso8601::DEFAULT));
-    if let Some(Ok(author_date)) = author_date {
-        if author_date > earliest_commit_date_that_needs_to_be_scanned {
-            return Ok(true);
-        }
-    }
-
-    let committer_date = dates
-        .next()
-        .map(|d| OffsetDateTime::parse(d, &Iso8601::DEFAULT));
-    if let Some(Ok(committer_date)) = committer_date {
-        if committer_date > earliest_commit_date_that_needs_to_be_scanned {
-            return Ok(true);
-        }
-    }
-
-    Ok(false)
 }
 
 /// Do a blobless clone of the repository, checking out the Reference if it exists

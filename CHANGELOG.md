@@ -1,3 +1,8 @@
+## v0.3.1
+
+Features:
+- Remove 30 day limit restriction for integration scanning
+
 ## v0.3.0
 
 Features:

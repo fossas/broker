@@ -3,7 +3,6 @@
 use std::{
     ffi::{OsStr, OsString},
     fmt::Display,
-    ops::Deref,
     path::PathBuf,
     process::{ExitStatus, Stdio},
 };
@@ -711,15 +710,16 @@ impl CommandDescriber for tokio::process::Command {
     }
 }
 
-// Double derefs here because this is implemented on `&T`.
 // Desugared, `&self` on `&T` means `&&T`.
-// We want to deref all the way down to `T`, which means dereferencing twice.
+// Dereference using `*self` as opposed to `self.deref()`.
+// This is because `self.deref()` causes warnings about double references (`&&T`),
+// whereas `*self` does not since it is more explicit.
 //
 // Normally derefs are handled automatically, so we'd just write e.g. `self.stdout()`,
 // but in this case we want to be careful to access the `stdout()` method from the _underlying_ `&T`,
 // not the `stdout()` method that is currently executing, so we need to deref to make that explicit.
 //
-// You can tell this is the case because if you remove the derefs clippy warns:
+// You can tell this is the case because if you remove the deref clippy warns:
 //
 // > function cannot return without recursing
 //
@@ -729,7 +729,7 @@ where
     T: CommandDescriber,
 {
     fn describe(&self) -> Description {
-        self.deref().deref().describe()
+        (*self).describe()
     }
 }
 
@@ -796,15 +796,16 @@ impl OutputProvider for std::process::Output {
     }
 }
 
-// Double derefs here because this is implemented on `&T`.
 // Desugared, `&self` on `&T` means `&&T`.
-// We want to deref all the way down to `T`, which means dereferencing twice.
+// Dereference using `*self` as opposed to `self.deref()`.
+// This is because `self.deref()` causes warnings about double references (`&&T`),
+// whereas `*self` does not since it is more explicit.
 //
 // Normally derefs are handled automatically, so we'd just write e.g. `self.stdout()`,
 // but in this case we want to be careful to access the `stdout()` method from the _underlying_ `&T`,
 // not the `stdout()` method that is currently executing, so we need to deref to make that explicit.
 //
-// You can tell this is the case because if you remove the derefs clippy warns:
+// You can tell this is the case because if you remove the deref clippy warns:
 //
 // > function cannot return without recursing
 //
@@ -814,15 +815,15 @@ where
     T: OutputProvider,
 {
     fn stdout(&self) -> Vec<u8> {
-        self.deref().deref().stdout()
+        (*self).stdout()
     }
 
     fn stderr(&self) -> Vec<u8> {
-        self.deref().deref().stderr()
+        (*self).stderr()
     }
 
     fn status(&self) -> ExitStatus {
-        self.deref().deref().status()
+        (*self).status()
     }
 }
 

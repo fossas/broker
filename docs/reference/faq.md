@@ -112,11 +112,11 @@ For `git` integrations, Broker considers the following to be a "reference":
 - Any tag
 - Any branch `HEAD` commit
 
-Broker enumerates the list of references that were created in the last 30 days.
+Broker first enumerates all references in the git repository.
 
 _Note that tags cannot be modified; once a tag has been created to "modify" it in `git` requires that the tag is_
 _deleted and then created with the same name. Such modifications are actually creation of the tag,_
-_and as such any tag that was "modified" within the last 30 days is also scanned by Broker._
+_and as such any tag that was "modified" since the last scan is re-canned by Broker._
 
 After enumerating the list of references, Broker then uses its local database to filter any reference that it has already scanned.
 Note that this means that a modified tag would then be filtered at this step,

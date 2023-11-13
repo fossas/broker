@@ -406,7 +406,7 @@ pub trait RemoteProvider {
         reference: &Self::Reference,
     ) -> Result<TempDir, Report<RemoteProviderError>>;
 
-    /// List references that have been updated in the last 30 days.
+    /// List all references
     async fn references(&self) -> Result<Vec<Self::Reference>, Report<RemoteProviderError>>;
 }
 
