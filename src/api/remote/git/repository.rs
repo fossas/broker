@@ -69,7 +69,7 @@ impl Error {
     }
 }
 
-/// List references that have been updated
+/// List all references
 #[tracing::instrument]
 pub async fn list_references(transport: &Transport) -> Result<Vec<Reference>, Report<Error>> {
     get_all_references(transport).await

@@ -711,9 +711,9 @@ impl CommandDescriber for tokio::process::Command {
 }
 
 // Desugared, `&self` on `&T` means `&&T`.
-// We want to dereference using *self as opposed to self.deref()
-// This is because self.deref() will cause warnings about double references (&&T)
-// Whereas *self will not cause warnings as it is more explicit
+// Dereference using `*self` as opposed to `self.deref()`.
+// This is because `self.deref()` causes warnings about double references (`&&T`),
+// whereas `*self` does not since it is more explicit.
 //
 // Normally derefs are handled automatically, so we'd just write e.g. `self.stdout()`,
 // but in this case we want to be careful to access the `stdout()` method from the _underlying_ `&T`,
@@ -797,9 +797,9 @@ impl OutputProvider for std::process::Output {
 }
 
 // Desugared, `&self` on `&T` means `&&T`.
-// We want to dereference using *self as opposed to self.deref()
-// This is because self.deref() will cause warnings about double references (&&T)
-// Whereas *self will not cause warnings as it is more explicit
+// Dereference using `*self` as opposed to `self.deref()`.
+// This is because `self.deref()` causes warnings about double references (`&&T`),
+// whereas `*self` does not since it is more explicit.
 //
 // Normally derefs are handled automatically, so we'd just write e.g. `self.stdout()`,
 // but in this case we want to be careful to access the `stdout()` method from the _underlying_ `&T`,
