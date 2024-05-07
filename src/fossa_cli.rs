@@ -248,6 +248,7 @@ impl Location {
             .arg_plain("analyze")
             .arg_plain("--debug")
             .arg_plain("--output")
+            .arg_plain("--static-only-analysis")
             .arg_plain(project.to_string_lossy());
         let mut stream = cmd.stream().context_lazy(|| Error::running_cli(&cmd))?;
         let redacter = stream.redacter();
