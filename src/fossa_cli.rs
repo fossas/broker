@@ -602,6 +602,7 @@ where
     let final_path_string = final_path.to_str().unwrap_or("").to_string();
     let mut final_file = std::fs::OpenOptions::new()
         .create(true)
+        .truncate(true)
         .write(true)
         .mode(0o770)
         .open(final_path)

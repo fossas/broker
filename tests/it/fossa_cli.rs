@@ -124,7 +124,7 @@ async fn analyze_fails_dynamic() {
         .analyze(&scan_id, &project)
         .await
         .expect("Must successfully run");
-    
+
     assert!(analysis_results.is_empty());
 }
 
