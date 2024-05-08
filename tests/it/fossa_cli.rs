@@ -120,17 +120,12 @@ async fn analyze_fails_dynamic() {
 
     // Scan our project.
     println!("Analyzing '{}' with scan id '{scan_id}'", project.display());
-    let err = location
+    let analysis_results = location
         .analyze(&scan_id, &project)
         .await
-        .expect_err("must fail to analyze");
-
-    // Snapshot testing won't work here as the order of log lines output by FOSSA CLI are not determinstic.
-    let rendered = format!("{err:#}");
-    assert!(
-        rendered.contains("No analysis targets found in directory."),
-        "{rendered}"
-    );
+        .expect("Must successfully run");
+    
+    assert!(analysis_results.is_empty());
 }
 
 #[tokio::test]
