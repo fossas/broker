@@ -1,34 +1,32 @@
 ---
 source: tests/it/fossa_cli.rs
+assertion_line: 96
 expression: err
-info: /var/folders/q7/3nvvpy0d6js28m8lypw3tcx80000gn/T/.tmpUxvSC9
+info: /var/folders/ml/cn5v5hqd4p1bd7m8q_bm9qpm0000gn/T/.tmpFS8CPr
 ---
 run FOSSA CLI: {data root}/fossa
-args: ["analyze", "--debug", "--output", {file path}]
+args: ["analyze", "--debug", "--output", "--static-only-analysis", {file path}]
 env: ["PATH=<REMOVED>"]
 status: 1
 stdout: ''
 stderr: '[DEBUG] Loading configuration file from "{config path}"
-[ERROR] ----------
-  An issue occurred
+[DEBUG] An issue occurred
 
-  >>> Details
+  *** Relevant Errors ***
 
-    Cannot collect revision data without a valid base directory
-
-  >>> Relevant errors
-
-    Error
-
-      Directory does not exist: {directory}
-
+      [0;91mError: [0mDirectory does not exist: {directory}
+      [0;92mContext: [0mCannot collect revision data without a valid base directory
       Traceback:
         - Validating configuration
+      [0;91mError: [0mDirectory does not exist: {directory}
+        - Validating configuration
 
-    Error
+[ERROR] An issue occurred
 
-      Directory does not exist: {directory}
+  *** Relevant Errors ***
 
-      Traceback:
-        - Validating configuration'
+      [0;91mError: [0mDirectory does not exist: {directory}
+      [0;92mContext: [0mCannot collect revision data without a valid base directory
+
+      [0;91mError: [0mDirectory does not exist: {directory}
 ╰╴at {source location}

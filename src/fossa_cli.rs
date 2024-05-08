@@ -248,6 +248,7 @@ impl Location {
             .arg_plain("analyze")
             .arg_plain("--debug")
             .arg_plain("--output")
+            .arg_plain("--static-only-analysis")
             .arg_plain(project.to_string_lossy());
         let mut stream = cmd.stream().context_lazy(|| Error::running_cli(&cmd))?;
         let redacter = stream.redacter();
@@ -601,6 +602,7 @@ where
     let final_path_string = final_path.to_str().unwrap_or("").to_string();
     let mut final_file = std::fs::OpenOptions::new()
         .create(true)
+        .truncate(true)
         .write(true)
         .mode(0o770)
         .open(final_path)
