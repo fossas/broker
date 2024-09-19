@@ -140,7 +140,10 @@ impl Config {
             .with(
                 tracing_subscriber::fmt::layer()
                     .json()
-                    .with_span_events(FmtSpan::FULL)
+                    .flatten_event(true)
+                    .with_thread_ids(true)
+                    .with_span_list(false)
+                    .with_span_events(FmtSpan::ACTIVE)
                     .with_writer(sink),
             );
 
