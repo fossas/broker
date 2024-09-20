@@ -141,9 +141,7 @@ impl Config {
                 tracing_subscriber::fmt::layer()
                     .json()
                     .flatten_event(true)
-                    .with_thread_ids(true)
-                    .with_span_list(false)
-                    .with_span_events(FmtSpan::ACTIVE)
+                    .with_span_events(FmtSpan::NEW | FmtSpan::CLOSE)
                     .with_writer(sink),
             );
 
