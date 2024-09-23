@@ -342,7 +342,6 @@ fn parse_ls_remote(output: String) -> Vec<Reference> {
         .collect()
 }
 
-#[tracing::instrument]
 fn line_to_git_ref(line: &str) -> Option<Reference> {
     let mut parsed = line.split_whitespace();
     let commit = parsed.next()?;
