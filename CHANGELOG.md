@@ -1,3 +1,8 @@
+## v0.3.2
+
+Features:
+- Simplify trace output to reduce trace file size
+
 ## v0.3.1
 
 Features:
