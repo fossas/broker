@@ -4,16 +4,10 @@ on: push
 jobs:
   analyze:
     runs-on: ubuntu-latest
+    env:
+      FOSSA_API_KEY: ${{ secrets.FOSSA_API_KEY }}
     steps:
       - uses: actions/checkout@v4
       - run: curl https://raw.githubusercontent.com/fossas/fossa-cli/master/install-latest.sh | bash
-
-      # Just try to run fossa up to twice, for the case of temporary network or service issues.
-      - run: fossa analyze || fossa analyze
-        env:
-          FOSSA_API_KEY: ${{ secrets.FOSSA_API_KEY }}
-
-      # Just try to run fossa up to twice, for the case of temporary network or service issues.
-      - run: fossa test || fossa test
-        env:
-          FOSSA_API_KEY: ${{ secrets.FOSSA_API_KEY }}
+      - run: fossa analyze
+      - run: fossa test
