@@ -16,7 +16,7 @@ use rolling_file::{BasicRollingFileAppender, RollingConditionBasic};
 use tracing::{info, Metadata};
 use tracing_appender::non_blocking::WorkerGuard;
 use tracing_subscriber::{
-    filter, fmt::format::FmtSpan, layer::Context, prelude::*, Layer, Registry,
+    filter, fmt::format::FmtSpan, layer::Context, prelude::*, EnvFilter, Layer, Registry,
 };
 
 use crate::ext::{
@@ -143,7 +143,9 @@ impl Config {
                     .flatten_event(true)
                     .with_span_events(FmtSpan::NEW | FmtSpan::CLOSE)
                     .with_writer(sink),
-            );
+            )
+            // filter traces based on RUST_LOG environment filter
+            .with(EnvFilter::from_default_env());
 
         tracing::subscriber::set_global_default(subscriber)
             .context(Error::TraceSinkReconfigured)
