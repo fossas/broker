@@ -10,11 +10,11 @@ jobs:
         include:
         - os: ubuntu-latest
           toolchain: stable
-        - os: macos-12
+        - os: macos-13
           toolchain: stable
         - os: windows-latest
           toolchain: stable
-    
+
     runs-on: ${{ matrix.os }}
     steps:
     - uses: actions/checkout@v4
@@ -53,7 +53,7 @@ jobs:
         include:
         - os: ubuntu-latest
           toolchain: stable
-        - os: macos-12
+        - os: macos-13
           toolchain: stable
         - os: windows-latest
           toolchain: stable
