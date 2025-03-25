@@ -13,7 +13,7 @@ use derive_new::new;
 use error_stack::{report, Report, ResultExt};
 use getset::{CopyGetters, Getters};
 use rolling_file::{BasicRollingFileAppender, RollingConditionBasic};
-use tracing::{info, Metadata};
+use tracing::{info, level_filters::LevelFilter, Metadata};
 use tracing_appender::non_blocking::WorkerGuard;
 use tracing_subscriber::{
     filter, fmt::format::FmtSpan, layer::Context, prelude::*, EnvFilter, Layer, Registry,
@@ -144,8 +144,13 @@ impl Config {
                     .with_span_events(FmtSpan::NEW | FmtSpan::CLOSE)
                     .with_writer(sink),
             )
-            // filter traces based on RUST_LOG environment filter
-            .with(EnvFilter::from_default_env());
+            // filter traces based on RUST_LOG environment variable
+            // see: https://docs.rs/tracing-subscriber/0.3.19/tracing_subscriber/filter/struct.EnvFilter.html#directives
+            .with(
+                EnvFilter::builder()
+                    .with_default_directive(LevelFilter::TRACE.into())
+                    .from_env_lossy(),
+            );
 
         tracing::subscriber::set_global_default(subscriber)
             .context(Error::TraceSinkReconfigured)
