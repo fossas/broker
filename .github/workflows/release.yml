@@ -41,12 +41,12 @@ jobs:
   build:
     strategy:
       matrix:
-        os: ['windows-latest', 'ubuntu-latest', 'macos-13']
+        os: ['windows-latest', 'ubuntu-latest', 'macos-latest']
         include:
           - os: ubuntu-latest
             os-name: linux
             toolchain: stable
-          - os: macos-13
+          - os: macos-latest
             os-name: macos
             toolchain: stable
           - os: windows-latest
