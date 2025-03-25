@@ -1,3 +1,7 @@
+## v0.3.3
+Features:
+- Support RUST_LOG environment variable for trace filtering
+
 ## v0.3.2
 
 Features:
