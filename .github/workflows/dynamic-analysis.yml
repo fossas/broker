@@ -10,7 +10,7 @@ jobs:
         include:
         - os: ubuntu-latest
           toolchain: stable
-        - os: macos-13
+        - os: macos-latest
           toolchain: stable
         - os: windows-latest
           toolchain: stable
@@ -53,7 +53,7 @@ jobs:
         include:
         - os: ubuntu-latest
           toolchain: stable
-        - os: macos-13
+        - os: macos-latest
           toolchain: stable
         - os: windows-latest
           toolchain: stable
