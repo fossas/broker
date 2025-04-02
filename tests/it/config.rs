@@ -25,6 +25,26 @@ async fn test_debug_values() {
         conf.debug().retention().days(),
         gen::debug_artifact_retention_count(3),
     );
+    assert_eq!(conf.concurrency().clone(), 10);
+}
+
+#[tokio::test]
+async fn test_debug_values_concurrency() {
+    let (_, conf) = load_config!(
+        "testdata/config/basic-concurrency.yml",
+        "testdata/database/empty.sqlite"
+    )
+    .await;
+
+    assert_eq!(
+        conf.debug().location(),
+        &gen::debug_root("/home/me/.config/fossa/broker/debugging/"),
+    );
+    assert_eq!(
+        conf.debug().retention().days(),
+        gen::debug_artifact_retention_count(3),
+    );
+    assert_eq!(conf.concurrency().clone(), 100);
 }
 
 #[tokio::test]

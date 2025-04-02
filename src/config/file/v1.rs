@@ -60,6 +60,8 @@ struct RawConfigV1 {
 
     debugging: Debugging,
 
+    concurrency: Option<usize>,
+
     #[serde(rename(deserialize = "version"))]
     _version: usize,
 }
@@ -76,6 +78,9 @@ async fn validate(config: RawConfigV1) -> Result<super::Config, Report<Error>> {
     let key = fossa::Key::try_from(config.integration_key).change_context(Error::Validate)?;
     let api = fossa::Config::new(endpoint, key);
     let debugging = debug::Config::try_from(config.debugging).change_context(Error::Validate)?;
+    let concurrency = config
+        .concurrency
+        .unwrap_or(super::Config::DEFAULT_CONCURRENCY);
     let integrations = config
         .integrations
         .into_iter()
@@ -87,7 +92,7 @@ async fn validate(config: RawConfigV1) -> Result<super::Config, Report<Error>> {
         .change_context(Error::Validate)
         .map(remote::Integrations::new)?;
 
-    super::Config::new(api, debugging, integrations).wrap_ok()
+    super::Config::new(api, debugging, integrations, concurrency).wrap_ok()
 }
 
 #[derive(Debug, Deserialize)]

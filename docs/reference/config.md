@@ -11,6 +11,7 @@ The format is as follows:
 fossa_endpoint: https://app.fossa.com
 fossa_integration_key: abcd1234
 version: 1
+concurrency: 10
 
 debugging:
   location: /home/me/.config/fossa/broker/debugging/
@@ -30,6 +31,11 @@ integrations:
 
 The config file is versioned. At this time, the only supported version is `1`.
 It is required to have `version` present in the config file.
+
+## Concurrency
+
+Configures the global concurrency of configured integrations.
+The default value, if not specified, is `10`.
 
 ## FOSSA communication
 
@@ -123,30 +129,30 @@ Examples for valid durations:
 
 ## Smart Imports
 
-Broker provides configurable branch/tag scanning for every integration. You can customize your scans 
+Broker provides configurable branch/tag scanning for every integration. You can customize your scans
 through these fields listed in the integrations section of your config.yml:
 
 ```
-integrations:    
+integrations:
   - type: git
     import_branches: true  # Defaults to true
     watched_branches:      # If unspecified, Broker will try to set to main or master if present
-      - main  
-      - release*             
+      - main
+      - release*
     import_tags: false     # Defaults to false
 ```
 
 ### default values
 
-If these fields are not set, `import_branches` will be set to `true`, `import_tags` will be set to `false`, and Broker 
+If these fields are not set, `import_branches` will be set to `true`, `import_tags` will be set to `false`, and Broker
 will make a best effort approach to set `watched_branches` to `main` or `master` if it is present in the remote.
 
 ### branch scanning
 
-In order to scan specific branches, `import_branches` must be set to `true` and the list of branches you intend to scan should be provided under `watched_branches`. Having `watched_branches` set while having `import_branches` set to `false` is an invalid 
-combination and will cause Broker to throw errors. 
+In order to scan specific branches, `import_branches` must be set to `true` and the list of branches you intend to scan should be provided under `watched_branches`. Having `watched_branches` set while having `import_branches` set to `false` is an invalid
+combination and will cause Broker to throw errors.
 
-[Glob matching](https://en.wikipedia.org/wiki/Glob_(programming)) is also provided with your branches. If one of your watched_branches is `release*` and your remote contains branches `release1`, `release2`, and `release-3`. Then all three 
+[Glob matching](https://en.wikipedia.org/wiki/Glob_(programming)) is also provided with your branches. If one of your watched_branches is `release*` and your remote contains branches `release1`, `release2`, and `release-3`. Then all three
 of those branches will be scanned due to glob matching.
 
 ### tag scanning

@@ -39,6 +39,7 @@ use derive_new::new;
 use error_stack::{report, Report, ResultExt};
 use getset::Getters;
 use serde::Deserialize;
+use tokio::sync::Semaphore;
 
 use crate::{
     api::{self},
@@ -84,9 +85,20 @@ pub struct Config {
 
     /// Configured integration points.
     integrations: api::remote::Integrations,
+
+    /// Global concurrency of polling operations.
+    concurrency: usize,
 }
 
 impl Config {
+    /// The default concurrency level if concurrency isn't specified.
+    pub const DEFAULT_CONCURRENCY: usize = 10;
+
+    /// Create a semaphore for the current concurrency level.
+    pub fn semaphore(&self) -> Semaphore {
+        Semaphore::new(self.concurrency)
+    }
+
     /// Load the config for the application.
     pub async fn load(path: &Path) -> Result<Self, Report<Error>> {
         // Parsing the config file at least twice; just load it into memory since it's small.

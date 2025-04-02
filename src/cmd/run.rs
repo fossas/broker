@@ -10,6 +10,7 @@ use indoc::indoc;
 use nonzero_ext::nonzero;
 use serde::{Deserialize, Serialize};
 use tap::TapFallible;
+use tokio::sync::{Semaphore, SemaphorePermit};
 use tokio_retry::strategy::jitter;
 use tokio_retry::strategy::ExponentialBackoff;
 use tokio_retry::Retry;
@@ -22,6 +23,7 @@ use crate::api::remote::git::repository;
 use crate::api::remote::{
     git, BranchImportStrategy, Integrations, Protocol, Reference, TagImportStrategy,
 };
+use crate::ext::error_stack::IntoContext;
 use crate::ext::result::WrapErr;
 use crate::ext::tracing::span_record;
 use crate::fossa_cli::{self, DesiredVersion, Location, SourceUnits};
@@ -43,6 +45,10 @@ pub enum Error {
     /// Application health check failed.
     #[error("health check failed")]
     Healthcheck,
+
+    /// Acquiring a concurrency permit failed.
+    #[error("acquiring concurrency permit failed")]
+    AcquireConcurrencyPermit,
 
     /// Setting up async pipeline failed.
     #[error("set up task pipeline")]
@@ -97,7 +103,7 @@ pub enum Error {
     #[error("integration connections")]
     IntegrationConnection,
 
-    /// Failed to connect to FOSSA  
+    /// Failed to connect to FOSSA
     #[error("FOSSA connection")]
     FossaConnection,
 }
@@ -113,13 +119,30 @@ struct CmdContext<D> {
 
     /// The database connection.
     db: D,
+
+    /// The semaphore for global concurrency of integrations.
+    concurrency: Semaphore,
+}
+
+impl<D> CmdContext<D> {
+    /// Acquire a concurrency permit from the global limiter.
+    pub async fn acquire_permit(&self) -> Result<SemaphorePermit<'_>, Error> {
+        self.concurrency
+            .acquire()
+            .await
+            .context(Error::AcquireConcurrencyPermit)
+            .describe("Broker limits concurrent integration operations to the value specified in the config file.")
+            .help("receiving this error may mean that your concurrency limit is too low.")
+    }
 }
 
 /// The primary entrypoint.
 #[tracing::instrument(skip_all, fields(subcommand = "run"))]
 pub async fn main<D: Database>(ctx: &AppContext, config: Config, db: D) -> Result<(), Error> {
+    let concurrency = config.semaphore();
     let ctx = CmdContext {
         app: ctx.clone(),
+        concurrency,
         config,
         db,
     };
@@ -279,7 +302,7 @@ async fn integration<D: Database>(
     let scan = Queue::default();
     let upload = Queue::new(5);
 
-    let poll_worker = poll_integration(&ctx.db, integration, &scan);
+    let poll_worker = poll_integration(ctx, integration, &scan);
     let scan_worker = scan_git_references(ctx, &scan, &upload);
     let upload_worker = upload_scans(ctx, &upload);
 
@@ -290,15 +313,15 @@ async fn integration<D: Database>(
     try_join!(poll_worker, scan_worker, upload_worker).discard_ok()
 }
 
-#[tracing::instrument(skip(db, sender))]
+#[tracing::instrument(skip(ctx, sender))]
 async fn poll_integration<D: Database>(
-    db: &D,
+    ctx: &CmdContext<D>,
     integration: &Integration,
     sender: &Queue<ScanGitVCSReference>,
 ) -> Result<(), Error> {
     let poll_interval = integration.poll_interval().as_duration();
     loop {
-        if let Err(err) = execute_poll_integration(db, integration, sender).await {
+        if let Err(err) = execute_poll_integration(ctx, integration, sender).await {
             warn!("Unable to poll '{integration}': {err:#?}");
         }
 
@@ -324,10 +347,12 @@ async fn poll_integration<D: Database>(
 
 #[tracing::instrument(skip_all)]
 async fn execute_poll_integration<D: Database>(
-    db: &D,
+    ctx: &CmdContext<D>,
     integration: &Integration,
     sender: &Queue<ScanGitVCSReference>,
 ) -> Result<(), Error> {
+    let _permit = ctx.acquire_permit().await?;
+
     // We use this in a few places and may send it across threads, so just clone it locally.
     let remote = integration.remote().to_owned();
 
@@ -381,7 +406,7 @@ async fn execute_poll_integration<D: Database>(
                 }
 
                 let coordinate = reference.as_coordinate(&remote);
-                match db.state(&coordinate).await {
+                match ctx.db.state(&coordinate).await {
                     // No previous state; this must be a new reference.
                     Ok(None) => Some(Ok(reference)),
                     // There was previous state, it's only new if the state is different.
@@ -458,6 +483,7 @@ async fn execute_scan_git_references<D: Database>(
     uploader: &Queue<UploadSourceUnits>,
     cli: &Location,
 ) -> Result<(), Error> {
+    let _permit = ctx.acquire_permit().await?;
     let job = receiver.recv().await.change_context(Error::TaskReceive)?;
     let upload = scan_git_reference(ctx, &job, cli)
         .await

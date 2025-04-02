@@ -25,6 +25,9 @@ fossa_integration_key: abcd1234
 # version is the version of the config file format. "1" is the only currently supported version.
 version: 1
 
+# Controls the global concurrency used when polling and cloning repositories specified in `integrations`.
+concurrency: 10
+
 # The debugging key configures where debug logs and other artifacts are written and how long they are kept for.
 # We've configured suggested defaults for the debugging section below, see each key for details.
 debugging:
@@ -81,7 +84,7 @@ integrations:
     # if the project already exists before transitioning it to be managed by Broker, this also has no effect.
     # uncomment `team` below to add the project to the specified team.
     # team: 'Some Team'
-    # 
+    #
     # optionally, a project title may be specified.
     # name settings only affect newly imported projects. changing this value later requires using the FOSSA UI.
     # if the project already exists before transitioning it to be managed by Broker, this also has no effect.
