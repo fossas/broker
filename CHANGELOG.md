@@ -1,4 +1,14 @@
+
+## v0.3.4
+
+Features:
+- Support a new, optional `concurrency` option in the Broker config file.
+  This option limits the global concurrency of polling and git fetching.
+
+For more information, see the [config reference](https://github.com/fossas/broker/blob/main/docs/reference/config.md#concurrency).
+
 ## v0.3.3
+
 Features:
 - Support RUST_LOG environment variable for trace filtering
 
@@ -15,7 +25,7 @@ Features:
 ## v0.3.0
 
 Features:
-- Broker is able to toggle if users want to scan branches, as well as being able to target specific branches to scan. Broker is also 
+- Broker is able to toggle if users want to scan branches, as well as being able to target specific branches to scan. Broker is also
   able to toggle scanning tags.
 - Broker checks for early network misconfigurations with preflight checks
 - Broker fix surfaces failing integration scans
