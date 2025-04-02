@@ -132,7 +132,7 @@ impl<D> CmdContext<D> {
             .await
             .context(Error::AcquireConcurrencyPermit)
             .describe("Broker limits concurrent integration operations to the value specified in the config file.")
-            .help("receiving this error may mean that your concurrency limit is too low.")
+            .help("this is almost definitely a temporary condition or a bug, restarting Broker may resolve the issue")
     }
 }
 
