@@ -48,6 +48,44 @@ async fn test_debug_values_concurrency() {
 }
 
 #[tokio::test]
+async fn test_debug_values_concurrency_zero() {
+    let (_, conf) = load_config!(
+        "testdata/config/basic-concurrency-zero.yml",
+        "testdata/database/empty.sqlite"
+    )
+    .await;
+
+    assert_eq!(
+        conf.debug().location(),
+        &gen::debug_root("/home/me/.config/fossa/broker/debugging/"),
+    );
+    assert_eq!(
+        conf.debug().retention().days(),
+        gen::debug_artifact_retention_count(3),
+    );
+    assert_eq!(conf.concurrency().clone(), 10);
+}
+
+#[tokio::test]
+async fn test_debug_values_concurrency_negative() {
+    let (_, conf) = load_config!(
+        "testdata/config/basic-concurrency-negative.yml",
+        "testdata/database/empty.sqlite"
+    )
+    .await;
+
+    assert_eq!(
+        conf.debug().location(),
+        &gen::debug_root("/home/me/.config/fossa/broker/debugging/"),
+    );
+    assert_eq!(
+        conf.debug().retention().days(),
+        gen::debug_artifact_retention_count(3),
+    );
+    assert_eq!(conf.concurrency().clone(), 10);
+}
+
+#[tokio::test]
 async fn test_debug_values_default_retention() {
     let (_, conf) = load_config!(
         "testdata/config/basic-retention-default.yml",

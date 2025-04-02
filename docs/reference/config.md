@@ -36,6 +36,11 @@ It is required to have `version` present in the config file.
 
 Configures the global concurrency of configured integrations.
 The default value, if not specified, is `10`.
+If a negative value or `0` is specified, also defaults to `10`.
+
+When this is configured, poll and fetch operations for configured integrations are limited to the specified number of operations running at any given moment.
+
+The maximum value for this field is `2147483647` (int32 max), but you almost definitely want something lower even on the most powerful of servers.
 
 ## FOSSA communication
 

@@ -60,7 +60,7 @@ struct RawConfigV1 {
 
     debugging: Debugging,
 
-    concurrency: Option<usize>,
+    concurrency: Option<i32>,
 
     #[serde(rename(deserialize = "version"))]
     _version: usize,
@@ -80,6 +80,10 @@ async fn validate(config: RawConfigV1) -> Result<super::Config, Report<Error>> {
     let debugging = debug::Config::try_from(config.debugging).change_context(Error::Validate)?;
     let concurrency = config
         .concurrency
+        .map(|c| match c {
+            i32::MIN..=0 => super::Config::DEFAULT_CONCURRENCY,
+            c => c as usize,
+        })
         .unwrap_or(super::Config::DEFAULT_CONCURRENCY);
     let integrations = config
         .integrations
