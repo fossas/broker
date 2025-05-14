@@ -1,4 +1,9 @@
 
+## v0.3.5
+
+Fixes:
+- FOSSA CLI is now downloaded once at the start of `broker run` instead of every integration attempting to do so.
+
 ## v0.3.4
 
 Features:

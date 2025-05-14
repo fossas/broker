@@ -109,6 +109,7 @@ pub enum Error {
 }
 
 /// Similar to [`AppContext`], but scoped for this subcommand.
+#[allow(dead_code)]
 #[derive(Debug)]
 struct CmdContext<D> {
     /// The application context.
@@ -122,6 +123,9 @@ struct CmdContext<D> {
 
     /// The semaphore for global concurrency of integrations.
     concurrency: Semaphore,
+
+    /// The location of FOSSA CLI
+    cli: Location,
 }
 
 impl<D> CmdContext<D> {
@@ -139,12 +143,19 @@ impl<D> CmdContext<D> {
 /// The primary entrypoint.
 #[tracing::instrument(skip_all, fields(subcommand = "run"))]
 pub async fn main<D: Database>(ctx: &AppContext, config: Config, db: D) -> Result<(), Error> {
+    let cli = fossa_cli::find_or_download(ctx, config.debug().location(), DesiredVersion::Latest)
+        .await
+        .change_context(Error::DownloadFossaCli)
+        .describe("Broker relies on fossa-cli to perform analysis of your projects")?;
+    info!(?cli, "using fossa cli");
+
     let concurrency = config.semaphore();
     let ctx = CmdContext {
         app: ctx.clone(),
         concurrency,
         config,
         db,
+        cli,
     };
 
     for integration in ctx.config.integrations().iter() {
@@ -460,17 +471,8 @@ async fn scan_git_references<D: Database>(
     receiver: &Queue<ScanGitVCSReference>,
     uploader: &Queue<UploadSourceUnits>,
 ) -> Result<(), Error> {
-    let cli = fossa_cli::find_or_download(
-        &ctx.app,
-        ctx.config.debug().location(),
-        DesiredVersion::Latest,
-    )
-    .await
-    .change_context(Error::DownloadFossaCli)
-    .describe("Broker relies on fossa-cli to perform analysis of your projects")?;
-
     loop {
-        if let Err(err) = execute_scan_git_references(ctx, receiver, uploader, &cli).await {
+        if let Err(err) = execute_scan_git_references(ctx, receiver, uploader).await {
             warn!("Unable to scan git reference: {err:#?}");
         }
     }
@@ -481,11 +483,10 @@ async fn execute_scan_git_references<D: Database>(
     ctx: &CmdContext<D>,
     receiver: &Queue<ScanGitVCSReference>,
     uploader: &Queue<UploadSourceUnits>,
-    cli: &Location,
 ) -> Result<(), Error> {
     let _permit = ctx.acquire_permit().await?;
     let job = receiver.recv().await.change_context(Error::TaskReceive)?;
-    let upload = scan_git_reference(ctx, &job, cli)
+    let upload = scan_git_reference(ctx, &job)
         .await
         .change_context(Error::TaskHandle)?;
     uploader
@@ -494,11 +495,10 @@ async fn execute_scan_git_references<D: Database>(
         .change_context(Error::TaskEnqueue)
 }
 
-#[tracing::instrument(skip(_ctx, cli), fields(scan_id, cli_version))]
+#[tracing::instrument(skip(ctx), fields(scan_id, cli_version))]
 async fn scan_git_reference<D: Database>(
-    _ctx: &CmdContext<D>,
+    ctx: &CmdContext<D>,
     job: &ScanGitVCSReference,
-    cli: &fossa_cli::Location,
 ) -> Result<UploadSourceUnits, Error> {
     info!("Scanning '{}' at '{}'", job.integration, job.reference);
     span_record!(scan_id, &job.scan_id);
@@ -511,11 +511,12 @@ async fn scan_git_reference<D: Database>(
         .change_context_lazy(|| Error::CloneReference(job.reference.clone()))?;
 
     // Record the CLI version for debugging purposes.
-    let cli_version = cli.version().await.change_context(Error::RunFossaCli)?;
+    let cli_version = ctx.cli.version().await.change_context(Error::RunFossaCli)?;
     span_record!(cli_version, display cli_version);
 
     // Run the scan.
-    let source_units = cli
+    let source_units = ctx
+        .cli
         .analyze(&job.scan_id, cloned_location.path())
         .await
         .change_context(Error::RunFossaCli)?;
