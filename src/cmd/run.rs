@@ -143,7 +143,7 @@ impl<D> CmdContext<D> {
 /// The primary entrypoint.
 #[tracing::instrument(skip_all, fields(subcommand = "run"))]
 pub async fn main<D: Database>(ctx: &AppContext, config: Config, db: D) -> Result<(), Error> {
-    let cli = fossa_cli::find_or_download(&ctx, config.debug().location(), DesiredVersion::Latest)
+    let cli = fossa_cli::find_or_download(ctx, config.debug().location(), DesiredVersion::Latest)
         .await
         .change_context(Error::DownloadFossaCli)
         .describe("Broker relies on fossa-cli to perform analysis of your projects")?;
