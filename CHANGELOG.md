@@ -1,4 +1,15 @@
 
+## v0.3.6
+
+Temporarily reverts concurrency limiting.
+
+We plan to bring this back so the config value is still supported, but it is currently ignored.
+
+Broker emits a `warn` message at startup accordingly:
+```sh
+2025-05-21T21:15:52.478157Z the concurrency setting is temporarily ignored, but we plan to support it again in a future release. concurrency=2
+```
+
 ## v0.3.5
 
 Fixes:

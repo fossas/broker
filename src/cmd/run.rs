@@ -10,7 +10,6 @@ use indoc::indoc;
 use nonzero_ext::nonzero;
 use serde::{Deserialize, Serialize};
 use tap::TapFallible;
-use tokio::sync::{Semaphore, SemaphorePermit};
 use tokio_retry::strategy::jitter;
 use tokio_retry::strategy::ExponentialBackoff;
 use tokio_retry::Retry;
@@ -23,7 +22,6 @@ use crate::api::remote::git::repository;
 use crate::api::remote::{
     git, BranchImportStrategy, Integrations, Protocol, Reference, TagImportStrategy,
 };
-use crate::ext::error_stack::IntoContext;
 use crate::ext::result::WrapErr;
 use crate::ext::tracing::span_record;
 use crate::fossa_cli::{self, DesiredVersion, Location, SourceUnits};
@@ -45,10 +43,6 @@ pub enum Error {
     /// Application health check failed.
     #[error("health check failed")]
     Healthcheck,
-
-    /// Acquiring a concurrency permit failed.
-    #[error("acquiring concurrency permit failed")]
-    AcquireConcurrencyPermit,
 
     /// Setting up async pipeline failed.
     #[error("set up task pipeline")]
@@ -121,38 +115,26 @@ struct CmdContext<D> {
     /// The database connection.
     db: D,
 
-    /// The semaphore for global concurrency of integrations.
-    concurrency: Semaphore,
-
     /// The location of FOSSA CLI
     cli: Location,
-}
-
-impl<D> CmdContext<D> {
-    /// Acquire a concurrency permit from the global limiter.
-    pub async fn acquire_permit(&self) -> Result<SemaphorePermit<'_>, Error> {
-        self.concurrency
-            .acquire()
-            .await
-            .context(Error::AcquireConcurrencyPermit)
-            .describe("Broker limits concurrent integration operations to the value specified in the config file.")
-            .help("this is almost definitely a temporary condition or a bug, restarting Broker may resolve the issue")
-    }
 }
 
 /// The primary entrypoint.
 #[tracing::instrument(skip_all, fields(subcommand = "run"))]
 pub async fn main<D: Database>(ctx: &AppContext, config: Config, db: D) -> Result<(), Error> {
+    warn!(
+        concurrency = config.concurrency(),
+        "The concurrency setting is temporarily ignored, but we plan to support it again in a future release"
+    );
+
     let cli = fossa_cli::find_or_download(ctx, config.debug().location(), DesiredVersion::Latest)
         .await
         .change_context(Error::DownloadFossaCli)
         .describe("Broker relies on fossa-cli to perform analysis of your projects")?;
     info!(?cli, "using fossa cli");
 
-    let concurrency = config.semaphore();
     let ctx = CmdContext {
         app: ctx.clone(),
-        concurrency,
         config,
         db,
         cli,
@@ -362,8 +344,6 @@ async fn execute_poll_integration<D: Database>(
     integration: &Integration,
     sender: &Queue<ScanGitVCSReference>,
 ) -> Result<(), Error> {
-    let _permit = ctx.acquire_permit().await?;
-
     // We use this in a few places and may send it across threads, so just clone it locally.
     let remote = integration.remote().to_owned();
 
@@ -484,7 +464,6 @@ async fn execute_scan_git_references<D: Database>(
     receiver: &Queue<ScanGitVCSReference>,
     uploader: &Queue<UploadSourceUnits>,
 ) -> Result<(), Error> {
-    let _permit = ctx.acquire_permit().await?;
     let job = receiver.recv().await.change_context(Error::TaskReceive)?;
     let upload = scan_git_reference(ctx, &job)
         .await
