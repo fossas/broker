@@ -124,7 +124,7 @@ struct CmdContext<D> {
 pub async fn main<D: Database>(ctx: &AppContext, config: Config, db: D) -> Result<(), Error> {
     warn!(
         concurrency = config.concurrency(),
-        "the concurrency setting is temporarily ignored, but we plan to support it again in a future release."
+        "The concurrency setting is temporarily ignored, but we plan to support it again in a future release"
     );
 
     let cli = fossa_cli::find_or_download(ctx, config.debug().location(), DesiredVersion::Latest)
