@@ -48,7 +48,7 @@ time = { version = "0.3.41", features = ["parsing"] }
 reqwest = { version = "0.12.15", features = ["rustls-tls"], default-features = false }
 zip = "0.6.6"
 bytes = "1.10.1"
-sqlx = { version = "0.8.5", features = ["runtime-tokio-rustls", "sqlite", "migrate", "macros", "time"], default-features = false }
+sqlx = { version = "0.8.6", features = ["runtime-tokio-rustls", "sqlite", "migrate", "macros", "time"], default-features = false }
 async-trait = "0.1.88"
 semver = { version = "1.0.26", features = ["serde"] }
 tap = "1.0.1"
