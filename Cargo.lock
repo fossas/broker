@@ -776,9 +776,9 @@ dependencies = [
 
 [[package]]
 name = "deadqueue"
-version = "0.2.4"
+version = "0.2.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "16a2561fd313df162315935989dceb8c99db4ee1933358270a57a3cfb8c957f3"
+checksum = "72ff1266be84e4e04a81e2d1cbb998cb271b374fb73ce780245ef96c037c50cd"
 dependencies = [
  "crossbeam-queue",
  "tokio",
