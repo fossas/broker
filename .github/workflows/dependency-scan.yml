@@ -7,7 +7,7 @@ jobs:
     env:
       FOSSA_API_KEY: ${{ secrets.FOSSA_API_KEY }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - run: curl https://raw.githubusercontent.com/fossas/fossa-cli/master/install-latest.sh | bash
       - run: fossa analyze
       - run: fossa test
