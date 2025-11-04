@@ -55,7 +55,7 @@ tap = "1.0.1"
 tokio-retry = "0.3.0"
 uuid = { version = "1.16.0", features = ["v4"] }
 atty = "0.2.14"
-serde_json = "1.0.140"
+serde_json = "1.0.145"
 cached = "0.43.0"
 tracing-test = { version = "0.2.5", features = ["no-env-filter"] }
 aho-corasick = "0.7.20"
