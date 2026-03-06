@@ -197,7 +197,7 @@ impl Root {
 
     /// The location for the debug bundle for a given scan ID.
     pub fn debug_bundle(&self, scan_id: &str) -> PathBuf {
-        let file_name = format!("{}.fossa.debug.json.gz", scan_id);
+        let file_name = format!("{}.fossa.debug.zip", scan_id);
         self.as_ref().join(file_name)
     }
 }
