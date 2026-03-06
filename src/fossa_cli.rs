@@ -310,7 +310,7 @@ impl Location {
         // Copy the debug bundle to the correct location.
         // Don't error the process if this fails, as it's not critical to the scan process.
         // We're copying instead of moving because on Linux, it's likely these are at different mount points.
-        let debug_bundle = tmp.path().join("fossa.debug.json.gz");
+        let debug_bundle = tmp.path().join("fossa.debug.zip");
         let destination = self.artifacts.debug_bundle(scan_id);
         if let Err(err) = fs::create_dir_all(self.artifacts.as_path()).await {
             warn!(
