@@ -57,7 +57,6 @@ pub(crate) use span_records;
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use tracing::{field, trace_span};
 
     /// Important: if this fails, make sure to update the docs above.
