@@ -34,6 +34,9 @@ use crate::{
 /// Integrations for git repositories
 pub mod git;
 
+/// Discovery of repositories hosted in a GitLab group.
+pub mod gitlab;
+
 /// Errors that are possibly surfaced during validation of config values.
 #[derive(Debug, thiserror::Error)]
 pub enum ValidationError {
@@ -60,6 +63,10 @@ pub enum ValidationError {
     /// Unable to infer primary branch
     #[error("primary branch could not be inferred")]
     PrimaryBranch,
+
+    /// Repositories could not be discovered from the configured GitLab group.
+    #[error("discover repositories in GitLab group")]
+    GitlabDiscovery,
 }
 
 /// Validated config values for external code host integrations.
@@ -149,6 +156,13 @@ pub struct Integration {
     /// The name of the branches we want to scan
     #[getset(get = "pub")]
     watched_branches: Vec<WatchedBranch>,
+
+    /// Labels to apply to the project in FOSSA, if any.
+    ///
+    /// Labels that do not already exist in the organization are created on upload.
+    #[getset(get = "pub")]
+    #[builder(default)]
+    labels: Vec<String>,
 }
 
 impl Display for Integration {

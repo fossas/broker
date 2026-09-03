@@ -1,3 +1,41 @@
+## Unreleased
+
+Adds a `gitlab_group` integration type, which scans every repository in a GitLab group
+without requiring each one to be listed in the config file.
+
+Broker asks GitLab which repositories the group contains and expands the block into one
+`git` integration per repository, so a single GitLab group access token can cover an
+entire group:
+
+```yaml
+integrations:
+- type: gitlab_group
+  poll_interval: 1h
+  group: your-group
+  auth:
+    type: http_basic
+    username: fossa-broker
+    password: glpat-xxxxxxxxxxxxxxxxxxxx
+```
+
+Because Broker polls rather than receiving webhooks, this token needs only read access
+(`read_api` and `read_repository`).
+
+Archived repositories, and repositories with no commits, are skipped and named in the logs.
+Where `watched_branches` is not configured, Broker scans the branch GitLab reports as each
+repository's default, which avoids a network round trip per repository.
+
+Note that discovery runs when Broker starts. Changes within an already-discovered
+repository are picked up on the configured `poll_interval`, but repositories added to the
+group afterwards are not scanned until Broker restarts. Where repositories are added
+regularly, run Broker under a supervisor that restarts it periodically.
+
+Integrations also accept a `labels` field, applying labels to the project in FOSSA. Labels
+that do not already exist in the organization are created automatically. This is supported
+on both `git` and `gitlab_group` integrations.
+
+See the [config reference](docs/reference/config.md#gitlab_group) for details.
+
 
 ## v0.3.6
 

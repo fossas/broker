@@ -49,18 +49,24 @@ debugging:
 
 # integrations configures the repositories that broker analyzes.
 #
-# You will need to create one integration for every repository that you want broker to analyze.
+# There are two integration types:
+#
+#   "git"          analyzes a single repository. You will need one of these for every
+#                  repository you want broker to analyze.
+#   "gitlab_group" analyzes every repository in a GitLab group. Broker asks GitLab which
+#                  repositories the group contains, so you do not list them individually.
 #
 # The following integrations give examples for all supported auth types.
 #
 # Each integration must have the following fields. A more detailed description of the fields is given in the first integration below.
 #
-# type: The type of the integration. The only currently supported type is "git".
+# type: The type of the integration, either "git" or "gitlab_group".
 # poll_interval: The interval at which we poll the remote for new data.
-# remote: The URL of the remote.
+# remote: The URL of the remote. ("git" only; "gitlab_group" discovers these itself.)
 # auth: The authentication information for the remote.
 integrations:
-  # "type" is the type of the remote. "git" is the only currently supported type.
+  # "type" is the type of the remote: "git" for a single repository, or
+  # "gitlab_group" to analyze every repository in a GitLab group (see the end of this file).
   - type: git
     # "poll_interval" is the interval at which we poll the remote for new data. Some example intervals are:
     # 1h: one hour
@@ -90,6 +96,13 @@ integrations:
     # if the project already exists before transitioning it to be managed by Broker, this also has no effect.
     # uncomment `title` below to specify a custom name for the project.
     # title: Broker
+    #
+    # optionally, labels may be applied to the project in FOSSA.
+    # labels that do not already exist in your organization are created automatically.
+    # uncomment `labels` below to label the project.
+    # labels:
+    #   - broker
+    #   - internal
 
   # This is an example of using an auth type of "none" with an HTTP URL
   # This can be used for public repositories on github, gitlab, etc.
@@ -179,3 +192,54 @@ integrations:
         -----BEGIN OPENSSH PRIVATE KEY-----
         contents of your private key
         -----END OPENSSH PRIVATE KEY-----
+
+  # ==========
+  # gitlab_group: analyze every repository in a GitLab group.
+  #
+  # Broker asks GitLab which repositories the group contains and analyzes each one,
+  # so you do not need to list them individually. This is intended for groups large
+  # enough that enumerating repositories by hand is impractical.
+  #
+  # A GitLab group access token is the most direct credential here, because one token
+  # covers every repository in the group. Create one under
+  # Group -> Settings -> Access tokens.
+  #
+  # Because Broker polls rather than receiving webhooks, this token does not need write
+  # access: the "read_api" and "read_repository" scopes are sufficient.
+  #
+  # IMPORTANT: Broker discovers the group's repositories when it starts. Changes within
+  # an already-discovered repository are picked up on the poll_interval, but repositories
+  # ADDED to the group afterwards are not analyzed until Broker restarts. If repositories
+  # are added regularly, run Broker under a supervisor that restarts it periodically.
+  - type: gitlab_group
+    poll_interval: 1h
+    # "group" is the group's full path, as it appears in the URL after "/groups/".
+    # This may itself be a subgroup, for example "my-org/platform".
+    group: my-org
+    auth:
+      type: http_basic
+      # For a GitLab group access token, the username is ignored; use the token's name.
+      # The password is the token itself.
+      username: fossa-broker
+      password: glpat-the-rest-of-your-gitlab-token
+    # optionally, assign every discovered project to a team.
+    # team: 'Some Team'
+    #
+    # optionally, apply labels to every discovered project.
+    # labels:
+    #   - gitlab
+    #   - imported-by-broker
+    #
+    # optionally, exclude repositories in subgroups. defaults to true (subgroups included).
+    # include_subgroups: false
+
+  # This is an example of gitlab_group against a self-managed GitLab instance.
+  # Set "host" to the instance URL; it defaults to https://gitlab.com.
+  - type: gitlab_group
+    poll_interval: 1h
+    host: https://gitlab.example.com
+    group: my-org
+    auth:
+      type: http_basic
+      username: fossa-broker
+      password: glpat-the-rest-of-your-gitlab-token

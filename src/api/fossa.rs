@@ -271,6 +271,13 @@ pub struct ProjectMetadata {
 
     /// The team to which the project should be assigned, if any.
     team: Option<String>,
+
+    /// Labels to apply to the project, if any.
+    ///
+    /// Defaulted so that scans queued by an older Broker, which did not record this
+    /// field, still deserialize.
+    #[serde(default)]
+    labels: Vec<String>,
 }
 
 impl ProjectMetadata {
@@ -285,6 +292,7 @@ impl ProjectMetadata {
                     title: integration.title().to_owned(),
                     branch: Some(branch.to_string()),
                     team: integration.team().to_owned(),
+                    labels: integration.labels().to_owned(),
                 },
                 git::Reference::Tag { name: tag, .. } => Self {
                     name,
@@ -292,6 +300,7 @@ impl ProjectMetadata {
                     title: integration.title().to_owned(),
                     branch: None,
                     team: integration.team().to_owned(),
+                    labels: integration.labels().to_owned(),
                 },
             },
         }
@@ -313,6 +322,18 @@ impl Display for ProjectMetadata {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, new)]
 pub struct CliMetadata {
     version: Version,
+}
+
+/// Render labels as query string pairs.
+///
+/// Labels are sent as `labels[]` rather than `labels`: the server parses the query string
+/// with `qs`, which yields a bare string for a single `labels=` pair and an array only for
+/// the bracketed form. The server expects an array, so the bracketed form is always used.
+fn label_query_pairs(labels: &[String]) -> Vec<(&'static str, String)> {
+    labels
+        .iter()
+        .map(|label| ("labels[]", label.to_string()))
+        .collect()
 }
 
 /// Upload the scan results for a project.
@@ -358,6 +379,8 @@ pub async fn upload_scan(
     if let Some(team) = &project.team {
         query.push(("team", team.to_string()));
     }
+
+    query.extend(label_query_pairs(&project.labels));
 
     let req = new_client()?
         .post(url)
@@ -456,5 +479,72 @@ impl From<UploadResponse> for Result<Locator, Error> {
             Some(error) => report!(Error::ValidateUploadedScan { error }).wrap_err(),
             None => Ok(locator),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn metadata_with_labels(labels: Vec<String>) -> ProjectMetadata {
+        ProjectMetadata {
+            name: String::from("https://gitlab.com/group/repo.git"),
+            revision: String::from("abc123"),
+            title: Some(String::from("group/repo")),
+            branch: Some(String::from("main")),
+            team: Some(String::from("Platform")),
+            labels,
+        }
+    }
+
+    /// Labels must be sent as `labels[]`, not `labels`.
+    ///
+    /// The server parses the query string with `qs`, which produces a bare string for a
+    /// single `labels=` pair and an array only for the bracketed form. Sending the
+    /// unbracketed form with exactly one label would hand the server a string where it
+    /// expects an array.
+    #[test]
+    fn labels_are_sent_as_an_array_even_when_there_is_one() {
+        let project = metadata_with_labels(vec![String::from("broker")]);
+        let query = label_query_pairs(project.labels());
+        assert_eq!(query, vec![("labels[]", String::from("broker"))]);
+    }
+
+    #[test]
+    fn every_label_is_sent() {
+        let project = metadata_with_labels(vec![
+            String::from("broker"),
+            String::from("gitlab"),
+            String::from("imported"),
+        ]);
+        let query = label_query_pairs(project.labels());
+        assert_eq!(
+            query,
+            vec![
+                ("labels[]", String::from("broker")),
+                ("labels[]", String::from("gitlab")),
+                ("labels[]", String::from("imported")),
+            ]
+        );
+    }
+
+    #[test]
+    fn no_label_params_when_none_configured() {
+        let project = metadata_with_labels(Vec::new());
+        assert!(label_query_pairs(project.labels()).is_empty());
+    }
+
+    /// Metadata persisted by a Broker that predates labels must still deserialize.
+    #[test]
+    fn metadata_without_labels_deserializes() {
+        let json = r#"{
+            "name": "https://gitlab.com/group/repo.git",
+            "revision": "abc123",
+            "title": "group/repo",
+            "branch": "main",
+            "team": "Platform"
+        }"#;
+        let parsed = serde_json::from_str::<ProjectMetadata>(json).expect("must parse");
+        assert!(parsed.labels().is_empty());
     }
 }

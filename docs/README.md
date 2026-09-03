@@ -24,6 +24,15 @@ For a more detailed look at system requirements, see the [system requirements re
 The Broker config file tells Broker about the repositories it should scan, how it can access them, and at what cadence.
 See the [config reference](./reference/config.md) for more details.
 
+Repositories are configured with one of two integration types:
+
+- [`git`](./reference/config.md#git) scans a single repository, specified by its remote URL.
+- [`gitlab_group`](./reference/config.md#gitlab_group) scans every repository in a GitLab
+  group. Broker asks GitLab which repositories the group contains, so they do not have to
+  be listed individually, and a single GitLab group access token covers all of them.
+  Note that discovery runs when Broker starts; see
+  [discovery runs at startup](./reference/config.md#discovery-runs-at-startup).
+
 ## Subcommands
 
 ### `init`
