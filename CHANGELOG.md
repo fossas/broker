@@ -1,3 +1,24 @@
+## Unreleased
+
+Fixes FOSSA CLI downloads on ARM64 hosts, including Apple Silicon Macs.
+
+Broker previously downloaded the `amd64` build of FOSSA CLI on every platform. On ARM64
+this produces a binary that cannot run: on Apple Silicon the OS terminates it rather than
+reporting an error, so every integration reports a scan failure against the user's
+repository with no indication that the CLI itself is the problem. Because the version
+check works by running the binary, the unusable download was also re-fetched on each run.
+
+Broker now selects the asset matching the host architecture (`darwin_arm64` and
+`linux_arm64` where published; Windows continues to use `amd64`, which runs under
+emulation on Windows on ARM).
+
+If you previously ran Broker on an ARM64 host, delete the cached CLI so a correct build is
+downloaded on the next run:
+
+```sh
+rm ~/.config/fossa/broker/fossa
+```
+
 
 ## v0.3.6
 
