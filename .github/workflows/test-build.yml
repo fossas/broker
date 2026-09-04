@@ -1,0 +1,78 @@
+# Builds release binaries and uploads them as workflow artifacts, so a build can be handed
+# to someone for testing without cutting a release.
+#
+# The build steps mirror release.yml, so these binaries match what a real release ships.
+# This workflow exists on test branches only and is not intended to be merged to main.
+name: test build
+
+on:
+  push:
+    branches:
+      - 'test/**'
+  workflow_dispatch:
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        os: ['windows-latest', 'ubuntu-latest', 'macos-latest']
+        include:
+          - os: ubuntu-latest
+            os-name: linux
+          - os: macos-latest
+            os-name: macos
+          - os: windows-latest
+            os-name: windows
+
+    name: ${{ matrix.os-name }}
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: stable
+          override: true
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: "test-build"
+
+      - uses: actions-rs/install@v0.1
+        if: ${{ matrix.os-name == 'linux' }}
+        with:
+          crate: cross
+          version: latest
+
+      - name: build linux
+        if: ${{ matrix.os-name == 'linux' }}
+        run: |
+          mkdir release
+          cross build --features jemalloc --target=x86_64-unknown-linux-musl --release
+          mv target/x86_64-unknown-linux-musl/release/broker release/broker-x86_64-linux
+          chmod +x release/*
+
+      - name: build macos
+        if: ${{ matrix.os-name == 'macos' }}
+        run: |
+          mkdir release
+          rustup target add aarch64-apple-darwin
+          rustup target add x86_64-apple-darwin
+          cargo build --target=aarch64-apple-darwin --release
+          cargo build --target=x86_64-apple-darwin --release
+          mv target/aarch64-apple-darwin/release/broker release/broker-aarch64-macos
+          mv target/x86_64-apple-darwin/release/broker release/broker-x86_64-macos
+          chmod +x release/*
+
+      - name: build windows
+        if: ${{ matrix.os-name == 'windows' }}
+        run: |
+          mkdir release
+          cargo build --release
+          mv target/release/broker.exe release/broker-x86_64-windows.exe
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: broker-${{ matrix.os-name }}
+          path: release/
+          retention-days: 30
+          if-no-files-found: error
