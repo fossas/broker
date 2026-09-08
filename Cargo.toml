@@ -62,7 +62,7 @@ aho-corasick = "0.7.20"
 regex = "1.12.2"
 srclib = { git = "https://github.com/fossas/foundation-libs" }
 walkdir = "2.5.0"
-tar = "0.4.44"
+tar = "0.4.46"
 libflate = "2.1.0"
 typed-builder = "0.23.0"
 which = "5.0.0"
