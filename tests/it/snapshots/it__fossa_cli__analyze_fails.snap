@@ -19,6 +19,7 @@ stderr: '[DEBUG] Loading configuration file from "{config path}"
       Traceback:
         - Validating configuration
       [0;91mError: [0mDirectory does not exist: {directory}
+      Traceback:
         - Validating configuration
 
 [ERROR] An issue occurred
