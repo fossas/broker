@@ -70,9 +70,10 @@ Broker can be configured to integrate with multiple code hosts using this config
 This is an array of blocks, specified by `type`.
 
 Supported types:
-| Type  | Description             |
-|-------|-------------------------|
-| `git` | A remote git repository |
+| Type           | Description                                                  |
+|----------------|--------------------------------------------------------------|
+| `git`          | A remote git repository                                      |
+| `gitlab_group` | Every repository in a GitLab group, discovered automatically |
 
 ### git
 
@@ -85,6 +86,7 @@ This block specifies how to configure Broker to communicate with a git server fo
 | `auth`            | Required  | Required authentication to clone this repository.                                             | N/A               | N/A           |
 | `team`            | Optional  | The team in FOSSA to which this project should be assigned.<sup>2</sup>                       | N/A               | N/A           |
 | `title`           | Optional  | Specify a custom title for the project instead of using the default.<sup>3</sup>              | N/A               | N/A           |
+| `labels`          | Optional  | Labels to apply to the project in FOSSA.<sup>4</sup>                                          | N/A               | N/A           |
 | `import_branches` | Optional  | Initialize to scan specific branches for the remote repository                                | N/A               | N/A           |
 | `import_tags`     | Optional  | Initialize to scan tags for the remote repository                                             | N/A               | N/A           |
 | `watched_branches`| Optional  | The name of the branches that you intend to scan                                              | N/A               | N/A           |
@@ -98,6 +100,114 @@ If the project already exists before transitioning it to be managed by Broker, t
 **[3]**: Title settings only affect newly imported projects. Changing this value later requires using the FOSSA UI.
 If the project already exists before transitioning it to be managed by Broker, this also has no effect.
 If unspecified, Broker uses a default title, which is just the configured `git` remote.
+
+**[4]**: Labels are applied on every upload, so adding a label to an existing integration
+applies it on the next scan. Labels that do not already exist in your FOSSA organization
+are created automatically. If a label cannot be created or applied — for example because
+the organization's label limit is reached — the upload still succeeds and the failure is
+reported as a build warning.
+
+### gitlab_group
+
+This block scans every repository in a GitLab group without listing them individually.
+
+Broker asks GitLab which repositories the group contains and expands the block into one
+`git` integration per repository. This is intended for groups large enough that
+enumerating repositories by hand is impractical.
+
+| Value               | Required? | Description                                                                       | Suggested default      |
+|---------------------|-----------|-----------------------------------------------------------------------------------|------------------------|
+| `poll_interval`     | Required  | How often Broker checks each discovered repository for changes.<sup>1</sup>       | `1 hour`               |
+| `group`             | Required  | The group's full path. May be a subgroup, for example `parent/child`.             | N/A                    |
+| `auth`              | Required  | Credential used both to discover repositories and to clone them.<sup>2</sup>      | N/A                    |
+| `host`              | Optional  | The GitLab instance. Set this for self-managed GitLab.                            | `https://gitlab.com`   |
+| `include_subgroups` | Optional  | Whether to include repositories in subgroups.                                     | `true`                 |
+| `team`              | Optional  | The team in FOSSA to assign every discovered project to.                          | N/A                    |
+| `labels`            | Optional  | Labels applied to every discovered project. See the `git` integration's note.     | N/A                    |
+| `import_branches`   | Optional  | Applied to every discovered repository.                                           | N/A                    |
+| `import_tags`       | Optional  | Applied to every discovered repository.                                           | N/A                    |
+| `watched_branches`  | Optional  | Applied to every discovered repository.<sup>3</sup>                               | N/A                    |
+
+**[1]**: The poll interval applies to each discovered repository independently, and governs
+how often Broker checks an already-discovered repository for new commits. It does not
+control how often Broker looks for new repositories — see
+[Discovery runs at startup](#discovery-runs-at-startup) below.
+
+Be deliberate about this value for large groups: a group of several thousand repositories
+polled hourly is a substantial and continuous load on both Broker and the GitLab instance.
+Note that the `concurrency` setting is ignored in this release (see the changelog), so it
+cannot currently be used to bound that load.
+
+**[2]**: Only `http_basic` and `http_header` are supported here, because discovery calls the
+GitLab API and needs a credential it can send as an HTTP header. See
+[integration authentication](#integration-authentication).
+
+**[3]**: If `watched_branches` is not set, Broker scans the branch GitLab reports as each
+repository's default. Unlike the `git` integration, Broker does not need to contact each
+repository to infer this, because GitLab provides it during discovery.
+
+Broker skips repositories that are archived, and repositories with no default branch
+(which usually means they have no commits). Each skipped repository is named in the logs.
+Repositories shared into the group from elsewhere are not included; only repositories the
+group owns are scanned.
+
+Discovered projects are titled with their path within GitLab, for example
+`my-org/platform/api`.
+
+#### Discovery runs at startup
+
+**Broker discovers the group's repositories once, when it starts.**
+
+Changes *within* an already-discovered repository are picked up continuously, on the
+configured `poll_interval`. But repositories **added to the group** after Broker started
+are not scanned until Broker is restarted, and repositories removed from the group
+continue to be polled until then.
+
+If repositories are added to your group regularly, run Broker under a supervisor that
+restarts it periodically — for example a `systemd` service with a daily restart, or a
+`launchd` job on macOS. Discovery re-runs on each start, so a restart is all that is
+needed to pick up everything new. A daily cadence is sufficient for most groups.
+
+For a group whose membership rarely changes, restarting Broker when you know repositories
+were added is enough.
+
+#### Using a GitLab group access token
+
+A [group access token](https://docs.gitlab.com/user/group/settings/group_access_tokens/)
+is the most direct way to configure this block, because one credential covers every
+repository in the group. Pass it as the password of an `http_basic` block:
+
+```yaml
+integrations:
+- type: gitlab_group
+  poll_interval: 1h
+  group: your-group
+  team: Platform
+  labels:
+    - gitlab
+    - imported-by-broker
+  auth:
+    type: http_basic
+    username: fossa-broker      # the token's name; GitLab ignores the username
+    password: glpat-xxxxxxxxxxxxxxxxxxxx
+```
+
+Because Broker polls rather than receiving webhooks, this token does not need write
+access. The `read_api` and `read_repository` scopes are sufficient: `read_api` to
+discover repositories and `read_repository` to clone them.
+
+For self-managed GitLab, also set `host`:
+
+```yaml
+- type: gitlab_group
+  poll_interval: 1h
+  host: https://gitlab.example.com
+  group: your-group
+  auth:
+    type: http_basic
+    username: fossa-broker
+    password: glpat-xxxxxxxxxxxxxxxxxxxx
+```
 
 # Appendix
 

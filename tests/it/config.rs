@@ -230,6 +230,19 @@ async fn test_integration_git_http_basic_malformed_auth() {
     assert_error_stack_snapshot!(&config_file_path, err);
 }
 
+/// `gitlab_group` discovery calls the GitLab API, so it needs a credential that can be
+/// sent as an HTTP header. An ssh credential must be rejected, and must be rejected
+/// before any network access is attempted.
+#[tokio::test]
+async fn test_integration_gitlab_group_rejects_ssh_auth() {
+    let (config_file_path, err) = load_config_err!(
+        "testdata/config/gitlab-group-ssh-auth.yml",
+        "testdata/database/empty.sqlite"
+    )
+    .await;
+    assert_error_stack_snapshot!(&config_file_path, err);
+}
+
 #[tokio::test]
 async fn test_integration_git_http_basic_malformed_debugging() {
     let (config_file_path, err) = load_config_err!(

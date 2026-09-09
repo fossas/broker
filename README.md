@@ -20,9 +20,10 @@ For more information, see the [User Manual](https://github.com/fossas/broker/blo
 
 Broker supports arbitrary project URLs:
 
-| Kind  | Supported | Details                               |
-|-------|-----------|---------------------------------------|
-| `git` | ✅        | Any project reachable via `git clone` |
+| Kind           | Supported | Details                                                              |
+|----------------|-----------|----------------------------------------------------------------------|
+| `git`          | ✅        | Any project reachable via `git clone`                                |
+| `gitlab_group` | ✅        | Every repository in a GitLab group, discovered without listing them  |
 
 _Legend:_
 - _✅: Supported_
