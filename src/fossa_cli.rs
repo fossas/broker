@@ -514,16 +514,35 @@ async fn download_tag(ctx: &AppContext, version: &str) -> Result<PathBuf, Error>
         .change_context(Error::Download)
 }
 
-// currently supported os/arch combos:
-// darwin/amd64
-// linux/amd64
+// Currently supported os/arch combos, matching the assets published by FOSSA CLI:
+// darwin/amd64, darwin/arm64
+// linux/amd64, linux/arm64
 // windows/amd64
 //
-// We only support "amd64" right now, so no need to look at target_arch
 // Example URLs:
 // https://github.com/fossas/fossa-cli/releases/download/v3.7.2/fossa_3.7.2_windows_amd64.zip
 // https://github.com/fossas/fossa-cli/releases/download/v3.7.2/fossa_3.7.2_darwin_amd64.zip
+// https://github.com/fossas/fossa-cli/releases/download/v3.7.2/fossa_3.7.2_darwin_arm64.zip
 // https://github.com/fossas/fossa-cli/releases/download/v3.7.2/fossa_3.7.2_linux_amd64.zip
+// https://github.com/fossas/fossa-cli/releases/download/v3.7.2/fossa_3.7.2_linux_arm64.zip
+
+/// The architecture slug used in FOSSA CLI release asset names.
+///
+/// Downloading the wrong architecture is not a graceful failure: on Apple Silicon an
+/// `amd64` build is killed by the OS rather than reporting an error, and because the
+/// version check in [`find_or_download`] works by running the binary, a mismatched
+/// download is re-fetched on every run.
+#[cfg(any(target_os = "macos", target_os = "linux"))]
+fn target_arch_slug() -> &'static str {
+    if cfg!(target_arch = "aarch64") {
+        "arm64"
+    } else {
+        "amd64"
+    }
+}
+
+// FOSSA CLI does not publish a `windows_arm64` asset; Windows on ARM runs the
+// `amd64` build under emulation.
 #[cfg(target_os = "windows")]
 fn download_url(version: &str) -> String {
     format!("https://github.com/fossas/fossa-cli/releases/download/v{version}/fossa_{version}_windows_amd64.zip")
@@ -531,12 +550,14 @@ fn download_url(version: &str) -> String {
 
 #[cfg(target_os = "macos")]
 fn download_url(version: &str) -> String {
-    format!("https://github.com/fossas/fossa-cli/releases/download/v{version}/fossa_{version}_darwin_amd64.zip")
+    let arch = target_arch_slug();
+    format!("https://github.com/fossas/fossa-cli/releases/download/v{version}/fossa_{version}_darwin_{arch}.zip")
 }
 
 #[cfg(target_os = "linux")]
 fn download_url(version: &str) -> String {
-    format!("https://github.com/fossas/fossa-cli/releases/download/v{version}/fossa_{version}_linux_amd64.zip")
+    let arch = target_arch_slug();
+    format!("https://github.com/fossas/fossa-cli/releases/download/v{version}/fossa_{version}_linux_{arch}.zip")
 }
 
 #[tracing::instrument]
@@ -631,4 +652,68 @@ where
     std::io::copy(&mut zip_file, &mut final_file)
         .context_lazy(|| Error::FinalCopy(final_path_string.clone()))
         .discard_ok()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// The download URL must name the architecture Broker is running on.
+    ///
+    /// Downloading the wrong architecture fails in a way that is hard to diagnose:
+    /// the OS kills the binary rather than reporting an error, and every scan then
+    /// reports a failure against the user's repository instead of the CLI.
+    #[test]
+    fn download_url_targets_the_running_architecture() {
+        let url = download_url("3.18.2");
+
+        if cfg!(target_os = "windows") {
+            // FOSSA CLI publishes no windows_arm64 asset.
+            assert!(
+                url.ends_with("fossa_3.18.2_windows_amd64.zip"),
+                "unexpected windows url: {url}"
+            );
+            return;
+        }
+
+        let expected_arch = if cfg!(target_arch = "aarch64") {
+            "arm64"
+        } else {
+            "amd64"
+        };
+        assert!(
+            url.ends_with(&format!("_{expected_arch}.zip")),
+            "url must target {expected_arch}: {url}"
+        );
+
+        let expected_os = if cfg!(target_os = "macos") {
+            "darwin"
+        } else {
+            "linux"
+        };
+        assert!(
+            url.contains(&format!("_{expected_os}_")),
+            "url must target {expected_os}: {url}"
+        );
+    }
+
+    /// Verifies the asset Broker asks for actually exists on the release.
+    ///
+    /// Ignored by default because it requires network access. Run with:
+    /// `cargo test --lib download_url_asset_exists -- --ignored`
+    #[tokio::test]
+    #[ignore]
+    async fn download_url_asset_exists() {
+        let url = download_url("3.18.2");
+        let res = reqwest::Client::new()
+            .head(&url)
+            .send()
+            .await
+            .expect("must reach github");
+        assert!(
+            res.status().is_success() || res.status().is_redirection(),
+            "asset must exist at {url}, got {}",
+            res.status()
+        );
+    }
 }
