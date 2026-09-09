@@ -152,7 +152,7 @@ Repositories shared into the group from elsewhere are not included; only reposit
 group owns are scanned.
 
 Discovered projects are titled with their path within GitLab, for example
-`countryfinancial/platform/api`.
+`my-org/platform/api`.
 
 #### Discovery runs at startup
 

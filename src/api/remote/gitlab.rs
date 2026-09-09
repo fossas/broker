@@ -75,7 +75,7 @@ pub enum Error {
 pub struct Project {
     /// The full path of the project, including any parent groups.
     ///
-    /// For example `countryfinancial/platform/api`.
+    /// For example `my-org/platform/api`.
     pub path_with_namespace: String,
 
     /// The URL Broker clones the repository from.
@@ -262,20 +262,19 @@ mod tests {
 
     #[test]
     fn builds_projects_url_for_top_level_group() {
-        let url = projects_url("https://gitlab.com", "countryfinancial").expect("must build url");
+        let url = projects_url("https://gitlab.com", "my-org").expect("must build url");
         assert_eq!(
             url.as_str(),
-            "https://gitlab.com/api/v4/groups/countryfinancial/projects"
+            "https://gitlab.com/api/v4/groups/my-org/projects"
         );
     }
 
     #[test]
     fn encodes_subgroup_path_as_single_segment() {
-        let url = projects_url("https://gitlab.com", "countryfinancial/platform")
-            .expect("must build url");
+        let url = projects_url("https://gitlab.com", "my-org/platform").expect("must build url");
         assert_eq!(
             url.as_str(),
-            "https://gitlab.com/api/v4/groups/countryfinancial%2Fplatform/projects"
+            "https://gitlab.com/api/v4/groups/my-org%2Fplatform/projects"
         );
     }
 
