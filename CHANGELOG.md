@@ -12,14 +12,6 @@ Broker now selects the asset matching the host architecture (`darwin_arm64` and
 `linux_arm64` where published; Windows continues to use `amd64`, which runs under
 emulation on Windows on ARM).
 
-If you previously ran Broker on an ARM64 host, delete the cached CLI so a correct build is
-downloaded on the next run:
-
-```sh
-rm ~/.config/fossa/broker/fossa
-```
-
-
 ## v0.3.6
 
 Temporarily reverts concurrency limiting.
