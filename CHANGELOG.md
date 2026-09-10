@@ -1,5 +1,7 @@
 ## Unreleased
 
+Reverts the concurrency limit changes added in v0.3.6
+
 Adds a `gitlab_group` integration type, which scans every repository in a GitLab group
 without requiring each one to be listed in the config file.
 
