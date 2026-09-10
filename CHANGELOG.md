@@ -1,5 +1,7 @@
 ## Unreleased
 
+Fixes an issue with permit handling during scanning and polling when the concurrency limit is active
+
 Reverts the concurrency limit changes added in v0.3.6
 
 Adds a `gitlab_group` integration type, which scans every repository in a GitLab group
