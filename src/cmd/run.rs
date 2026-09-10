@@ -362,7 +362,7 @@ async fn execute_poll_integration<D: Database>(
     integration: &Integration,
     sender: &Queue<ScanGitVCSReference>,
 ) -> Result<(), Error> {
-    let _permit = ctx.acquire_permit().await?;
+    let permit = ctx.acquire_permit().await?;
 
     // We use this in a few places and may send it across threads, so just clone it locally.
     let remote = integration.remote().to_owned();
@@ -455,6 +455,7 @@ async fn execute_poll_integration<D: Database>(
     if references.is_empty() {
         info!("No changes to '{integration}'");
     }
+    drop(permit);
     for reference in references {
         let job = ScanGitVCSReference::new(integration, &reference);
         sender.send(&job).await.change_context(Error::TaskEnqueue)?;
@@ -484,11 +485,12 @@ async fn execute_scan_git_references<D: Database>(
     receiver: &Queue<ScanGitVCSReference>,
     uploader: &Queue<UploadSourceUnits>,
 ) -> Result<(), Error> {
-    let _permit = ctx.acquire_permit().await?;
     let job = receiver.recv().await.change_context(Error::TaskReceive)?;
+    let permit = ctx.acquire_permit().await?;
     let upload = scan_git_reference(ctx, &job)
         .await
         .change_context(Error::TaskHandle)?;
+    drop(permit);
     uploader
         .send(&upload)
         .await
