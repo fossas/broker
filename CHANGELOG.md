@@ -1,4 +1,4 @@
-## Unreleased
+## v0.3.7
 
 Fixes an issue with permit handling during scanning and polling when the concurrency limit is active
 
@@ -51,6 +51,10 @@ check works by running the binary, the unusable download was also re-fetched on 
 Broker now selects the asset matching the host architecture (`darwin_arm64` and
 `linux_arm64` where published; Windows continues to use `amd64`, which runs under
 emulation on Windows on ARM).
+
+Updates `tar` (0.4.44 to 0.4.46) and `quinn-proto` (0.11.13 to 0.11.17), resolving four
+reported vulnerabilities in Broker's dependencies: CVE-2026-33055 and CVE-2026-33056 in
+`tar`, and CVE-2026-25800 and CVE-2026-31812 in `quinn-proto`.
 
 ## v0.3.6
 
