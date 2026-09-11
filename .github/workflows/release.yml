@@ -74,10 +74,8 @@ jobs:
         with:
           crate: cross
           version: latest
-      - uses: actions-rs/install@v0.1
-        with:
-          crate: cargo-nextest
-          version: latest
+      - name: Install cargo-nextest
+        run: cargo install --locked cargo-nextest
       # Each platform has its own particulars, can't do cool matrix things here.
       # Just fall back to conditionals.
       - name: "build and upload for linux"
