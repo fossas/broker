@@ -181,6 +181,12 @@ pub(super) enum Integration {
         group: String,
         /// Whether to include repositories in subgroups. Defaults to `true`.
         include_subgroups: Option<bool>,
+        /// Full paths (group, subgroup, or project) to exclude from discovery.
+        ///
+        /// A project is excluded if its path is exactly one of these, or is nested under
+        /// one of them. For example, excluding `my-org/archive` also excludes
+        /// `my-org/archive/team-a/some-repo`.
+        excluded_paths: Option<Vec<String>>,
         team: Option<String>,
         auth: Auth,
         import_branches: Option<bool>,
@@ -258,6 +264,7 @@ impl remote::Integration {
                 host,
                 group,
                 include_subgroups,
+                excluded_paths,
                 team,
                 auth,
                 import_branches,
@@ -278,12 +285,18 @@ impl remote::Integration {
                 let labels = labels.unwrap_or_default();
                 let host = host.unwrap_or_else(|| gitlab::DEFAULT_HOST.to_string());
                 let include_subgroups = include_subgroups.unwrap_or(true);
+                let excluded_paths = excluded_paths.unwrap_or_default();
 
-                let projects =
-                    gitlab::discover_projects(&host, &group, include_subgroups, &http_auth)
-                        .await
-                        .change_context(remote::ValidationError::GitlabDiscovery)
-                        .documentation_lazy(doc::link::config_file_reference)?;
+                let projects = gitlab::discover_projects(
+                    &host,
+                    &group,
+                    include_subgroups,
+                    &excluded_paths,
+                    &http_auth,
+                )
+                .await
+                .change_context(remote::ValidationError::GitlabDiscovery)
+                .documentation_lazy(doc::link::config_file_reference)?;
 
                 info!(
                     group = group,
