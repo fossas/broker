@@ -1,4 +1,4 @@
-## Unreleased
+## v0.3.8
 
 Adds an `excluded_paths` option to `gitlab_group` integrations. Repositories whose full path
 is, or is nested under, one of the listed group, subgroup, or project paths are skipped:
@@ -16,6 +16,9 @@ Speeds up startup for `gitlab_group` integrations covering large groups:
   repositories on the server, cutting discovery time by roughly 3x.
 - Scan state for disabled branch or tag imports is removed in a single database transaction,
   backed by a new index, rather than one transaction per repository.
+
+Updates `rustls-webpki` (0.103.9 to 0.103.13), resolving four reported vulnerabilities in
+Broker's dependencies: CVE-2026-93599, CVE-2026-93600, CVE-2026-93601, and CVE-2026-93602.
 
 ## v0.3.7
 
