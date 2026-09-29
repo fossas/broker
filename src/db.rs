@@ -98,6 +98,14 @@ pub trait Database: Debug + Clone + Send + Sync {
 
     /// Deletes all states with the given repository and is_branch values
     async fn delete_states(&self, repository: &str, is_branch: bool) -> Result<(), Error>;
+
+    /// Deletes all states for many `(repository, is_branch)` targets in a single transaction.
+    ///
+    /// Prefer this over calling [`Database::delete_states`] in a loop: each call to
+    /// `delete_states` is its own round trip (and, on sqlite, its own commit), so deleting
+    /// states for thousands of repositories one at a time can take minutes before Broker
+    /// even starts polling. Batching them into one transaction avoids that.
+    async fn delete_states_bulk(&self, targets: &[(String, bool)]) -> Result<(), Error>;
 }
 
 /// Connect to the sqlite database implementation.

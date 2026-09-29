@@ -272,3 +272,73 @@ async fn remove_all_tag_states() {
     assert_eq!(state_after_delete, state);
     assert!(state2_after_delete.is_none(), "db state2 was removed");
 }
+
+#[tokio::test]
+async fn remove_states_bulk() {
+    let (_tmp, db, _path) = temp_db!();
+
+    let branch_coordinate = Coordinate::new(
+        broker::db::Namespace::Git,
+        String::from("some repo"),
+        String::from("some reference"),
+    );
+    let tag_coordinate = Coordinate::new(
+        broker::db::Namespace::Git,
+        String::from("some repo 2"),
+        String::from("some reference 2"),
+    );
+    let untouched_coordinate = Coordinate::new(
+        broker::db::Namespace::Git,
+        String::from("some repo 3"),
+        String::from("some reference 3"),
+    );
+
+    db.set_state(&branch_coordinate, b"branch state", &true)
+        .await
+        .expect("must set state");
+    db.set_state(&tag_coordinate, b"tag state", &false)
+        .await
+        .expect("must set state");
+    db.set_state(&untouched_coordinate, b"untouched state", &true)
+        .await
+        .expect("must set state");
+
+    // A single call deletes both the branch state for "some repo" and the tag state for
+    // "some repo 2", in one transaction, leaving "some repo 3" untouched.
+    db.delete_states_bulk(&[
+        (String::from("some repo"), true),
+        (String::from("some repo 2"), false),
+    ])
+    .await
+    .expect("states must be deleted");
+
+    assert!(
+        db.state(&branch_coordinate)
+            .await
+            .expect("must get state")
+            .is_none(),
+        "branch state was removed"
+    );
+    assert!(
+        db.state(&tag_coordinate)
+            .await
+            .expect("must get state")
+            .is_none(),
+        "tag state was removed"
+    );
+    assert!(
+        db.state(&untouched_coordinate)
+            .await
+            .expect("must get state")
+            .is_some(),
+        "unrelated state was untouched"
+    );
+}
+
+#[tokio::test]
+async fn remove_states_bulk_empty_is_noop() {
+    let (_tmp, db, _path) = temp_db!();
+    db.delete_states_bulk(&[])
+        .await
+        .expect("empty batch must succeed");
+}

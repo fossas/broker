@@ -88,6 +88,9 @@ pub struct Project {
     pub default_branch: Option<String>,
 
     /// Whether the project is archived in GitLab.
+    ///
+    /// Discovery asks GitLab to exclude archived projects and requests a representation
+    /// that omits this field, so it is normally `false`; it is kept as a backstop.
     #[serde(default)]
     pub archived: bool,
 }
@@ -98,13 +101,15 @@ pub struct Project {
 /// `group` is the group's full path, which may itself be a subgroup (`parent/child`).
 ///
 /// Repositories shared into the group from elsewhere are excluded, so results are
-/// limited to repositories the group actually owns. Archived repositories and
-/// repositories with no commits are skipped, with a log line naming each one.
+/// limited to repositories the group actually owns. Archived repositories, repositories
+/// with no commits, and repositories under a path in `excluded_paths` are skipped, with
+/// a log line naming each one.
 #[tracing::instrument(skip(auth))]
 pub async fn discover_projects(
     host: &str,
     group: &str,
     include_subgroups: bool,
+    excluded_paths: &[String],
     auth: &http::Auth,
 ) -> Result<Vec<Project>, Report<Error>> {
     let client = new_client()?;
@@ -119,7 +124,15 @@ pub async fn discover_projects(
             .append_pair("include_subgroups", &include_subgroups.to_string())
             // Limit results to repositories the group owns, rather than repositories
             // shared into it, so that the set of scanned repositories is predictable.
-            .append_pair("with_shared", "false");
+            .append_pair("with_shared", "false")
+            // Filter archived repositories on the server, and ask for the reduced project
+            // representation. The full representation is roughly 5x larger and 3x slower
+            // to serve per page, which on groups with thousands of repositories delays
+            // startup (and therefore the first poll) by minutes. The reduced representation
+            // omits `archived`, which is why archived filtering happens here rather than
+            // only in `finalize`.
+            .append_pair("archived", "false")
+            .append_pair("simple", "true");
 
         let req = authenticate(client.get(url), auth)?;
         let page_projects = run_request(req).await?;
@@ -135,7 +148,7 @@ pub async fn discover_projects(
 
         // A short page means there are no further pages to walk.
         if count < PER_PAGE {
-            return finalize(group, discovered);
+            return finalize(group, discovered, excluded_paths);
         }
     }
 
@@ -144,15 +157,19 @@ pub async fn discover_projects(
         max_pages = MAX_PAGES,
         "stopped GitLab discovery at the page limit; some repositories may not have been imported"
     );
-    finalize(group, discovered)
+    finalize(group, discovered, excluded_paths)
 }
 
-/// Drop repositories Broker cannot scan, and reject an empty result.
+/// Drop repositories Broker cannot or should not scan, and reject an empty result.
 ///
 /// An empty result is an error rather than an empty integration list because it
 /// almost always means the token cannot see the group, which would otherwise
 /// present as a successful run that scans nothing.
-fn finalize(group: &str, projects: Vec<Project>) -> Result<Vec<Project>, Report<Error>> {
+fn finalize(
+    group: &str,
+    projects: Vec<Project>,
+    excluded_paths: &[String],
+) -> Result<Vec<Project>, Report<Error>> {
     let scannable = projects
         .into_iter()
         .filter(|project| {
@@ -170,6 +187,16 @@ fn finalize(group: &str, projects: Vec<Project>) -> Result<Vec<Project>, Report<
                 );
                 return false;
             }
+            if let Some(excluded) =
+                excluded_path_prefix(&project.path_with_namespace, excluded_paths)
+            {
+                debug!(
+                    project = project.path_with_namespace,
+                    excluded_path = excluded,
+                    "skipping GitLab project under an excluded path"
+                );
+                return false;
+            }
             true
         })
         .collect::<Vec<_>>();
@@ -177,11 +204,27 @@ fn finalize(group: &str, projects: Vec<Project>) -> Result<Vec<Project>, Report<
     if scannable.is_empty() {
         return report!(Error::NoProjects)
             .wrap_err()
-            .help("verify the token can read the group, and that the group contains repositories")
+            .help("verify the token can read the group, that the group contains repositories, and that 'excluded_paths' does not exclude all of them")
             .describe_lazy(|| format!("configured group: '{group}'"));
     }
 
     scannable.wrap_ok()
+}
+
+/// Returns the excluded path that matches `project_path`, if any.
+///
+/// A project is excluded if its path is exactly one of `excluded_paths`, or is nested
+/// under one of them (a subgroup or project path prefix, split on `/`). Matching is
+/// segment-aware so that excluding `parent/archive` does not also exclude an unrelated
+/// `parent/archive-2` project.
+fn excluded_path_prefix<'a>(project_path: &str, excluded_paths: &'a [String]) -> Option<&'a str> {
+    excluded_paths
+        .iter()
+        .find(|excluded| {
+            let excluded = excluded.trim_matches('/');
+            project_path == excluded || project_path.starts_with(&format!("{excluded}/"))
+        })
+        .map(String::as_str)
 }
 
 /// Build the projects URL for a group.
@@ -333,14 +376,68 @@ mod tests {
             },
         ];
 
-        let scannable = finalize("group", projects).expect("must retain the live project");
+        let scannable = finalize("group", projects, &[]).expect("must retain the live project");
         assert_eq!(scannable.len(), 1);
         assert_eq!(scannable[0].path_with_namespace, "group/live");
     }
 
     #[test]
     fn errors_when_no_projects_are_scannable() {
-        let _ = finalize("group", Vec::new()).expect_err("must reject an empty group");
+        let _ = finalize("group", Vec::new(), &[]).expect_err("must reject an empty group");
+    }
+
+    fn project(path: &str) -> Project {
+        Project {
+            path_with_namespace: String::from(path),
+            http_url_to_repo: format!("https://gitlab.com/{path}.git"),
+            default_branch: Some(String::from("main")),
+            archived: false,
+        }
+    }
+
+    #[test]
+    fn excludes_project_at_excluded_path() {
+        let projects = vec![project("group/live"), project("group/archive")];
+        let excluded = vec![String::from("group/archive")];
+
+        let scannable = finalize("group", projects, &excluded).expect("must retain live project");
+        assert_eq!(scannable.len(), 1);
+        assert_eq!(scannable[0].path_with_namespace, "group/live");
+    }
+
+    #[test]
+    fn excludes_projects_nested_under_excluded_path() {
+        let projects = vec![
+            project("group/live"),
+            project("group/archive/team-a/repo"),
+            project("group/archive/team-b/repo"),
+        ];
+        let excluded = vec![String::from("group/archive")];
+
+        let scannable = finalize("group", projects, &excluded).expect("must retain live project");
+        assert_eq!(scannable.len(), 1);
+        assert_eq!(scannable[0].path_with_namespace, "group/live");
+    }
+
+    #[test]
+    fn excluded_path_match_is_segment_aware() {
+        // "group/archive-2" is not under "group/archive", so it must not be excluded.
+        let projects = vec![project("group/archive"), project("group/archive-2")];
+        let excluded = vec![String::from("group/archive")];
+
+        let scannable = finalize("group", projects, &excluded).expect("must retain project");
+        assert_eq!(scannable.len(), 1);
+        assert_eq!(scannable[0].path_with_namespace, "group/archive-2");
+    }
+
+    #[test]
+    fn excluded_path_ignores_surrounding_slashes() {
+        let projects = vec![project("group/live"), project("group/archive/repo")];
+        let excluded = vec![String::from("/group/archive/")];
+
+        let scannable = finalize("group", projects, &excluded).expect("must retain live project");
+        assert_eq!(scannable.len(), 1);
+        assert_eq!(scannable[0].path_with_namespace, "group/live");
     }
 
     /// Discovers repositories against a real GitLab instance.
@@ -354,7 +451,8 @@ mod tests {
     ///   cargo test --lib discovers_projects_against_real_gitlab -- --ignored --nocapture
     /// ```
     ///
-    /// `GITLAB_HOST` may be set for self-managed instances.
+    /// `GITLAB_HOST` may be set for self-managed instances, and `GITLAB_EXCLUDED_PATHS`
+    /// to a comma-separated list of paths to exclude.
     #[tokio::test]
     #[ignore]
     async fn discovers_projects_against_real_gitlab() {
@@ -371,11 +469,30 @@ mod tests {
             ))),
         };
 
-        let projects = discover_projects(&host, &group, true, &auth)
+        let excluded_paths = std::env::var("GITLAB_EXCLUDED_PATHS")
+            .map(|paths| paths.split(',').map(String::from).collect::<Vec<_>>())
+            .unwrap_or_default();
+
+        let started = std::time::Instant::now();
+        let projects = discover_projects(&host, &group, true, &excluded_paths, &auth)
             .await
             .expect("must discover projects");
 
-        println!("discovered {} repositories in '{group}'", projects.len());
+        println!(
+            "discovered {} repositories in '{group}' in {:?} (excluded: {excluded_paths:?})",
+            projects.len(),
+            started.elapsed()
+        );
+        for excluded in &excluded_paths {
+            assert!(
+                projects.iter().all(|p| excluded_path_prefix(
+                    &p.path_with_namespace,
+                    std::slice::from_ref(excluded)
+                )
+                .is_none()),
+                "no project under excluded path '{excluded}' may be discovered"
+            );
+        }
         for project in projects.iter().take(10) {
             println!(
                 "  {} -> {} (default branch: {})",

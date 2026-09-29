@@ -158,11 +158,10 @@ pub async fn main<D: Database>(ctx: &AppContext, config: Config, db: D) -> Resul
         cli,
     };
 
-    for integration in ctx.config.integrations().iter() {
-        if let Err(err) = remove_repository_scan_targets(&ctx.db, integration).await {
-            warn!("Unable to remove scan targets for '{integration}': {err:#?}. Contact Support for further guidance.");
-        }
-    }
+    remove_repository_scan_targets(&ctx.db, ctx.config.integrations())
+        .await
+        .describe("Broker removes stored scan state for branches and tags whose import is disabled, so that they are rescanned if import is later enabled")
+        .help("this may have been related to a temporary condition, restarting Broker may resolve the issue; if it persists, contact Support")?;
 
     let preflight_checks = preflight_checks(&ctx);
     let healthcheck_worker = healthcheck(&ctx.db);
@@ -212,27 +211,37 @@ async fn check_fossa_connection(config: &Config) -> Result<(), Error> {
     }
 }
 
+/// Builds the list of `(repository, is_branch)` states to remove, then deletes them all
+/// in a single transaction.
+///
+/// Each configured integration is checked in memory (cheap), and only the resulting,
+/// possibly much smaller, list of targets touches the database. This matters because
+/// `gitlab_group` integrations can expand into thousands of individual integrations:
+/// deleting states one integration at a time meant thousands of sequential round trips
+/// (each its own commit) before Broker started polling anything.
 #[tracing::instrument(skip_all)]
 async fn remove_repository_scan_targets<D: Database>(
     db: &D,
-    integration: &Integration,
+    integrations: &Integrations,
 ) -> Result<(), Error> {
-    let repository = integration.remote().for_coordinate();
-    let import_branches = integration.import_branches();
-    let import_tags = integration.import_tags();
+    let targets = integrations
+        .iter()
+        .flat_map(|integration| {
+            let repository = integration.remote().for_coordinate();
+            let mut targets = Vec::new();
+            if let BranchImportStrategy::Disabled = integration.import_branches() {
+                targets.push((repository.clone(), true));
+            }
+            if let TagImportStrategy::Disabled = integration.import_tags() {
+                targets.push((repository, false));
+            }
+            targets
+        })
+        .collect::<Vec<_>>();
 
-    if let BranchImportStrategy::Disabled = import_branches {
-        db.delete_states(&repository, true)
-            .await
-            .change_context(Error::TaskDeleteState)?;
-    }
-    if let TagImportStrategy::Disabled = import_tags {
-        db.delete_states(&repository, false)
-            .await
-            .change_context(Error::TaskDeleteState)?
-    }
-
-    Ok(())
+    db.delete_states_bulk(&targets)
+        .await
+        .change_context(Error::TaskDeleteState)
 }
 
 /// Conduct internal diagnostics to ensure Broker is still in a good state.

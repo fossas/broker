@@ -232,6 +232,13 @@ integrations:
     #
     # optionally, exclude repositories in subgroups. defaults to true (subgroups included).
     # include_subgroups: false
+    #
+    # optionally, exclude repositories under specific group, subgroup, or project paths.
+    # a project is excluded if its full path (as shown in its GitLab URL) is exactly one
+    # of these, or is nested under one of them. for example, excluding "my-org/archive"
+    # also excludes "my-org/archive/team-a/some-repo".
+    # excluded_paths:
+    #   - my-org/archive
 
   # This is an example of gitlab_group against a self-managed GitLab instance.
   # Set "host" to the instance URL; it defaults to https://gitlab.com.

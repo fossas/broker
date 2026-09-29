@@ -282,6 +282,37 @@ impl super::Database for Database {
         .context(Error::Communication)
         .change_context(super::Error::Interact)
     }
+
+    #[tracing::instrument(skip(targets), fields(count = targets.len()))]
+    async fn delete_states_bulk(&self, targets: &[(String, bool)]) -> Result<(), super::Error> {
+        if targets.is_empty() {
+            return Ok(());
+        }
+
+        let mut tx = self
+            .internal
+            .begin()
+            .await
+            .context(Error::Communication)
+            .change_context(super::Error::Interact)?;
+
+        for (repository, is_branch) in targets {
+            query!(
+                "delete from repo_state where repository = ? and is_branch = ? ",
+                repository,
+                is_branch,
+            )
+            .execute(&mut *tx)
+            .await
+            .context(Error::Communication)
+            .change_context(super::Error::Interact)?;
+        }
+
+        tx.commit()
+            .await
+            .context(Error::Communication)
+            .change_context(super::Error::Interact)
+    }
 }
 
 #[cfg(test)]
