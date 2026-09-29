@@ -158,9 +158,10 @@ pub async fn main<D: Database>(ctx: &AppContext, config: Config, db: D) -> Resul
         cli,
     };
 
-    if let Err(err) = remove_repository_scan_targets(&ctx.db, ctx.config.integrations()).await {
-        warn!("Unable to remove scan targets: {err:#?}. Contact Support for further guidance.");
-    }
+    remove_repository_scan_targets(&ctx.db, ctx.config.integrations())
+        .await
+        .describe("Broker removes stored scan state for branches and tags whose import is disabled, so that they are rescanned if import is later enabled")
+        .help("this may have been related to a temporary condition, restarting Broker may resolve the issue; if it persists, contact Support")?;
 
     let preflight_checks = preflight_checks(&ctx);
     let healthcheck_worker = healthcheck(&ctx.db);
