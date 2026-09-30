@@ -13,6 +13,12 @@ repository's default branch from the repository itself. As a result, repositorie
 now skipped as documented; previously GitLab reported a default branch for them, so they were
 polled despite having nothing to scan.
 
+Broker now trusts certificate authorities from the operating system's trust store, in addition
+to its bundled Mozilla root certificates. This lets Broker connect through TLS-intercepting
+proxies whose internal CA is installed on the host, such as when `broker fix` checks
+connectivity to FOSSA. Setting `SSL_CERT_FILE` or `SSL_CERT_DIR` loads CA certificates from those
+locations instead of the operating system's trust store.
+
 ## v0.3.8
 
 Adds an `excluded_paths` option to `gitlab_group` integrations. Repositories whose full path
