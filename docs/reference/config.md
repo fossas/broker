@@ -146,8 +146,9 @@ GitLab API and needs a credential it can send as an HTTP header. See
 repository's default. Unlike the `git` integration, Broker does not need to contact each
 repository to infer this, because GitLab provides it during discovery.
 
-Broker skips repositories that are archived, and repositories with no default branch
-(which usually means they have no commits). Each skipped repository is named in the logs.
+Broker skips projects that are archived, projects with no repository (GitLab allows a project
+to exist without one, for example after a failed import), and repositories with no commits.
+Each skipped project is named in the logs.
 Repositories shared into the group from elsewhere are not included; only repositories the
 group owns are scanned.
 

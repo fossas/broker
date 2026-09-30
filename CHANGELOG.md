@@ -6,8 +6,12 @@ the `concurrency` limit while waiting to retry, and the waits between retries gr
 days. Broker now releases the slot between attempts, and waits at most one minute between attempts,
 giving up until the next poll interval after about five minutes.
 
-GitLab projects without a repository (for example, projects used only for issues) are now treated
-as having nothing to scan, instead of logging a warning and retrying on every poll.
+`gitlab_group` integrations now skip projects that have no repository, such as projects whose
+import failed. Previously these were polled and failed on every attempt. Discovery now uses
+GitLab's GraphQL API, which reports whether each project's repository exists, and takes each
+repository's default branch from the repository itself. As a result, repositories with no commits are
+now skipped as documented; previously GitLab reported a default branch for them, so they were
+polled despite having nothing to scan.
 
 ## v0.3.8
 

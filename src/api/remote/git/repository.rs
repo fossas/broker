@@ -8,7 +8,6 @@ use std::io::Write;
 use std::path::{Path, PathBuf};
 use tempfile::{tempdir, NamedTempFile, TempDir};
 use thiserror::Error;
-use tracing::debug;
 
 use super::Reference;
 use crate::ext::command::{Command, CommandDescriber, Output, OutputProvider, Value};
@@ -104,20 +103,7 @@ pub async fn ls_remote(transport: &Transport) -> Result<String, Report<Error>> {
 
 #[tracing::instrument(skip(transport))]
 async fn get_all_references(transport: &Transport) -> Result<Vec<Reference>, Report<Error>> {
-    let output = run_git_unchecked(transport, &ls_remote_args(transport), None).await?;
-    if !output.status().success() {
-        // A project with no repository has nothing to scan; report no references rather than
-        // failing, so it doesn't warn and retry on every poll.
-        if is_missing_repository(&output.stderr()) {
-            debug!(
-                endpoint = %transport.endpoint(),
-                "skipping remote with no repository"
-            );
-            return Ok(Vec::new());
-        }
-        bail!(Error::running_git_command(&output));
-    }
-    let output = String::from_utf8(output.stdout()).context(Error::ParseGitOutput)?;
+    let output = ls_remote(transport).await?;
     let references = parse_ls_remote(output);
 
     // Tags sometimes get duplicated in the output from `git ls-remote`, like this:
@@ -162,34 +148,17 @@ async fn run_git(
     args: &[Value],
     cwd: Option<&Path>,
 ) -> Result<Output, Report<Error>> {
-    let output = run_git_unchecked(transport, args, cwd).await?;
+    let command = construct_git_command(transport, args, cwd)?;
+    let output = command
+        .output()
+        .await
+        .context_lazy(|| Error::running_git_command(&command))?;
+
     if !output.status().success() {
         bail!(Error::running_git_command(&output));
     }
 
     Ok(output)
-}
-
-/// Run git, returning its output even if it exited unsuccessfully.
-async fn run_git_unchecked(
-    transport: &Transport,
-    args: &[Value],
-    cwd: Option<&Path>,
-) -> Result<Output, Report<Error>> {
-    let command = construct_git_command(transport, args, cwd)?;
-    command
-        .output()
-        .await
-        .context_lazy(|| Error::running_git_command(&command))
-}
-
-/// Whether git's stderr reports that the remote project exists but has no repository.
-///
-/// GitLab allows projects without a repository (for example, projects used only for issues),
-/// and reports them this way. Other "not found" errors, such as a mistyped URL or a token
-/// without access, are left as failures.
-fn is_missing_repository(stderr: &[u8]) -> bool {
-    String::from_utf8_lossy(stderr).contains("A repository for this project does not exist yet")
 }
 
 /// Construct a pastable string containing a git command, including the default args and the environment required for the transport's auth
@@ -385,22 +354,5 @@ fn line_to_git_ref(line: &str) -> Option<Reference> {
         reference
             .strip_prefix("refs/heads/")
             .map(|branch| Reference::new_branch(branch.to_string(), commit))
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn detects_gitlab_project_without_repository() {
-        let stderr = b"remote: A repository for this project does not exist yet.\nfatal: repository 'https://gitlab.com/group/project.git/' not found\n";
-        assert!(is_missing_repository(stderr));
-    }
-
-    #[test]
-    fn does_not_treat_other_not_found_errors_as_missing_repository() {
-        let stderr = b"remote: The project you were looking for could not be found or you don't have permission to view it.\nfatal: repository 'https://gitlab.com/group/typo.git/' not found\n";
-        assert!(!is_missing_repository(stderr));
     }
 }
