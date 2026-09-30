@@ -392,8 +392,9 @@ async fn execute_poll_integration<D: Database>(
     // [`Retry`] needs a function that runs without any arguments to perform the retry, so turn the method into a closure.
     //
     // The concurrency permit is held only for each attempt, not across the backoff between attempts:
-    // otherwise integrations that fail every attempt (for example, a GitLab project with no repository)
-    // hold their permits while they wait, and once enough of them do so every other integration stalls.
+    // otherwise integrations that fail every attempt (for example, a repository that no longer exists,
+    // or a revoked credential) hold their permits while they wait, and once enough of them do so every
+    // other integration stalls.
     let get_references = || async {
         let _permit = ctx.acquire_permit().await?;
         integration

@@ -1,7 +1,6 @@
 ## v0.3.9
 
-Fixes an issue where integrations that fail to poll, such as GitLab projects with no repository,
-could stop Broker from polling or scanning any other integration. Each failing poll held a slot in
+Fixes an issue where integrations that repeatedly fail to poll could stop Broker from polling or scanning any other integration. Each failing poll held a slot in
 the `concurrency` limit while waiting to retry, and the waits between retries grew to hours and then
 days. Broker now releases the slot between attempts, and waits at most one minute between attempts,
 giving up until the next poll interval after about five minutes.
