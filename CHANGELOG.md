@@ -6,6 +6,9 @@ the `concurrency` limit while waiting to retry, and the waits between retries gr
 days. Broker now releases the slot between attempts, and waits at most one minute between attempts,
 giving up until the next poll interval after about five minutes.
 
+GitLab projects without a repository (for example, projects used only for issues) are now treated
+as having nothing to scan, instead of logging a warning and retrying on every poll.
+
 ## v0.3.8
 
 Adds an `excluded_paths` option to `gitlab_group` integrations. Repositories whose full path
