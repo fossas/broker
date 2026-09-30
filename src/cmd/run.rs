@@ -369,6 +369,10 @@ async fn poll_integration<D: Database>(
 ///
 /// Delays double from 1 second and are capped at 1 minute, so a poll that fails every attempt
 /// gives up after roughly five minutes.
+///
+/// `ExponentialBackoff` computes each delay as `factor × baseⁿ` milliseconds (n = 1, 2, ...),
+/// so base 2 with factor 500 yields 1s, 2s, 4s, and so on. The base is the growth rate, not
+/// the initial delay: `from_millis(1000)` would grow as 1s, 1000s, 1000000s.
 fn poll_retry_delays() -> impl Iterator<Item = Duration> {
     ExponentialBackoff::from_millis(2)
         .factor(500)
