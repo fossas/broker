@@ -1,5 +1,18 @@
 ## v0.3.9
 
+Fixes an issue where integrations that repeatedly fail to poll could stop Broker from polling or
+scanning any other integration. Each failing poll held a slot in the `concurrency` limit while
+waiting to retry, and the waits between retries grew to hours and then days. Broker now releases
+the slot between attempts, and waits at most one minute between attempts, giving up until the next
+poll interval after about five minutes.
+
+`gitlab_group` integrations now skip projects that have no repository, such as projects whose
+import failed. Previously these were polled and failed on every attempt. Discovery now uses
+GitLab's GraphQL API, which reports whether each project's repository exists, and takes each
+repository's default branch from the repository itself. As a result, repositories with no commits are
+now skipped as documented; previously GitLab reported a default branch for them, so they were
+polled despite having nothing to scan.
+
 Broker now trusts certificate authorities from the operating system's trust store, in addition
 to its bundled Mozilla root certificates. This lets Broker connect through TLS-intercepting
 proxies whose internal CA is installed on the host, such as when `broker fix` checks

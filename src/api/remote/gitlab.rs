@@ -7,11 +7,18 @@
 //! Discovery uses the same credential that clones the repositories, so a single
 //! GitLab group access token is sufficient. Because Broker polls rather than
 //! receiving webhooks, that token only needs read access.
+//!
+//! Discovery uses GitLab's GraphQL API rather than its REST API because only GraphQL
+//! reports whether a project's repository exists (`repository.exists`). GitLab lets a
+//! project exist without a repository, for example after a failed import; to git such a
+//! project is indistinguishable from a URL that doesn't exist (both are an HTTP 404),
+//! so it must be filtered here, before Broker tries to poll it.
 
 use error_stack::{report, Report};
-use reqwest::{Client, ClientBuilder, RequestBuilder};
+use reqwest::{header::CONTENT_TYPE, Client, ClientBuilder, RequestBuilder};
 use serde::Deserialize;
-use tracing::{debug, warn};
+use serde_json::json;
+use tracing::{debug, info, warn};
 use url::Url;
 
 use crate::{
@@ -25,14 +32,36 @@ use crate::{
 /// The GitLab SaaS host, used when the integration does not specify one.
 pub const DEFAULT_HOST: &str = "https://gitlab.com";
 
-/// The largest page size the GitLab API accepts.
+/// The largest page size the GitLab GraphQL API accepts.
 const PER_PAGE: usize = 100;
 
 /// Upper bound on pages walked during discovery.
 ///
-/// At [`PER_PAGE`] this allows 100,000 repositories, comfortably above any real group,
-/// while still guaranteeing termination if the remote misreports pagination.
-const MAX_PAGES: usize = 1000;
+/// GitLab removes projects the token cannot read from each page after paginating, so
+/// pages are frequently shorter than [`PER_PAGE`]; this still allows well over any real
+/// group while guaranteeing termination if the remote misreports pagination.
+const MAX_PAGES: usize = 5000;
+
+/// Lists the projects in a group, one page at a time.
+///
+/// Archived projects are filtered after fetching rather than with `includeArchived`,
+/// because that argument is recent and older self-managed GitLab instances reject
+/// queries that use it.
+const PROJECTS_QUERY: &str = r#"
+query($group: ID!, $includeSubgroups: Boolean!, $first: Int!, $after: String) {
+  group(fullPath: $group) {
+    projects(includeSubgroups: $includeSubgroups, first: $first, after: $after) {
+      pageInfo { hasNextPage endCursor }
+      nodes {
+        fullPath
+        httpUrlToRepo
+        archived
+        repository { exists rootRef }
+      }
+    }
+  }
+}
+"#;
 
 /// Errors surfaced while discovering repositories in a GitLab group.
 #[derive(Debug, thiserror::Error)]
@@ -41,7 +70,7 @@ pub enum Error {
     #[error("construct HTTP client")]
     ConstructClient,
 
-    /// The discovery URL could not be built from the configured host and group.
+    /// The discovery URL could not be built from the configured host.
     #[error("construct GitLab API url")]
     ConstructUrl,
 
@@ -61,6 +90,14 @@ pub enum Error {
     #[error("GitLab responded with status {0}")]
     Status(u16),
 
+    /// GitLab rejected the query.
+    #[error("GitLab rejected the discovery query: {0}")]
+    Query(String),
+
+    /// The group does not exist, or the credential cannot read it.
+    #[error("GitLab group not found")]
+    GroupNotFound,
+
     /// Discovery needs a credential it can send as an HTTP header.
     #[error("authentication method is not supported for GitLab group discovery")]
     UnsupportedAuth,
@@ -71,7 +108,7 @@ pub enum Error {
 }
 
 /// A repository discovered in a GitLab group.
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone)]
 pub struct Project {
     /// The full path of the project, including any parent groups.
     ///
@@ -84,15 +121,84 @@ pub struct Project {
     /// The repository's default branch.
     ///
     /// `None` for repositories with no commits, which Broker cannot scan.
-    #[serde(default)]
     pub default_branch: Option<String>,
 
     /// Whether the project is archived in GitLab.
-    ///
-    /// Discovery asks GitLab to exclude archived projects and requests a representation
-    /// that omits this field, so it is normally `false`; it is kept as a backstop.
-    #[serde(default)]
     pub archived: bool,
+
+    /// Whether the project has a repository at all.
+    pub has_repository: bool,
+}
+
+impl From<ProjectNode> for Project {
+    fn from(node: ProjectNode) -> Self {
+        let (has_repository, default_branch) = match node.repository {
+            Some(repository) => (repository.exists, repository.root_ref),
+            // GitLab omits the repository when the credential can't read the code,
+            // in which case Broker can't clone it either.
+            None => (false, None),
+        };
+        Self {
+            path_with_namespace: node.full_path,
+            http_url_to_repo: node.http_url_to_repo,
+            default_branch,
+            archived: node.archived,
+            has_repository,
+        }
+    }
+}
+
+#[derive(Debug, Deserialize)]
+struct Response {
+    data: Option<ResponseData>,
+    #[serde(default)]
+    errors: Vec<ResponseError>,
+}
+
+#[derive(Debug, Deserialize)]
+struct ResponseError {
+    message: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct ResponseData {
+    group: Option<GroupNode>,
+}
+
+#[derive(Debug, Deserialize)]
+struct GroupNode {
+    projects: ProjectConnection,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct ProjectConnection {
+    page_info: PageInfo,
+    nodes: Vec<Option<ProjectNode>>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct PageInfo {
+    has_next_page: bool,
+    end_cursor: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct ProjectNode {
+    full_path: String,
+    http_url_to_repo: String,
+    #[serde(default)]
+    archived: bool,
+    repository: Option<RepositoryNode>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct RepositoryNode {
+    exists: bool,
+    root_ref: Option<String>,
 }
 
 /// List every repository in `group`.
@@ -100,10 +206,10 @@ pub struct Project {
 /// `host` is the base URL of the GitLab instance (for example `https://gitlab.com`).
 /// `group` is the group's full path, which may itself be a subgroup (`parent/child`).
 ///
-/// Repositories shared into the group from elsewhere are excluded, so results are
-/// limited to repositories the group actually owns. Archived repositories, repositories
-/// with no commits, and repositories under a path in `excluded_paths` are skipped, with
-/// a log line naming each one.
+/// Only repositories the group owns are listed, not those shared into it, so results are
+/// predictable. Archived projects, projects with no repository, repositories with no
+/// commits, and repositories under a path in `excluded_paths` are skipped, with a log line
+/// naming each one.
 #[tracing::instrument(skip(auth))]
 pub async fn discover_projects(
     host: &str,
@@ -113,32 +219,30 @@ pub async fn discover_projects(
     auth: &http::Auth,
 ) -> Result<Vec<Project>, Report<Error>> {
     let client = new_client()?;
-    let base = projects_url(host, group)?;
+    let url = graphql_url(host)?;
 
     let mut discovered = Vec::new();
+    let mut after: Option<String> = None;
     for page in 1..=MAX_PAGES {
-        let mut url = base.clone();
-        url.query_pairs_mut()
-            .append_pair("per_page", &PER_PAGE.to_string())
-            .append_pair("page", &page.to_string())
-            .append_pair("include_subgroups", &include_subgroups.to_string())
-            // Limit results to repositories the group owns, rather than repositories
-            // shared into it, so that the set of scanned repositories is predictable.
-            .append_pair("with_shared", "false")
-            // Filter archived repositories on the server, and ask for the reduced project
-            // representation. The full representation is roughly 5x larger and 3x slower
-            // to serve per page, which on groups with thousands of repositories delays
-            // startup (and therefore the first poll) by minutes. The reduced representation
-            // omits `archived`, which is why archived filtering happens here rather than
-            // only in `finalize`.
-            .append_pair("archived", "false")
-            .append_pair("simple", "true");
+        let body = json!({
+            "query": PROJECTS_QUERY,
+            "variables": {
+                "group": group,
+                "includeSubgroups": include_subgroups,
+                "first": PER_PAGE,
+                "after": after,
+            },
+        });
 
-        let req = authenticate(client.get(url), auth)?;
-        let page_projects = run_request(req).await?;
+        let req = client
+            .post(url.clone())
+            .header(CONTENT_TYPE, "application/json")
+            .body(body.to_string());
+        let req = authenticate(req, auth)?;
+        let connection = run_request(req).await?;
 
-        let count = page_projects.len();
-        discovered.extend(page_projects);
+        let count = connection.nodes.len();
+        discovered.extend(connection.nodes.into_iter().flatten().map(Project::from));
         debug!(
             page,
             count,
@@ -146,9 +250,12 @@ pub async fn discover_projects(
             "discovered page of GitLab projects"
         );
 
-        // A short page means there are no further pages to walk.
-        if count < PER_PAGE {
-            return finalize(group, discovered, excluded_paths);
+        match connection.page_info {
+            PageInfo {
+                has_next_page: true,
+                end_cursor: Some(cursor),
+            } => after = Some(cursor),
+            _ => return finalize(group, discovered, excluded_paths),
         }
     }
 
@@ -177,6 +284,13 @@ fn finalize(
                 debug!(
                     project = project.path_with_namespace,
                     "skipping archived GitLab project"
+                );
+                return false;
+            }
+            if !project.has_repository {
+                info!(
+                    project = project.path_with_namespace,
+                    "skipping GitLab project with no repository"
                 );
                 return false;
             }
@@ -227,11 +341,8 @@ fn excluded_path_prefix<'a>(project_path: &str, excluded_paths: &'a [String]) ->
         .map(String::as_str)
 }
 
-/// Build the projects URL for a group.
-///
-/// The group path is pushed as a single path segment so that subgroup paths such as
-/// `parent/child` are percent-encoded, as the GitLab API requires.
-fn projects_url(host: &str, group: &str) -> Result<Url, Report<Error>> {
+/// Build the GraphQL endpoint URL for a GitLab host.
+fn graphql_url(host: &str) -> Result<Url, Report<Error>> {
     let mut url = Url::parse(host)
         .context(Error::ConstructUrl)
         .describe_lazy(|| format!("provided host: '{host}'"))
@@ -242,9 +353,7 @@ fn projects_url(host: &str, group: &str) -> Result<Url, Report<Error>> {
         .describe_lazy(|| format!("provided host: '{host}'"))
         .help("the host must be an absolute URL, for example 'https://gitlab.com'")?
         .pop_if_empty()
-        .extend(["api", "v4", "groups"])
-        .push(group)
-        .push("projects");
+        .extend(["api", "graphql"]);
 
     url.wrap_ok()
 }
@@ -279,7 +388,7 @@ fn new_client() -> Result<Client, Report<Error>> {
 }
 
 #[tracing::instrument(skip_all)]
-async fn run_request(req: RequestBuilder) -> Result<Vec<Project>, Report<Error>> {
+async fn run_request(req: RequestBuilder) -> Result<ProjectConnection, Report<Error>> {
     let (client, req) = req.build_split();
     let req = req.context(Error::Request)?;
     let res = client.execute(req).await.context(Error::Request)?;
@@ -293,9 +402,35 @@ async fn run_request(req: RequestBuilder) -> Result<Vec<Project>, Report<Error>>
             .describe_lazy(|| format!("response body: '{}'", String::from_utf8_lossy(&body)));
     }
 
-    serde_json::from_slice::<Vec<Project>>(&body)
+    parse_page(&body)
+}
+
+/// Parse one page of the projects query.
+///
+/// GraphQL reports query errors with a success status, so they are checked here.
+fn parse_page(body: &[u8]) -> Result<ProjectConnection, Report<Error>> {
+    let response = serde_json::from_slice::<Response>(body)
         .context(Error::ParseResponse)
-        .describe_lazy(|| format!("response body: '{}'", String::from_utf8_lossy(&body)))
+        .describe_lazy(|| format!("response body: '{}'", String::from_utf8_lossy(body)))?;
+
+    if !response.errors.is_empty() {
+        let messages = response
+            .errors
+            .into_iter()
+            .map(|error| error.message)
+            .collect::<Vec<_>>()
+            .join("; ");
+        return report!(Error::Query(messages))
+            .wrap_err()
+            .help("verify the configured host and token; discovery requires a token with the 'read_api' scope");
+    }
+
+    match response.data.and_then(|data| data.group) {
+        Some(group) => group.projects.wrap_ok(),
+        None => report!(Error::GroupNotFound)
+            .wrap_err()
+            .help("verify the configured group path, and that the token can read the group"),
+    }
 }
 
 #[cfg(test)]
@@ -304,35 +439,26 @@ mod tests {
     use crate::ext::secrecy::ComparableSecretString;
 
     #[test]
-    fn builds_projects_url_for_top_level_group() {
-        let url = projects_url("https://gitlab.com", "my-org").expect("must build url");
-        assert_eq!(
-            url.as_str(),
-            "https://gitlab.com/api/v4/groups/my-org/projects"
-        );
+    fn builds_graphql_url() {
+        let url = graphql_url("https://gitlab.com").expect("must build url");
+        assert_eq!(url.as_str(), "https://gitlab.com/api/graphql");
     }
 
     #[test]
-    fn encodes_subgroup_path_as_single_segment() {
-        let url = projects_url("https://gitlab.com", "my-org/platform").expect("must build url");
-        assert_eq!(
-            url.as_str(),
-            "https://gitlab.com/api/v4/groups/my-org%2Fplatform/projects"
-        );
+    fn builds_graphql_url_for_self_managed_host_with_trailing_slash() {
+        let url = graphql_url("https://gitlab.example.com/").expect("must build url");
+        assert_eq!(url.as_str(), "https://gitlab.example.com/api/graphql");
     }
 
     #[test]
-    fn builds_projects_url_for_self_managed_host_with_trailing_slash() {
-        let url = projects_url("https://gitlab.example.com/", "group").expect("must build url");
-        assert_eq!(
-            url.as_str(),
-            "https://gitlab.example.com/api/v4/groups/group/projects"
-        );
+    fn builds_graphql_url_for_host_under_a_path() {
+        let url = graphql_url("https://example.com/gitlab").expect("must build url");
+        assert_eq!(url.as_str(), "https://example.com/gitlab/api/graphql");
     }
 
     #[test]
     fn rejects_host_that_is_not_a_url() {
-        let _ = projects_url("not a url", "group").expect_err("must reject non-url host");
+        let _ = graphql_url("not a url").expect_err("must reject non-url host");
     }
 
     #[test]
@@ -354,25 +480,20 @@ mod tests {
     }
 
     #[test]
-    fn skips_archived_and_empty_projects() {
+    fn skips_archived_empty_and_repositoryless_projects() {
         let projects = vec![
+            project("group/live"),
             Project {
-                path_with_namespace: String::from("group/live"),
-                http_url_to_repo: String::from("https://gitlab.com/group/live.git"),
-                default_branch: Some(String::from("main")),
-                archived: false,
-            },
-            Project {
-                path_with_namespace: String::from("group/archived"),
-                http_url_to_repo: String::from("https://gitlab.com/group/archived.git"),
-                default_branch: Some(String::from("main")),
                 archived: true,
+                ..project("group/archived")
             },
             Project {
-                path_with_namespace: String::from("group/empty"),
-                http_url_to_repo: String::from("https://gitlab.com/group/empty.git"),
                 default_branch: None,
-                archived: false,
+                ..project("group/empty")
+            },
+            Project {
+                has_repository: false,
+                ..project("group/no-repository")
             },
         ];
 
@@ -392,6 +513,7 @@ mod tests {
             http_url_to_repo: format!("https://gitlab.com/{path}.git"),
             default_branch: Some(String::from("main")),
             archived: false,
+            has_repository: true,
         }
     }
 
@@ -524,21 +646,80 @@ mod tests {
     }
 
     #[test]
-    fn parses_project_list_ignoring_unknown_fields() {
-        let body = br#"[
-            {
-                "id": 1,
-                "path_with_namespace": "group/repo",
-                "http_url_to_repo": "https://gitlab.com/group/repo.git",
-                "default_branch": "main",
-                "archived": false,
-                "some_field_broker_does_not_model": true
+    fn parses_page_of_projects() {
+        let body = br#"{
+            "data": {
+                "group": {
+                    "projects": {
+                        "pageInfo": { "hasNextPage": true, "endCursor": "abc" },
+                        "nodes": [
+                            {
+                                "fullPath": "group/repo",
+                                "httpUrlToRepo": "https://gitlab.com/group/repo.git",
+                                "archived": false,
+                                "repository": { "exists": true, "rootRef": "main" }
+                            },
+                            {
+                                "fullPath": "group/empty",
+                                "httpUrlToRepo": "https://gitlab.com/group/empty.git",
+                                "archived": false,
+                                "repository": { "exists": true, "rootRef": null }
+                            },
+                            {
+                                "fullPath": "group/no-repository",
+                                "httpUrlToRepo": "https://gitlab.com/group/no-repository.git",
+                                "archived": false,
+                                "repository": { "exists": false, "rootRef": null }
+                            },
+                            {
+                                "fullPath": "group/no-code-access",
+                                "httpUrlToRepo": "https://gitlab.com/group/no-code-access.git",
+                                "archived": false,
+                                "repository": null
+                            },
+                            null
+                        ]
+                    }
+                }
             }
-        ]"#;
+        }"#;
 
-        let parsed = serde_json::from_slice::<Vec<Project>>(body).expect("must parse");
-        assert_eq!(parsed.len(), 1);
-        assert_eq!(parsed[0].path_with_namespace, "group/repo");
-        assert_eq!(parsed[0].default_branch.as_deref(), Some("main"));
+        let page = parse_page(body).expect("must parse");
+        assert!(page.page_info.has_next_page);
+        assert_eq!(page.page_info.end_cursor.as_deref(), Some("abc"));
+
+        let projects = page
+            .nodes
+            .into_iter()
+            .flatten()
+            .map(Project::from)
+            .map(|p| (p.path_with_namespace, p.has_repository, p.default_branch))
+            .collect::<Vec<_>>();
+        assert_eq!(
+            projects,
+            vec![
+                (String::from("group/repo"), true, Some(String::from("main"))),
+                (String::from("group/empty"), true, None),
+                (String::from("group/no-repository"), false, None),
+                (String::from("group/no-code-access"), false, None),
+            ]
+        );
+    }
+
+    #[test]
+    fn reports_missing_group() {
+        let body = br#"{ "data": { "group": null } }"#;
+        let err = parse_page(body).expect_err("must reject missing group");
+        assert!(matches!(err.current_context(), Error::GroupNotFound));
+    }
+
+    #[test]
+    fn reports_query_errors() {
+        let body =
+            br#"{ "errors": [ { "message": "Field 'projects' doesn't accept argument 'foo'" } ] }"#;
+        let err = parse_page(body).expect_err("must reject query errors");
+        assert!(
+            matches!(err.current_context(), Error::Query(message) if message.contains("doesn't accept argument"))
+        );
     }
 }

@@ -365,37 +365,52 @@ async fn poll_integration<D: Database>(
     }
 }
 
+/// Delays between attempts to poll an integration.
+///
+/// Delays double from 1 second and are capped at 1 minute, so a poll that fails every attempt
+/// gives up after roughly five minutes.
+///
+/// `ExponentialBackoff` computes each delay as `factor × baseⁿ` milliseconds (n = 1, 2, ...),
+/// so base 2 with factor 500 yields 1s, 2s, 4s, and so on. The base is the growth rate, not
+/// the initial delay: `from_millis(1000)` would grow as 1s, 1000s, 1000000s.
+fn poll_retry_delays() -> impl Iterator<Item = Duration> {
+    ExponentialBackoff::from_millis(2)
+        .factor(500)
+        .max_delay(Duration::from_secs(60))
+        .take(10)
+}
+
 #[tracing::instrument(skip_all)]
 async fn execute_poll_integration<D: Database>(
     ctx: &CmdContext<D>,
     integration: &Integration,
     sender: &Queue<ScanGitVCSReference>,
 ) -> Result<(), Error> {
-    let permit = ctx.acquire_permit().await?;
-
     // We use this in a few places and may send it across threads, so just clone it locally.
     let remote = integration.remote().to_owned();
 
     // [`Retry`] needs a function that runs without any arguments to perform the retry, so turn the method into a closure.
+    //
+    // The concurrency permit is held only for each attempt, not across the backoff between attempts:
+    // otherwise integrations that fail every attempt (for example, a repository that no longer exists,
+    // or a revoked credential) hold their permits while they wait, and once enough of them do so every
+    // other integration stalls.
     let get_references = || async {
-        match integration.references().await {
-            Ok(success) => Ok(success),
-            Err(err) => {
-                warn!("Unable to poll integration at {remote}: {err:#}");
-                Err(err)
-            }
-        }
+        let _permit = ctx.acquire_permit().await?;
+        integration
+            .references()
+            .await
+            .tap_err(|err| warn!("Unable to poll integration at {remote}: {err:#}"))
+            .change_context(Error::PollIntegration)
     };
 
     info!("Polling '{integration}'");
 
     // Given that this operation is not latency sensitive, and temporary network issues can interfere,
-    // retry several times before permanently failing since a permanent failure means Broker shuts down
-    // entirely.
-    let strategy = ExponentialBackoff::from_millis(1000).map(jitter).take(10);
+    // retry several times before giving up until the next poll interval.
+    let strategy = poll_retry_delays().map(jitter);
     let references = Retry::spawn(strategy, get_references)
             .await
-            .change_context(Error::PollIntegration)
             .describe_lazy(|| format!("poll for changes at {remote} in integration: {integration}"))
             .help(indoc! {"
             Issues with this process are usually related to network errors, but may be due to misconfiguration.
@@ -464,7 +479,6 @@ async fn execute_poll_integration<D: Database>(
     if references.is_empty() {
         info!("No changes to '{integration}'");
     }
-    drop(permit);
     for reference in references {
         let job = ScanGitVCSReference::new(integration, &reference);
         sender.send(&job).await.change_context(Error::TaskEnqueue)?;
@@ -604,4 +618,15 @@ async fn execute_upload_scans<D: Database>(
         .set_state(&coordinate, state, &is_branch)
         .await
         .change_context(Error::TaskSetState)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn poll_retry_delays_are_bounded() {
+        let delays = poll_retry_delays().map(|d| d.as_secs()).collect::<Vec<_>>();
+        assert_eq!(delays, vec![1, 2, 4, 8, 16, 32, 60, 60, 60, 60]);
+    }
 }
