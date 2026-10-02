@@ -158,6 +158,8 @@ pub enum ValidationError {
 }
 
 /// Validated config values for the FOSSA API.
+// derive-new generates long-hand `field: field` inits in `new()`
+#[allow(clippy::redundant_field_names)]
 #[derive(Debug, Clone, PartialEq, Eq, Getters, new)]
 #[getset(get = "pub")]
 pub struct Config {
@@ -220,6 +222,8 @@ impl TryFrom<String> for Key {
 }
 
 /// Validated config values for the FOSSA API populated with the org of the current user.
+// derive-new generates long-hand `field: field` inits in `new()`
+#[allow(clippy::redundant_field_names)]
 #[derive(Debug, Clone, PartialEq, Eq, Getters, new)]
 #[getset(get = "pub")]
 pub struct OrgConfig {
@@ -319,6 +323,8 @@ impl Display for ProjectMetadata {
 }
 
 /// Metadata from FOSSA CLI.
+// derive-new generates long-hand `field: field` inits in `new()`
+#[allow(clippy::redundant_field_names)]
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, new)]
 pub struct CliMetadata {
     version: Version,

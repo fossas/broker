@@ -75,6 +75,8 @@ pub enum Error {
 }
 
 /// A database implemented with sqlite.
+// derive-new generates long-hand `field: field` inits in `new()`
+#[allow(clippy::redundant_field_names)]
 #[derive(Clone, new)]
 pub struct Database {
     location: PathBuf,

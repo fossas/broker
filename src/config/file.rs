@@ -74,6 +74,8 @@ pub enum Error {
 }
 
 /// Validated config values to use during the program runtime.
+// derive-new generates long-hand `field: field` inits in `new()`
+#[allow(clippy::redundant_field_names)]
 #[derive(Debug, Clone, PartialEq, Eq, Getters, new)]
 #[getset(get = "pub")]
 pub struct Config {
