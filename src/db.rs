@@ -56,6 +56,8 @@ pub enum Namespace {
 /// This is also why it requires a namespace for the integration:
 /// since remotes are arbitrarily encoded, it'd be otherwise possible
 /// for them to accidentally collide.
+// derive-new generates long-hand `field: field` inits in `new()`
+#[allow(clippy::redundant_field_names)]
 #[derive(Debug, Clone, PartialEq, Eq, new)]
 pub struct Coordinate {
     namespace: Namespace,

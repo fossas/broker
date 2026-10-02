@@ -74,6 +74,8 @@ pub enum BundleExport {
 }
 
 /// Validated config values for observability.
+// derive-new generates long-hand `field: field` inits in `new()`
+#[allow(clippy::redundant_field_names)]
 #[derive(Debug, Clone, PartialEq, Eq, Getters, new)]
 #[getset(get = "pub")]
 pub struct Config {
@@ -204,6 +206,8 @@ impl Root {
 
 /// Since observability artifacts are stored on disk, we obviously want to clean them up.
 /// These retention settings are used by a background process to keep artifact size in line.
+// derive-new generates long-hand `field: field` inits in `new()`
+#[allow(clippy::redundant_field_names)]
 #[derive(Debug, Clone, PartialEq, CopyGetters, Eq, new)]
 #[getset(get_copy = "pub")]
 pub struct Retention {

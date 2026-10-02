@@ -7,6 +7,8 @@ use serde::{Deserialize, Serialize};
 use crate::ext::secrecy::ComparableSecretString;
 
 /// HTTP authentication can be performed either with a header or via 'HTTP Basic'.
+// derive-new generates long-hand `field: field` inits in `new()`
+#[allow(clippy::redundant_field_names)]
 #[derive(Debug, Clone, PartialEq, Eq, From, Deserialize, Serialize, new)]
 pub enum Auth {
     /// Uses a header value for authentication.

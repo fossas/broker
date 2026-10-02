@@ -11,6 +11,8 @@ pub const MAIN_BRANCH: &str = "main";
 pub const MASTER_BRANCH: &str = "master";
 
 /// A git reference's type (branch or tag)
+// derive-new generates long-hand `field: field` inits in `new()`
+#[allow(clippy::redundant_field_names)]
 #[derive(Debug, Clone, Hash, Eq, PartialEq, Serialize, Deserialize, new)]
 pub enum Reference {
     /// A branch

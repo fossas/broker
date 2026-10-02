@@ -23,6 +23,8 @@ use super::{super::Remote, repository};
 /// Similar to how [`super::Protocol`] enumerates possible overall communication protocols,
 /// this type enumerates possible communication methods to use when communicating with a
 /// code host that specifically speaks the git protocol.
+// derive-new generates long-hand `field: field` inits in `new()`
+#[allow(clippy::redundant_field_names)]
 #[derive(Debug, Clone, PartialEq, Eq, From, Deserialize, Serialize, new)]
 pub enum Transport {
     /// Specifies that the remote code host is configured to use the SSH protocol.
