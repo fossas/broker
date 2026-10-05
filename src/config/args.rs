@@ -60,6 +60,8 @@ pub enum Error {
 }
 
 /// Arguments used by the "fix" command.
+// derive-new generates long-hand `field: field` inits in `new()`
+#[allow(clippy::redundant_field_names)]
 #[derive(Debug, Clone, Parser, Serialize, new)]
 #[command(version, about)]
 pub struct RawFixArgs {
@@ -117,6 +119,8 @@ pub struct FixArgs {
 }
 
 /// Arguments used by the "run" command.
+// derive-new generates long-hand `field: field` inits in `new()`
+#[allow(clippy::redundant_field_names)]
 #[derive(Debug, Clone, Parser, Serialize, new)]
 #[command(version, about)]
 pub struct RawRunArgs {
@@ -266,6 +270,8 @@ pub struct RunArgs {
 }
 
 /// Arguments used by the "init" command.
+// derive-new generates long-hand `field: field` inits in `new()`
+#[allow(clippy::redundant_field_names)]
 #[derive(Debug, Clone, Parser, Serialize, new)]
 #[command(version, about)]
 pub struct RawInitArgs {
