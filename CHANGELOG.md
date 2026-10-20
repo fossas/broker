@@ -1,4 +1,4 @@
-## Unreleased
+## v0.3.10
 
 When Broker can't find a config file, the error now says to run `broker init` first or pass a config path with `-c`.
 
