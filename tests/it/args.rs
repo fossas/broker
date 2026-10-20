@@ -1,10 +1,11 @@
-use std::path::PathBuf;
+use std::{ffi::OsString, path::PathBuf};
 
 use broker::{
     api::fossa::{Endpoint, Key},
-    config::{RawInitArgs, RawRunArgs},
+    config::{RawInitArgs, RawRunArgs, DISABLE_FILE_DISCOVERY_VAR},
 };
 use proptest::{prop_assert, prop_assert_eq};
+use tokio::sync::{Mutex, MutexGuard};
 use url::Url;
 
 use crate::assert_error_stack_snapshot;
@@ -12,6 +13,35 @@ use test_strategy::proptest;
 
 pub fn raw_base_args(config: &str, db: &str) -> RawRunArgs {
     RawRunArgs::new(Some(String::from(config)), Some(String::from(db)), None)
+}
+
+/// Sets or removes [`DISABLE_FILE_DISCOVERY_VAR`] for one test. Tests can share a process, so this
+/// holds a lock until it drops, and restores the variable's prior value before releasing it.
+struct DiscoveryVar {
+    prior: Option<OsString>,
+    _lock: MutexGuard<'static, ()>,
+}
+
+impl DiscoveryVar {
+    async fn set(value: Option<&str>) -> Self {
+        static LOCK: Mutex<()> = Mutex::const_new(());
+        let lock = LOCK.lock().await;
+        let prior = std::env::var_os(DISABLE_FILE_DISCOVERY_VAR);
+        match value {
+            Some(value) => std::env::set_var(DISABLE_FILE_DISCOVERY_VAR, value),
+            None => std::env::remove_var(DISABLE_FILE_DISCOVERY_VAR),
+        }
+        Self { prior, _lock: lock }
+    }
+}
+
+impl Drop for DiscoveryVar {
+    fn drop(&mut self) {
+        match &self.prior {
+            Some(prior) => std::env::set_var(DISABLE_FILE_DISCOVERY_VAR, prior),
+            None => std::env::remove_var(DISABLE_FILE_DISCOVERY_VAR),
+        }
+    }
 }
 
 #[tokio::test]
@@ -42,7 +72,7 @@ async fn validates_init_args() {
 
 #[tokio::test]
 async fn infers_db_path() {
-    std::env::set_var(broker::config::DISABLE_FILE_DISCOVERY_VAR, "1");
+    let _discovery = DiscoveryVar::set(Some("1")).await;
 
     let base = RawRunArgs::new(Some(String::from("testdata/config/basic.yml")), None, None);
     let validated = base.validate().await;
@@ -61,7 +91,7 @@ async fn infers_db_path() {
 
 #[tokio::test]
 async fn infers_db_path_failing_config() {
-    std::env::set_var(broker::config::DISABLE_FILE_DISCOVERY_VAR, "1");
+    let _discovery = DiscoveryVar::set(Some("1")).await;
 
     let base = RawRunArgs::new(Some(String::from("")), None, None);
     let validated = base.clone().validate().await;
@@ -73,7 +103,7 @@ async fn infers_db_path_failing_config() {
 #[tokio::test]
 #[cfg(target_family = "unix")]
 async fn missing_config_suggests_init() {
-    std::env::remove_var(broker::config::DISABLE_FILE_DISCOVERY_VAR);
+    let _discovery = DiscoveryVar::set(None).await;
 
     let tmp = tempfile::tempdir().expect("must create tempdir");
     let base = RawRunArgs::new(None, None, Some(tmp.path().to_path_buf()));
