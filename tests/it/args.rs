@@ -69,6 +69,19 @@ async fn infers_db_path_failing_config() {
     assert_error_stack_snapshot!(&base, err);
 }
 
+/// Unix only: the snapshot includes the OS's file-not-found message, which differs on Windows.
+#[tokio::test]
+#[cfg(target_family = "unix")]
+async fn missing_config_suggests_init() {
+    std::env::remove_var(broker::config::DISABLE_FILE_DISCOVERY_VAR);
+
+    let tmp = tempfile::tempdir().expect("must create tempdir");
+    let base = RawRunArgs::new(None, None, Some(tmp.path().to_path_buf()));
+    let validated = base.clone().validate().await;
+    let err = validated.expect_err("must have errored");
+    assert_error_stack_snapshot!(data_root => tmp.path(); &base, err);
+}
+
 #[proptest]
 fn fossa_api_endpoint(#[strategy(r"\PC+")] user_input: String) {
     let canonical = Url::parse(&user_input);

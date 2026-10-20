@@ -1,3 +1,7 @@
+## Unreleased
+
+When Broker can't find a config file, the error now says to run `broker init` first or pass a config path with `-c`.
+
 ## v0.3.9
 
 Fixes an issue where integrations that repeatedly fail to poll could stop Broker from polling or
