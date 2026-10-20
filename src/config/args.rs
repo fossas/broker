@@ -317,7 +317,12 @@ impl ConfigFilePath {
         io::find_some(ctx, &["config.yml", "config.yaml"])
             .await
             .describe("searches for 'config.yml' or 'config.yaml'")
-            .help("consider providing an explicit argument instead")
+            .help_lazy(|| {
+                format!(
+                    "run 'broker init' to create the data root and an initial config file, or provide an explicit config path with '-c' (data root: '{}')",
+                    ctx.data_root().display()
+                )
+            })
             .map(|path| Self {
                 path,
                 provided: false,

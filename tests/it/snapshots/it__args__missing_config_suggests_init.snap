@@ -1,0 +1,79 @@
+---
+source: tests/it/args.rs
+expression: err
+info:
+  config_file_path: ~
+  database_file_path: ~
+  data_root: /var/folders/r1/5z9l2ph531scd46_zwh5z9bh0000gn/T/.tmpkXlb6h
+---
+locate config file
+├╴at {source location}
+│
+├─▶ IO layer error
+│   ├╴at {source location}
+│   ├╴context: searches for 'config.yml' or 'config.yaml'
+│   ╰╴help: run 'broker init' to create the data root and an initial config file, or provide an explicit config path with '-c' (data root: {file path})
+│
+╰┬▶ validate path
+ │  ├╴at {source location}
+ │  ├╴context: validate file: {file path}
+ │  ├╴help: validate that you have access to the file and that it exists
+ │  ├╴context: searches the working directory and '{USER_DIR}/.config/fossa/broker'
+ │  │
+ │  ╰─▶ No such file or directory (os error 2)
+ │      ╰╴at {source location}
+ │
+ ├▶ validate path
+ │  ├╴at {source location}
+ │  ├╴context: validate file: {file path}
+ │  ├╴help: validate that you have access to the file and that it exists
+ │  ├╴context: searches the working directory and '{USER_DIR}/.config/fossa/broker'
+ │  │
+ │  ╰─▶ No such file or directory (os error 2)
+ │      ╰╴at {source location}
+ │
+ ├▶ validate path
+ │  ├╴at {source location}
+ │  ├╴context: validate file: {file path}
+ │  ├╴help: validate that you have access to the file and that it exists
+ │  ├╴context: searches the working directory and '{USER_DIR}/.config/fossa/broker'
+ │  │
+ │  ╰─▶ No such file or directory (os error 2)
+ │      ╰╴at {source location}
+ │
+ ╰▶ validate path
+    ├╴at {source location}
+    ├╴context: validate file: {file path}
+    ├╴help: validate that you have access to the file and that it exists
+    ├╴context: searches the working directory and '{USER_DIR}/.config/fossa/broker'
+    │
+    ╰─▶ No such file or directory (os error 2)
+        ╰╴at {source location}
+
+locate database file
+├╴at {source location}
+├╴context: Usually in this case Broker assumes the DB path to be next to the config file path,
+│ but since the config file path was not able to be determined that's not possible here.
+│
+├─▶ IO layer error
+│   ├╴at {source location}
+│   ├╴context: searches for 'db.sqlite'
+│   ╰╴help: consider providing an explicit argument instead
+│
+╰┬▶ validate path
+ │  ├╴at {source location}
+ │  ├╴context: validate file: {file path}
+ │  ├╴help: validate that you have access to the file and that it exists
+ │  ├╴context: searches the working directory and '{USER_DIR}/.config/fossa/broker'
+ │  │
+ │  ╰─▶ No such file or directory (os error 2)
+ │      ╰╴at {source location}
+ │
+ ╰▶ validate path
+    ├╴at {source location}
+    ├╴context: validate file: {file path}
+    ├╴help: validate that you have access to the file and that it exists
+    ├╴context: searches the working directory and '{USER_DIR}/.config/fossa/broker'
+    │
+    ╰─▶ No such file or directory (os error 2)
+        ╰╴at {source location}
