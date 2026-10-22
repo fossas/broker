@@ -1,3 +1,10 @@
+## v0.3.11
+
+Updates the bundled TLS trust store. `webpki-roots` 1.0.10 removes the emSign ECC Root CA - G3
+root, and `rustls-webpki` 0.103.16 rejects certificate chains that use the eMudhra intermediate CA
+keys compromised in October 2026. Broker verifies TLS against these bundled roots rather than the
+host's certificate store, so upgrading Broker is what stops it trusting those keys.
+
 ## v0.3.10
 
 When Broker can't find a config file, the error now says to run `broker init` first or pass a config path with `-c`.
