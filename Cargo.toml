@@ -10,7 +10,7 @@ license = "Apache-2.0"
 exclude = [ "docs", ".github" ]
 
 # Broker always tracks latest Rust, but this is the minimum required.
-rust-version = "1.68"
+rust-version = "1.88"
 
 [features]
 jemalloc = ["dep:tikv-jemallocator"]
@@ -46,7 +46,7 @@ base64 = "0.22.1"
 itertools = "0.14.0"
 time = { version = "0.3.44", features = ["parsing"] }
 reqwest = { version = "0.12.15", features = ["rustls-tls", "rustls-tls-native-roots"], default-features = false }
-zip = "6.0.0"
+zip = "9.0.5"
 bytes = "1.10.1"
 sqlx = { version = "0.8.6", features = ["runtime-tokio-rustls", "sqlite", "migrate", "macros", "time"], default-features = false }
 async-trait = "0.1.88"
