@@ -4,6 +4,8 @@ Updates the bundled TLS trust store. `webpki-roots` 1.0.10 removes the emSign EC
 root, and `rustls-webpki` 0.103.16 rejects certificate chains that use the eMudhra intermediate CA
 keys compromised in October 2026.
 
+Update zip 6.0.0 to 9.0.5+ to avoid CVE-2026-115905, CVE-2026-115909, CVE-2026-115907 and CVE-2026-115906
+
 ## v0.3.10
 
 When Broker can't find a config file, the error now says to run `broker init` first or pass a config path with `-c`.
