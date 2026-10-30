@@ -10,7 +10,7 @@ license = "Apache-2.0"
 exclude = [ "docs", ".github" ]
 
 # Broker always tracks latest Rust, but this is the minimum required.
-rust-version = "1.68"
+rust-version = "1.88"
 
 [features]
 jemalloc = ["dep:tikv-jemallocator"]
